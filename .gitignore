@@ -1,0 +1,32 @@
+# Target directory (compiled output)
+target/
+
+# Rust build artifacts
+**/*.rs.bk
+
+# Cargo.lock (only ignore for libraries, keep for binaries)
+# Uncomment if you're building a library
+# Cargo.lock
+
+# Editor & IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+
+# MacOS files
+.DS_Store
+
+# Windows files
+Thumbs.db
+
+# Rust test output
+/tests/**/*.rs.bk
+
+# Debugging & profiling tools
+*.profdata
+
+# Binary executables
+output
+output.exe
