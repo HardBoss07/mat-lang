@@ -1,3 +1,3 @@
 fn main() {
-   println!("Hello World, I am MAT");
+   println!("The value of a is {}!", a);
 }

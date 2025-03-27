@@ -72,7 +72,13 @@ impl Lexer {
 #[derive(Debug)]
 enum ASTNode {
     MainFunction(Vec<ASTNode>),
-    Print(String),
+    Print(Vec<PrintPart>),
+}
+
+#[derive(Debug)]
+enum PrintPart {
+    Literal(String),
+    Variable(String),
 }
 
 struct Parser {
@@ -109,10 +115,42 @@ impl Parser {
                 }
                 Token::Keyword(ref keyword) if keyword == "sout" => {
                     if let Some(Token::Symbol('(')) = self.next_token() {
-                        if let Some(Token::StringLiteral(text)) = self.next_token() {
+                        let mut parts = Vec::new();
+
+                        if let Some(Token::StringLiteral(string)) = self.next_token() {
+                            let mut current_literal = String::new();
+                            let mut in_interpolation = false;
+                            let mut variable_name = String::new();
+
+                            for c in string.chars() {
+                                if c == '{' {
+                                    if !current_literal.is_empty() {
+                                        parts.push(PrintPart::Literal(current_literal.clone()));
+                                        current_literal.clear();
+                                    }
+                                    in_interpolation = true;
+                                } else if c == '}' {
+                                    if !variable_name.is_empty() {
+                                        parts.push(PrintPart::Variable(variable_name.clone()));
+                                        variable_name.clear();
+                                    }
+                                    in_interpolation = false;
+                                } else {
+                                    if in_interpolation {
+                                        variable_name.push(c);
+                                    } else {
+                                        current_literal.push(c);
+                                    }
+                                }
+                            }
+
+                            if !current_literal.is_empty() {
+                                parts.push(PrintPart::Literal(current_literal));
+                            }
+
                             if let Some(Token::Symbol(')')) = self.next_token() {
                                 if let Some(Token::Symbol(';')) = self.next_token() {
-                                    ast.push(ASTNode::Print(text));
+                                    ast.push(ASTNode::Print(parts));
                                 }
                             }
                         }
@@ -151,15 +189,30 @@ impl CodeGenerator {
     fn generate(&self) -> String {
         let mut rust_code = String::from("fn main() {\n");
     
-        // Iterate over the AST nodes
         for node in &self.ast {
             match node {
-                // Match the MainFunction node
                 ASTNode::MainFunction(body) => {
                     for inner_node in body {
                         match inner_node {
-                            ASTNode::Print(value) => {
-                                rust_code.push_str(&format!("   println!(\"{}\");\n", value));
+                            ASTNode::Print(parts) => {
+                                let mut format_string = String::new();
+                                let mut variables = Vec::new();
+    
+                                for part in parts {
+                                    match part {
+                                        PrintPart::Literal(lit) => format_string.push_str(&lit),
+                                        PrintPart::Variable(var) => {
+                                            format_string.push_str("{}");
+                                            variables.push(var);
+                                        }
+                                    }
+                                }
+
+                                rust_code.push_str(&format!(
+                                    "   println!(\"{}\", {});\n",
+                                    format_string,
+                                    variables.iter().map(|v| v.as_str()).collect::<Vec<&str>>().join(", ")
+                                ))
                             }
                             _ => {}
                         }
