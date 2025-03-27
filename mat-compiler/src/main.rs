@@ -51,7 +51,21 @@ impl Lexer {
                     self.position += 1;
                 }
                 let word = &self.input[start..self.position];
-                return Some(Token::Keyword(word.to_string()));
+
+                return Some(if ["void", "int", "sout"].contains(&word) {
+                    Token::Keyword(word.to_string())
+                } else {
+                    Token::Identifier(word.to_string())
+                });
+            }
+
+            if current_char.is_digit(10) {
+                let start = self.position;
+                while self.position < chars.len() && chars[self.position].is_digit(10) {
+                    self.position += 1;
+                }
+                let number = self.input[start..self.position].parse::<i32>().unwrap();
+                return Some(Token::Number(number));
             }
 
             if current_char == '"' {
@@ -116,9 +130,16 @@ impl Parser {
         while let Some(token) = self.next_token() {
             match token {
                 Token::Keyword(ref keyword) if keyword == "void" => {
-                    if let Some(Token::Keyword(main_keyword)) = self.next_token() {
+                    if let Some(Token::Identifier(main_keyword)) = self.next_token() {
                         if main_keyword == "main" {
-                            ast.push(ASTNode::MainFunction(self.parse_block()));
+                            if let Some(Token::Symbol('(')) = self.next_token() {
+                                if let Some(Token::Symbol(')')) = self.next_token() {
+                                    if let Some(Token::Symbol('{')) = self.next_token() {
+                                        let body = self.parse_block();
+                                        ast.push(ASTNode::MainFunction(body));
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -133,7 +154,7 @@ impl Parser {
                             }
                         }
                     }
-                }
+                }                
                 Token::Keyword(ref keyword) if keyword == "sout" => {
                     if let Some(Token::Symbol('(')) = self.next_token() {
                         let mut parts = Vec::new();
@@ -189,13 +210,66 @@ impl Parser {
         while let Some(token) = self.next_token() {
             match token {
                 Token::Symbol('}') => break,
-                _ => self.position -= 1,
+                Token::Keyword(ref keyword) if keyword == "int" => {
+                    if let Some(Token::Identifier(var_name)) = self.next_token() {
+                        if let Some(Token::Number(value)) = self.next_token() {
+                            if let Some(Token::Symbol(';')) = self.next_token() {
+                                self.variables.insert(var_name.clone(), value);
+                                nodes.push(ASTNode::VariableDeclaration(var_name, value));
+                            }
+                        }
+                
+                    }
+                }
+                Token::Keyword(ref keyword) if keyword == "sout" => {
+                    if let Some(Token::Symbol('(')) = self.next_token() {
+                        let mut parts = Vec::new();
+    
+                        if let Some(Token::StringLiteral(string)) = self.next_token() {
+                            let mut current_literal = String::new();
+                            let mut in_interpolation = false;
+                            let mut variable_name = String::new();
+    
+                            for c in string.chars() {
+                                if c == '{' {
+                                    if !current_literal.is_empty() {
+                                        parts.push(PrintPart::Literal(current_literal.clone()));
+                                        current_literal.clear();
+                                    }
+                                    in_interpolation = true;
+                                } else if c == '}' {
+                                    if !variable_name.is_empty() {
+                                        parts.push(PrintPart::Variable(variable_name.clone()));
+                                        variable_name.clear();
+                                    }
+                                    in_interpolation = false;
+                                } else {
+                                    if in_interpolation {
+                                        variable_name.push(c);
+                                    } else {
+                                        current_literal.push(c);
+                                    }
+                                }
+                            }
+    
+                            if !current_literal.is_empty() {
+                                parts.push(PrintPart::Literal(current_literal));
+                            }
+    
+                            if let Some(Token::Symbol(')')) = self.next_token() {
+                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                    nodes.push(ASTNode::Print(parts));
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
             }
-            nodes.append(&mut self.parse());
         }
-
+    
         nodes
-    }
+    }    
 }
 
 struct CodeGenerator {
@@ -205,7 +279,7 @@ struct CodeGenerator {
 
 impl CodeGenerator {
     fn new(ast: Vec<ASTNode>, variables: HashMap<String, i32>) -> Self {
-        Self { ast }
+        Self { ast, variables }
     }
 
     fn generate(&self) -> String {
@@ -213,12 +287,12 @@ impl CodeGenerator {
     
         for node in &self.ast {
             match node {
-                ASTNode::VariableDeclaration(name, value) => {
-                    rust_code.push_str
-                }
                 ASTNode::MainFunction(body) => {
                     for inner_node in body {
                         match inner_node {
+                            ASTNode::VariableDeclaration(name, value) => {
+                                rust_code.push_str(&format!("   let {} = {};\n", name, value));
+                            }
                             ASTNode::Print(parts) => {
                                 let mut format_string = String::new();
                                 let mut variables = Vec::new();
@@ -263,7 +337,7 @@ fn main() {
     let ast = parser.parse();
     println!("Abstract Tree: {:?}", ast);
 
-    let generator = CodeGenerator::new(ast);
+    let generator = CodeGenerator::new(ast, parser.variables);
     let rust_code = generator.generate();
 
     fs::write("output.rs", rust_code).expect("Failed to write to output file");
