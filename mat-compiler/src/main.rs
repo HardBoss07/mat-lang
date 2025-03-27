@@ -1,11 +1,27 @@
 use std::fs;
 use std::io::{self, Write};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 enum Token {
     Keyword(String),
     StringLiteral(String),
     Symbol(char),
+    Identifier(String),
+    Number(i32),
+}
+
+#[derive(Debug)]
+enum ASTNode {
+    MainFunction(Vec<ASTNode>),
+    Print(Vec<PrintPart>),
+    VariableDeclaration(String, i32),
+}
+
+#[derive(Debug)]
+enum PrintPart {
+    Literal(String),
+    Variable(String),
 }
 
 struct Lexer {
@@ -69,26 +85,19 @@ impl Lexer {
     }
 }
 
-#[derive(Debug)]
-enum ASTNode {
-    MainFunction(Vec<ASTNode>),
-    Print(Vec<PrintPart>),
-}
-
-#[derive(Debug)]
-enum PrintPart {
-    Literal(String),
-    Variable(String),
-}
-
 struct Parser {
     tokens: Vec<Token>,
     position: usize,
+    variables: HashMap<String, i32>,
 }
 
 impl Parser {
     fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, position: 0 }
+        Self { 
+            tokens,
+            position: 0,
+            variables: HashMap::new()
+        }
     }
 
     fn next_token(&mut self) -> Option<Token> {
@@ -110,6 +119,18 @@ impl Parser {
                     if let Some(Token::Keyword(main_keyword)) = self.next_token() {
                         if main_keyword == "main" {
                             ast.push(ASTNode::MainFunction(self.parse_block()));
+                        }
+                    }
+                }
+                Token::Keyword(ref keyword) if keyword == "int" => {
+                    if let Some(Token::Identifier(var_name)) = self.next_token() {
+                        if let Some(Token::Symbol('=')) = self.next_token() {
+                            if let Some(Token::Number(value)) = self.next_token() {
+                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                    self.variables.insert(var_name.clone(), value);
+                                    ast.push(ASTNode::VariableDeclaration(var_name, value));
+                                }
+                            }
                         }
                     }
                 }
@@ -179,10 +200,11 @@ impl Parser {
 
 struct CodeGenerator {
     ast: Vec<ASTNode>,
+    variables: HashMap<String, i32>
 }
 
 impl CodeGenerator {
-    fn new(ast: Vec<ASTNode>) -> Self {
+    fn new(ast: Vec<ASTNode>, variables: HashMap<String, i32>) -> Self {
         Self { ast }
     }
 
@@ -191,6 +213,9 @@ impl CodeGenerator {
     
         for node in &self.ast {
             match node {
+                ASTNode::VariableDeclaration(name, value) => {
+                    rust_code.push_str
+                }
                 ASTNode::MainFunction(body) => {
                     for inner_node in body {
                         match inner_node {
