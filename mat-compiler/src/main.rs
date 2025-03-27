@@ -69,6 +69,7 @@ impl Lexer {
     }
 }
 
+#[derive(Debug)]
 enum ASTNode {
     MainFunction(Vec<ASTNode>),
     Print(String),
@@ -149,29 +150,40 @@ impl CodeGenerator {
 
     fn generate(&self) -> String {
         let mut rust_code = String::from("fn main() {\n");
-
+    
+        // Iterate over the AST nodes
         for node in &self.ast {
             match node {
-                ASTNode::Print(value) => {
-                    rust_code.push_str(&format!("   println!(\"{}\");\n", value));
+                // Match the MainFunction node
+                ASTNode::MainFunction(body) => {
+                    for inner_node in body {
+                        match inner_node {
+                            ASTNode::Print(value) => {
+                                rust_code.push_str(&format!("   println!(\"{}\");\n", value));
+                            }
+                            _ => {}
+                        }
+                    }
                 }
                 _ => {}
             }
         }
-
+    
         rust_code.push_str("}\n");
-
+    
         rust_code
-    }
+    }    
 }
 
 fn main() {
     let input = fs::read_to_string("hello.mat").expect("Failed to read file");
     let mut lexer = Lexer::new(input);
     let tokens = lexer.tokenize();
+    println!("Tokens: {:?}", tokens);
 
     let mut parser = Parser::new(tokens);
     let ast = parser.parse();
+    println!("Abstract Tree: {:?}", ast);
 
     let generator = CodeGenerator::new(ast);
     let rust_code = generator.generate();

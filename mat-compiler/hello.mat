@@ -1,3 +1,4 @@
 void main() {
-    sout("Hello World");
+    int a = 10;
+    sout("The value of a is {a}!");
 }
