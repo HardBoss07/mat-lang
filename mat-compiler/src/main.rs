@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::{self, Write};
 
+#[derive(Debug, Clone)]
 enum Token {
     Keyword(String),
     StringLiteral(String),
@@ -13,12 +14,12 @@ struct Lexer {
 }
 
 impl Lexer {
-    fn new(input: String) -> {
+    fn new(input: String) -> Self {
         Self { input, position: 0}
     }
 
     fn next_token(&mut self) -> Option<Token> {
-        let chars: Vec<char> = self.input..chars().collect();
+        let chars: Vec<char> = self.input.chars().collect();
 
         while self.position < chars.len() {
             let current_char = chars[self.position];
@@ -48,7 +49,7 @@ impl Lexer {
                 return Some(Token::StringLiteral(string_value.to_string()));
             }
 
-            if "{}()".contains(current_char) {
+            if "{}();".contains(current_char) {
                 self.position += 1;
                 return Some(Token::Symbol(current_char));
             }
@@ -85,13 +86,11 @@ impl Parser {
 
     fn next_token(&mut self) -> Option<Token> {
         if self.position < self.tokens.len() {
-            let token = self.token.len() {
-                let token = self.tokens[self.position].clone();
-                self.position += 1;
-                Some(token)
-            } else {
-                None
-            }
+            let token = self.tokens[self.position].clone();
+            self.position += 1;
+            Some(token)
+        } else {
+            None
         }
     }
 
@@ -107,10 +106,14 @@ impl Parser {
                         }
                     }
                 }
-                Token::Keyword(ref keyword) if keyword == "stdout" => {
+                Token::Keyword(ref keyword) if keyword == "sout" => {
                     if let Some(Token::Symbol('(')) = self.next_token() {
                         if let Some(Token::StringLiteral(text)) = self.next_token() {
-                            ast.push(ASTNode::Print(text));
+                            if let Some(Token::Symbol(')')) = self.next_token() {
+                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                    ast.push(ASTNode::Print(text));
+                                }
+                            }
                         }
                     }
                 }
@@ -151,8 +154,8 @@ impl CodeGenerator {
             match node {
                 ASTNode::Print(value) => {
                     rust_code.push_str(&format!("   println!(\"{}\");\n", value));
-                    _ => {}
                 }
+                _ => {}
             }
         }
 
