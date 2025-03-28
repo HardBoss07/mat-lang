@@ -16,9 +16,16 @@ enum Token {
 enum ASTNode {
     MainFunction(Vec<ASTNode>),
     Print(Vec<PrintPart>),
-    VariableDeclaration(String, i32),
-    VariableChangeValue(String, i32),
+    VariableDeclaration(String, VariableType),
+    VariableChangeValue(String, VariableType),
     Operation(char, String, i32),
+}
+
+#[derive(Debug, Clone)]
+enum VariableType {
+    Integer(i32),
+    Character(char),
+    Float(f32),
 }
 
 #[derive(Debug)]
@@ -110,7 +117,7 @@ impl Lexer {
 struct Parser {
     tokens: Vec<Token>,
     position: usize,
-    variables: HashMap<String, i32>,
+    variables: HashMap<String, VariableType>,
 }
 
 impl Parser {
@@ -156,8 +163,8 @@ impl Parser {
                         if let Some(Token::Symbol('=')) = self.next_token() {
                             if let Some(Token::Number(value)) = self.next_token() {
                                 if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(var_name.clone(), value);
-                                    ast.push(ASTNode::VariableDeclaration(var_name, value));
+                                    self.variables.insert(var_name.clone(), VariableType::Integer(value));
+                                    ast.push(ASTNode::VariableDeclaration(var_name, VariableType::Integer(value)));
                                 }
                             }
                         }
@@ -166,8 +173,8 @@ impl Parser {
                 Token::Identifier(ref identifier) => {
                     if let Some(Token::Symbol('=')) = self.next_token() {
                         if let Some(Token::Number(value)) = self.next_token() {
-                            self.variables.insert(identifier.clone(), value);
-                            ast.push(ASTNode::VariableChangeValue(identifier.to_string(), value));
+                            self.variables.insert(identifier.clone(), VariableType::Integer(value));
+                            ast.push(ASTNode::VariableChangeValue(identifier.to_string(), VariableType::Integer(value)));
                         }
                     } 
                     if let Some(Token::Operator(operator)) = self.next_token() {
@@ -238,8 +245,8 @@ impl Parser {
                         if let Some(Token::Symbol('=')) = self.next_token() {
                             if let Some(Token::Number(value)) = self.next_token() {
                                 if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(var_name.clone(), value);
-                                    nodes.push(ASTNode::VariableDeclaration(var_name, value));
+                                    self.variables.insert(var_name.clone(), VariableType::Integer(value));
+                                    nodes.push(ASTNode::VariableDeclaration(var_name, VariableType::Integer(value)));
                                 }
                             }
                         }
@@ -249,7 +256,6 @@ impl Parser {
                     if let Some(next_token) = self.next_token() {
                         match next_token {
                             Token::Operator(operator) => {
-                                println!("      ENTERED OPERATOR PATH");
                                 if let Some(Token::Symbol('=')) = self.next_token() {
                                     if let Some(Token::Number(value)) = self.next_token() {
                                         if let Some(Token::Symbol(';')) = self.next_token() {
@@ -259,11 +265,10 @@ impl Parser {
                                 }
                             }
                             Token::Symbol('=') => {
-                                println!("      ENTERED EQUALS PATH");
                                 if let Some(Token::Number(value)) = self.next_token() {
                                     if let Some(Token::Symbol(';')) = self.next_token() {
-                                        self.variables.insert(identifier.clone(), value);
-                                        nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), value));
+                                        self.variables.insert(identifier.clone(), VariableType::Integer(value));
+                                        nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), VariableType::Integer(value)));
                                     }
                                 }
                             }
@@ -326,11 +331,11 @@ impl Parser {
 
 struct CodeGenerator {
     ast: Vec<ASTNode>,
-    variables: HashMap<String, i32>
+    variables: HashMap<String, VariableType>
 }
 
 impl CodeGenerator {
-    fn new(ast: Vec<ASTNode>, variables: HashMap<String, i32>) -> Self {
+    fn new(ast: Vec<ASTNode>, variables: HashMap<String, VariableType>) -> Self {
         Self { ast, variables }
     }
 
@@ -342,17 +347,25 @@ impl CodeGenerator {
                 ASTNode::MainFunction(body) => {
                     for inner_node in body {
                         match inner_node {
-                            ASTNode::VariableDeclaration(name, value) => {
-                                self.variables.insert(name.clone(), *value);
-                                rust_code.push_str(&format!("   let mut {} = {};\n", name, value));
+                            ASTNode::VariableDeclaration(name, val) => {
+                                self.variables.insert(name.clone(), val.clone());
+                                match val {
+                                    VariableType::Integer(v) => rust_code.push_str(&format!("   let mut {} = {};\n", name, v)),
+                                    VariableType::Character(c) => rust_code.push_str(&format!("   let mut {} = '{}';\n", name, c)),
+                                    VariableType::Float(f) => rust_code.push_str(&format!("   let mut {} = {};\n", name, f)),
+                                }
                             }
-                            ASTNode::VariableChangeValue(name, value) => {
-                                self.variables.insert(name.clone(), *value);
-                                rust_code.push_str(&format!("   {} = {};\n", name, value));
+                            ASTNode::VariableChangeValue(name, val) => {
+                                self.variables.insert(name.clone(), val.clone());
+                                match val {
+                                    VariableType::Integer(v) => rust_code.push_str(&format!("   {} = {};\n", name, v)),
+                                    VariableType::Character(c) => rust_code.push_str(&format!("   {} = '{}';\n", name, c)),
+                                    VariableType::Float(f) => rust_code.push_str(&format!("   {} = {};\n", name, f)),
+                                }
                             }
                             ASTNode::Operation(operator, identifier, value) => {
                                 rust_code.push_str(&format!("   {} {}= {};\n", identifier, operator, value));
-                            }
+                            }                            
                             ASTNode::Print(parts) => {
                                 let mut format_string = String::new();
                                 let mut variables = Vec::new();
