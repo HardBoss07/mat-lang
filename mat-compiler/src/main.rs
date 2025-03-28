@@ -16,6 +16,7 @@ enum ASTNode {
     MainFunction(Vec<ASTNode>),
     Print(Vec<PrintPart>),
     VariableDeclaration(String, i32),
+    VariableChangeValue(String, i32),
 }
 
 #[derive(Debug)]
@@ -154,7 +155,15 @@ impl Parser {
                             }
                         }
                     }
-                }                
+                }
+                Token::Identifier(ref identifier) => {
+                    if let Some(Token::Symbol('=')) = self.next_token() {
+                        if let Some(Token::Number(value)) = self.next_token() {
+                            self.variables.insert(identifier.clone(), value);
+                            ast.push(ASTNode::VariableChangeValue(identifier.to_string(), value));
+                        }
+                    }
+                }             
                 Token::Keyword(ref keyword) if keyword == "sout" => {
                     if let Some(Token::Symbol('(')) = self.next_token() {
                         let mut parts = Vec::new();
@@ -221,6 +230,14 @@ impl Parser {
                 
                     }
                 }
+                Token::Identifier(ref identifier) if self.variables.contains_key(identifier) => {
+                    if let Some(Token::Number(value)) = self.next_token() {
+                        if let Some(Token::Symbol(';')) = self.next_token() {
+                            self.variables.insert(identifier.clone(), value);
+                            nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), value));
+                        }
+                    }
+                }
                 Token::Keyword(ref keyword) if keyword == "sout" => {
                     if let Some(Token::Symbol('(')) = self.next_token() {
                         let mut parts = Vec::new();
@@ -282,7 +299,7 @@ impl CodeGenerator {
         Self { ast, variables }
     }
 
-    fn generate(&self) -> String {
+    fn generate(&mut self) -> String {
         let mut rust_code = String::from("fn main() {\n");
     
         for node in &self.ast {
@@ -291,7 +308,12 @@ impl CodeGenerator {
                     for inner_node in body {
                         match inner_node {
                             ASTNode::VariableDeclaration(name, value) => {
-                                rust_code.push_str(&format!("   let {} = {};\n", name, value));
+                                self.variables.insert(name.clone(), *value);
+                                rust_code.push_str(&format!("   let mut {} = {};\n", name, value));
+                            }
+                            ASTNode::VariableChangeValue(name, value) => {
+                                self.variables.insert(name.clone(), *value);
+                                rust_code.push_str(&format!("   {} = {};\n", name, value));
                             }
                             ASTNode::Print(parts) => {
                                 let mut format_string = String::new();
@@ -337,7 +359,7 @@ fn main() {
     let ast = parser.parse();
     println!("Abstract Tree: {:?}", ast);
 
-    let generator = CodeGenerator::new(ast, parser.variables);
+    let mut generator = CodeGenerator::new(ast, parser.variables.clone());
     let rust_code = generator.generate();
 
     fs::write("output.rs", rust_code).expect("Failed to write to output file");
