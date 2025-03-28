@@ -9,6 +9,7 @@ enum Token {
     Symbol(char),
     Identifier(String),
     Number(i32),
+    Operator(char),
 }
 
 #[derive(Debug)]
@@ -17,6 +18,7 @@ enum ASTNode {
     Print(Vec<PrintPart>),
     VariableDeclaration(String, i32),
     VariableChangeValue(String, i32),
+    Operation(char, String, i32),
 }
 
 #[derive(Debug)]
@@ -80,7 +82,12 @@ impl Lexer {
                 return Some(Token::StringLiteral(string_value.to_string()));
             }
 
-            if "{}();".contains(current_char) {
+            if "+-*/".contains(current_char) {
+                self.position += 1;
+                return Some(Token::Operator(current_char));
+            }
+
+            if "{}();=".contains(current_char) {
                 self.position += 1;
                 return Some(Token::Symbol(current_char));
             }
@@ -162,6 +169,13 @@ impl Parser {
                             self.variables.insert(identifier.clone(), value);
                             ast.push(ASTNode::VariableChangeValue(identifier.to_string(), value));
                         }
+                    } 
+                    if let Some(Token::Operator(operator)) = self.next_token() {
+                        if let Some(Token::Symbol('=')) = self.next_token() {
+                            if let Some(Token::Number(value)) = self.next_token() {
+                                ast.push(ASTNode::Operation(operator, identifier.to_string(), value));
+                            }
+                        }
                     }
                 }             
                 Token::Keyword(ref keyword) if keyword == "sout" => {
@@ -221,20 +235,41 @@ impl Parser {
                 Token::Symbol('}') => break,
                 Token::Keyword(ref keyword) if keyword == "int" => {
                     if let Some(Token::Identifier(var_name)) = self.next_token() {
-                        if let Some(Token::Number(value)) = self.next_token() {
-                            if let Some(Token::Symbol(';')) = self.next_token() {
-                                self.variables.insert(var_name.clone(), value);
-                                nodes.push(ASTNode::VariableDeclaration(var_name, value));
+                        if let Some(Token::Symbol('=')) = self.next_token() {
+                            if let Some(Token::Number(value)) = self.next_token() {
+                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                    self.variables.insert(var_name.clone(), value);
+                                    nodes.push(ASTNode::VariableDeclaration(var_name, value));
+                                }
                             }
                         }
-                
                     }
                 }
                 Token::Identifier(ref identifier) if self.variables.contains_key(identifier) => {
-                    if let Some(Token::Number(value)) = self.next_token() {
-                        if let Some(Token::Symbol(';')) = self.next_token() {
-                            self.variables.insert(identifier.clone(), value);
-                            nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), value));
+                    if let Some(next_token) = self.next_token() {
+                        match next_token {
+                            Token::Operator(operator) => {
+                                println!("      ENTERED OPERATOR PATH");
+                                if let Some(Token::Symbol('=')) = self.next_token() {
+                                    if let Some(Token::Number(value)) = self.next_token() {
+                                        if let Some(Token::Symbol(';')) = self.next_token() {
+                                            nodes.push(ASTNode::Operation(operator, identifier.to_string(), value));
+                                        }
+                                    }
+                                }
+                            }
+                            Token::Symbol('=') => {
+                                println!("      ENTERED EQUALS PATH");
+                                if let Some(Token::Number(value)) = self.next_token() {
+                                    if let Some(Token::Symbol(';')) = self.next_token() {
+                                        self.variables.insert(identifier.clone(), value);
+                                        nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), value));
+                                    }
+                                }
+                            }
+                            _ => {
+                                self.position -= 1;
+                            }
                         }
                     }
                 }
@@ -314,6 +349,9 @@ impl CodeGenerator {
                             ASTNode::VariableChangeValue(name, value) => {
                                 self.variables.insert(name.clone(), *value);
                                 rust_code.push_str(&format!("   {} = {};\n", name, value));
+                            }
+                            ASTNode::Operation(operator, identifier, value) => {
+                                rust_code.push_str(&format!("   {} {}= {};\n", identifier, operator, value));
                             }
                             ASTNode::Print(parts) => {
                                 let mut format_string = String::new();
