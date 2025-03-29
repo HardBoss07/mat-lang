@@ -1,8 +1,6 @@
 void main() {
-    int a = 1000;
-    sout("The value of a is {a}!");
-    float b = 10.52;
-    sout("The value of b is {b}!");
-    char c = 'm';
-    sout("The character c is {c}!");
+    float a = 10.5;
+    sout("value of a is {a}");
+    a += 20.45;
+    sout("value of a is {a} now");
 }

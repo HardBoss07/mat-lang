@@ -20,7 +20,7 @@ enum ASTNode {
     Print(Vec<PrintPart>),
     VariableDeclaration(String, VariableType),
     VariableChangeValue(String, VariableType),
-    Operation(char, String, i32),
+    Operation(char, String, VariableType),
 }
 
 #[derive(Debug, Clone)]
@@ -222,7 +222,19 @@ impl Parser {
                     if let Some(Token::Operator(operator)) = self.next_token() {
                         if let Some(Token::Symbol('=')) = self.next_token() {
                             if let Some(Token::Number(value)) = self.next_token() {
-                                ast.push(ASTNode::Operation(operator, identifier.to_string(), value));
+                                if let Some(next_token) = self.next_token() {
+                                    match next_token {
+                                        Token::Symbol(';') => ast.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Integer(value))),
+                                        Token::Number(value_after) => {
+                                            if let Some(Token::Symbol(';')) = self.next_token() {
+                                                let decimal_value = 10f32.powf(value_after.ilog(10) as f32 + 1.0);
+                                                let float_value = value as f32 + (value_after as f32 / decimal_value);
+                                                ast.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Float(float_value)));
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
                             }
                         }
                     }
@@ -328,8 +340,18 @@ impl Parser {
                             Token::Operator(operator) => {
                                 if let Some(Token::Symbol('=')) = self.next_token() {
                                     if let Some(Token::Number(value)) = self.next_token() {
-                                        if let Some(Token::Symbol(';')) = self.next_token() {
-                                            nodes.push(ASTNode::Operation(operator, identifier.to_string(), value));
+                                        if let Some(next_token) = self.next_token() {
+                                            match next_token {
+                                                Token::Symbol(';') => nodes.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Integer(value))),
+                                                Token::Number(value_after) => {
+                                                    if let Some(Token::Symbol(';')) = self.next_token() {
+                                                        let decimal_value = 10f32.powf(value_after.ilog(10) as f32 + 1.0);
+                                                        let float_value = value as f32 + (value_after as f32 / decimal_value);
+                                                        nodes.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Float(float_value)));
+                                                    }
+                                                }
+                                                _ => {}
+                                            }
                                         }
                                     }
                                 }
@@ -433,8 +455,12 @@ impl CodeGenerator {
                                     VariableType::Float(f) => rust_code.push_str(&format!("   {} = {};\n", name, f)),
                                 }
                             }
-                            ASTNode::Operation(operator, identifier, value) => {
-                                rust_code.push_str(&format!("   {} {}= {};\n", identifier, operator, value));
+                            ASTNode::Operation(operator, identifier, variable) => {
+                                match variable {
+                                    VariableType::Integer(v) => rust_code.push_str(&format!("   {} {}= {};\n", identifier, operator, v)),
+                                    VariableType::Character(c) => rust_code.push_str(&format!("   {} {}= '{}';\n", identifier, operator, c)),
+                                    VariableType::Float(f) => rust_code.push_str(&format!("   {} {}= {};\n", identifier, operator, f)),
+                                }
                             }                            
                             ASTNode::Print(parts) => {
                                 let mut format_string = String::new();
