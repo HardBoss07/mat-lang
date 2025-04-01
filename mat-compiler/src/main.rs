@@ -8,10 +8,10 @@ enum Token {
     StringLiteral(String),
     Symbol(char),
     Identifier(String),
-    Number(i32),
+    Integer(i32),
     Operator(char),
     Character(char),
-    Float(f32),
+    Float(f64),
 }
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ enum ASTNode {
 enum VariableType {
     Integer(i32),
     Character(char),
-    Float(f32),
+    Float(f64),
 }
 
 #[derive(Debug)]
@@ -76,8 +76,21 @@ impl Lexer {
                 while self.position < chars.len() && chars[self.position].is_digit(10) {
                     self.position += 1;
                 }
+
+                if self.position < chars.len() && chars[self.position] == '.' {
+                    self.position += 1;
+                    if self.position < chars.len() && chars[self.position].is_digit(10) {
+                        while self.position < chars.len() && chars[self.position].is_digit(10) {
+                            self.position += 1;
+                        }
+
+                        let float_value = self.input[start..self.position].parse::<f64>().unwrap();
+                        return Some(Token::Float(float_value));
+                    }
+                }
+
                 let number = self.input[start..self.position].parse::<i32>().unwrap();
-                return Some(Token::Number(number));
+                return Some(Token::Integer(number));
             }
 
             if current_char == '"' {
@@ -175,7 +188,7 @@ impl Parser {
                 Token::Keyword(ref keyword) if keyword == "int" => {
                     if let Some(Token::Identifier(var_name)) = self.next_token() {
                         if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Number(value)) = self.next_token() {
+                            if let Some(Token::Integer(value)) = self.next_token() {
                                 if let Some(Token::Symbol(';')) = self.next_token() {
                                     self.variables.insert(var_name.clone(), VariableType::Integer(value));
                                     ast.push(ASTNode::VariableDeclaration(var_name, VariableType::Integer(value)));
@@ -199,11 +212,11 @@ impl Parser {
                 Token::Keyword(ref keyword) if keyword == "float" => {
                     if let Some(Token::Identifier(var_name)) = self.next_token() {
                         if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Number(value_before)) = self.next_token() {
-                                if let Some(Token::Number(value_after)) = self.next_token() {
+                            if let Some(Token::Integer(value_before)) = self.next_token() {
+                                if let Some(Token::Integer(value_after)) = self.next_token() {
                                     if let Some(Token::Symbol(';')) = self.next_token() {
-                                        let decimal_value = 10f32.powf(value_after.ilog(10) as f32 + 1.0);
-                                        let float_value = value_before as f32 + (value_after as f32 / decimal_value);
+                                        let decimal_value = 10f64.powf(value_after.ilog(10) as f64 + 1.0);
+                                        let float_value = value_before as f64 + (value_after as f64 / decimal_value);
                                         self.variables.insert(var_name.clone(), VariableType::Float(float_value));
                                         ast.push(ASTNode::VariableDeclaration(var_name, VariableType::Float(float_value)));
                                     }
@@ -214,26 +227,26 @@ impl Parser {
                 }
                 Token::Identifier(ref identifier) => {
                     if let Some(Token::Symbol('=')) = self.next_token() {
-                        if let Some(Token::Number(value)) = self.next_token() {
+                        if let Some(Token::Integer(value)) = self.next_token() {
                             self.variables.insert(identifier.clone(), VariableType::Integer(value));
                             ast.push(ASTNode::VariableChangeValue(identifier.to_string(), VariableType::Integer(value)));
                         }
                     } 
                     if let Some(Token::Operator(operator)) = self.next_token() {
                         if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Number(value)) = self.next_token() {
-                                if let Some(next_token) = self.next_token() {
-                                    match next_token {
-                                        Token::Symbol(';') => ast.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Integer(value))),
-                                        Token::Number(value_after) => {
-                                            if let Some(Token::Symbol(';')) = self.next_token() {
-                                                let decimal_value = 10f32.powf(value_after.ilog(10) as f32 + 1.0);
-                                                let float_value = value as f32 + (value_after as f32 / decimal_value);
-                                                ast.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Float(float_value)));
-                                            }
+                            if let Some(value_token) = self.next_token() {
+                                match value_token {
+                                    Token::Integer(v) => {
+                                        if let Some(Token::Symbol(';')) = self.next_token() {
+                                            ast.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Integer(v))); 
                                         }
-                                        _ => {}
                                     }
+                                    Token::Float(v) => {
+                                        if let Some(Token::Symbol(';')) = self.next_token() {
+                                            ast.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Float(v)));
+                                        }
+                                    }
+                                    _ => {}
                                 }
                             }
                         }
@@ -297,7 +310,7 @@ impl Parser {
                 Token::Keyword(ref keyword) if keyword == "int" => {
                     if let Some(Token::Identifier(var_name)) = self.next_token() {
                         if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Number(value)) = self.next_token() {
+                            if let Some(Token::Integer(value)) = self.next_token() {
                                 if let Some(Token::Symbol(';')) = self.next_token() {
                                     self.variables.insert(var_name.clone(), VariableType::Integer(value));
                                     nodes.push(ASTNode::VariableDeclaration(var_name, VariableType::Integer(value)));
@@ -321,14 +334,10 @@ impl Parser {
                 Token::Keyword(ref keyword) if keyword == "float" => {
                     if let Some(Token::Identifier(var_name)) = self.next_token() {
                         if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Number(value_before)) = self.next_token() {
-                                if let Some(Token::Number(value_after)) = self.next_token() {
-                                    if let Some(Token::Symbol(';')) = self.next_token() {
-                                        let decimal_value = 10f32.powf(value_after.ilog(10) as f32 + 1.0);
-                                        let float_value = value_before as f32 + (value_after as f32 / decimal_value);
-                                        self.variables.insert(var_name.clone(), VariableType::Float(float_value));
-                                        nodes.push(ASTNode::VariableDeclaration(var_name, VariableType::Float(float_value)));
-                                    }
+                            if let Some(Token::Float(value)) = self.next_token() {
+                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                    self.variables.insert(var_name.clone(), VariableType::Float(value));
+                                    nodes.push(ASTNode::VariableDeclaration(var_name, VariableType::Float(value)));
                                 }
                             }
                         }
@@ -339,28 +348,45 @@ impl Parser {
                         match next_token {
                             Token::Operator(operator) => {
                                 if let Some(Token::Symbol('=')) = self.next_token() {
-                                    if let Some(Token::Number(value)) = self.next_token() {
-                                        if let Some(next_token) = self.next_token() {
-                                            match next_token {
-                                                Token::Symbol(';') => nodes.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Integer(value))),
-                                                Token::Number(value_after) => {
-                                                    if let Some(Token::Symbol(';')) = self.next_token() {
-                                                        let decimal_value = 10f32.powf(value_after.ilog(10) as f32 + 1.0);
-                                                        let float_value = value as f32 + (value_after as f32 / decimal_value);
-                                                        nodes.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Float(float_value)));
-                                                    }
+                                    if let Some(value_token) = self.next_token() {
+                                        match value_token {
+                                            Token::Integer(v) => {
+                                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                                    nodes.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Integer(v)));
                                                 }
-                                                _ => {}
                                             }
+                                            Token::Float(v) => {
+                                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                                    nodes.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Float(v)));
+                                                }
+                                            }
+                                            _ => {}
                                         }
                                     }
                                 }
                             }
                             Token::Symbol('=') => {
-                                if let Some(Token::Number(value)) = self.next_token() {
-                                    if let Some(Token::Symbol(';')) = self.next_token() {
-                                        self.variables.insert(identifier.clone(), VariableType::Integer(value));
-                                        nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), VariableType::Integer(value)));
+                                if let Some(value_token) = self.next_token() {
+                                    match value_token {
+                                        Token::Integer(v) => {
+                                            if let Some(Token::Symbol(';')) = self.next_token() {
+                                                self.variables.insert(identifier.clone(), VariableType::Integer(v));
+                                                nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), VariableType::Integer(v)));
+                                            }
+                                        }
+                                        Token::Character(v) => {
+                                            if let Some(Token::Symbol(';')) = self.next_token() {
+                                                self.variables.insert(identifier.clone(), VariableType::Character(v));
+                                                nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), VariableType::Character(v)));
+                                            }
+                                        }
+                                        Token::Float(v) => {
+                                            if let Some(Token::Symbol(';')) = self.next_token() {
+                                                self.variables.insert(identifier.clone(), VariableType::Float(v));
+                                                nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), VariableType::Float(v)));
+                                            }
+                                        }
+                                        _ => {}
                                     }
                                 }
                             }
