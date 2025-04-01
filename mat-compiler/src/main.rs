@@ -1,5 +1,4 @@
 use std::fs;
-use std::io::{self, Write};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -249,46 +248,8 @@ impl Parser {
                     }
                 }             
                 Token::Keyword(ref keyword) if keyword == "sout" => {
-                    if let Some(Token::Symbol('(')) = self.next_token() {
-                        let mut parts = Vec::new();
-
-                        if let Some(Token::StringLiteral(string)) = self.next_token() {
-                            let mut current_literal = String::new();
-                            let mut in_interpolation = false;
-                            let mut variable_name = String::new();
-
-                            for c in string.chars() {
-                                if c == '{' {
-                                    if !current_literal.is_empty() {
-                                        parts.push(PrintPart::Literal(current_literal.clone()));
-                                        current_literal.clear();
-                                    }
-                                    in_interpolation = true;
-                                } else if c == '}' {
-                                    if !variable_name.is_empty() {
-                                        parts.push(PrintPart::Variable(variable_name.clone()));
-                                        variable_name.clear();
-                                    }
-                                    in_interpolation = false;
-                                } else {
-                                    if in_interpolation {
-                                        variable_name.push(c);
-                                    } else {
-                                        current_literal.push(c);
-                                    }
-                                }
-                            }
-
-                            if !current_literal.is_empty() {
-                                parts.push(PrintPart::Literal(current_literal));
-                            }
-
-                            if let Some(Token::Symbol(')')) = self.next_token() {
-                                if let Some(Token::Symbol(';')) = self.next_token() {
-                                    ast.push(ASTNode::Print(parts));
-                                }
-                            }
-                        }
+                    if let Some(ast_node) = self.parse_sout() {
+                        ast.push(ast_node);
                     }
                 }
                 _ => {}
@@ -393,46 +354,8 @@ impl Parser {
                     }
                 }
                 Token::Keyword(ref keyword) if keyword == "sout" => {
-                    if let Some(Token::Symbol('(')) = self.next_token() {
-                        let mut parts = Vec::new();
-    
-                        if let Some(Token::StringLiteral(string)) = self.next_token() {
-                            let mut current_literal = String::new();
-                            let mut in_interpolation = false;
-                            let mut variable_name = String::new();
-    
-                            for c in string.chars() {
-                                if c == '{' {
-                                    if !current_literal.is_empty() {
-                                        parts.push(PrintPart::Literal(current_literal.clone()));
-                                        current_literal.clear();
-                                    }
-                                    in_interpolation = true;
-                                } else if c == '}' {
-                                    if !variable_name.is_empty() {
-                                        parts.push(PrintPart::Variable(variable_name.clone()));
-                                        variable_name.clear();
-                                    }
-                                    in_interpolation = false;
-                                } else {
-                                    if in_interpolation {
-                                        variable_name.push(c);
-                                    } else {
-                                        current_literal.push(c);
-                                    }
-                                }
-                            }
-    
-                            if !current_literal.is_empty() {
-                                parts.push(PrintPart::Literal(current_literal));
-                            }
-    
-                            if let Some(Token::Symbol(')')) = self.next_token() {
-                                if let Some(Token::Symbol(';')) = self.next_token() {
-                                    nodes.push(ASTNode::Print(parts));
-                                }
-                            }
-                        }
+                    if let Some(ast_node) = self.parse_sout() {
+                        nodes.push(ast_node);
                     }
                 }
                 _ => {}
@@ -440,8 +363,63 @@ impl Parser {
         }
     
         nodes
-    }    
-}
+    }
+
+    fn parse_sout(&mut self) -> Option<ASTNode> {
+        if let Some(Token::Symbol('(')) = self.next_token() {
+            let mut parts = Vec::new();
+    
+            if let Some(Token::StringLiteral(string)) = self.next_token() {
+                let mut current_literal = String::new();
+                let mut in_interpolation = false;
+                let mut variable_name = String::new();
+    
+                for c in string.chars() {
+                    match c {
+                        '{' => {
+                            if in_interpolation {
+                                return None;
+                            }
+                            if !current_literal.is_empty() {
+                                parts.push(PrintPart::Literal(current_literal.clone()));
+                                current_literal.clear();
+                            }
+                            in_interpolation = true;
+                        }
+                        '}' => {
+                            if !in_interpolation {
+                                return None;
+                            }
+                            if !variable_name.is_empty() {
+                                parts.push(PrintPart::Variable(variable_name.clone()));
+                                variable_name.clear();
+                            }
+                            in_interpolation = false;
+                        }
+                        _ => {
+                            if in_interpolation {
+                                variable_name.push(c);
+                            } else {
+                                current_literal.push(c);
+                            }
+                        }
+                    }
+                }
+    
+                if !current_literal.is_empty() {
+                    parts.push(PrintPart::Literal(current_literal));
+                }
+    
+                if let Some(Token::Symbol(')')) = self.next_token() {
+                    if let Some(Token::Symbol(';')) = self.next_token() {
+                        return Some(ASTNode::Print(parts));
+                    }
+                }
+            }
+        }
+        None
+    }
+}    
 
 struct CodeGenerator {
     ast: Vec<ASTNode>,
@@ -522,11 +500,11 @@ fn main() {
     let input = fs::read_to_string("hello.mat").expect("Failed to read file");
     let mut lexer = Lexer::new(input);
     let tokens = lexer.tokenize();
-    println!("Tokens: {:?}", tokens);
+    println!("Tokens: {:?}\n-------------------------------------------", tokens);
 
     let mut parser = Parser::new(tokens);
     let ast = parser.parse();
-    println!("Abstract Tree: {:?}", ast);
+    println!("Abstract Tree: {:?}\n-------------------------------------------", ast);
 
     let mut generator = CodeGenerator::new(ast, parser.variables.clone());
     let rust_code = generator.generate();
