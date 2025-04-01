@@ -171,18 +171,7 @@ impl Parser {
         while let Some(token) = self.next_token() {
             match token {
                 Token::Keyword(ref keyword) if keyword == "void" => {
-                    if let Some(Token::Identifier(main_keyword)) = self.next_token() {
-                        if main_keyword == "main" {
-                            if let Some(Token::Symbol('(')) = self.next_token() {
-                                if let Some(Token::Symbol(')')) = self.next_token() {
-                                    if let Some(Token::Symbol('{')) = self.next_token() {
-                                        let body = self.parse_block();
-                                        ast.push(ASTNode::MainFunction(body));
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    ast.push(self.parse_void().expect("NO VOID FOUND"));
                 }
                 Token::Keyword(ref keyword) if keyword == "int" => {
                     if let Some(Token::Identifier(var_name)) = self.next_token() {
@@ -363,6 +352,26 @@ impl Parser {
         }
     
         nodes
+    }
+
+    fn parse_void(&mut self) -> Option<ASTNode> {
+        if let Some(Token::Identifier(main_keyword)) = self.next_token() {
+            if main_keyword == "main" {
+                if let Some(Token::Symbol('(')) = self.next_token() {
+                    if let Some(Token::Symbol(')')) = self.next_token() {
+                        if let Some(Token::Symbol('{')) = self.next_token() {
+                            let body = self.parse_block();
+                            return Some(ASTNode::MainFunction(body));
+                        }
+                        return None;
+                    }
+                    return None;
+                }
+                return None;
+            }
+            return None;
+        }
+        return None;
     }
 
     fn parse_sout(&mut self) -> Option<ASTNode> {
