@@ -212,14 +212,10 @@ impl Parser {
                 Token::Keyword(ref keyword) if keyword == "float" => {
                     if let Some(Token::Identifier(var_name)) = self.next_token() {
                         if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Integer(value_before)) = self.next_token() {
-                                if let Some(Token::Integer(value_after)) = self.next_token() {
-                                    if let Some(Token::Symbol(';')) = self.next_token() {
-                                        let decimal_value = 10f64.powf(value_after.ilog(10) as f64 + 1.0);
-                                        let float_value = value_before as f64 + (value_after as f64 / decimal_value);
-                                        self.variables.insert(var_name.clone(), VariableType::Float(float_value));
-                                        ast.push(ASTNode::VariableDeclaration(var_name, VariableType::Float(float_value)));
-                                    }
+                            if let Some(Token::Float(value)) = self.next_token() {
+                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                    self.variables.insert(var_name.clone(), VariableType::Float(value));
+                                    ast.push(ASTNode::VariableDeclaration(var_name, VariableType::Float(value)));
                                 }
                             }
                         }
