@@ -173,40 +173,9 @@ impl Parser {
                 Token::Keyword(ref keyword) if keyword == "void" => {
                     ast.push(self.parse_void().expect("NO VOID FOUND"));
                 }
-                Token::Keyword(ref keyword) if keyword == "int" => {
-                    if let Some(Token::Identifier(var_name)) = self.next_token() {
-                        if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Integer(value)) = self.next_token() {
-                                if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(var_name.clone(), VariableType::Integer(value));
-                                    ast.push(ASTNode::VariableDeclaration(var_name, VariableType::Integer(value)));
-                                }
-                            }
-                        }
-                    }
-                }
-                Token::Keyword(ref keyword) if keyword == "char" => {
-                    if let Some(Token::Identifier(var_name)) = self.next_token() {
-                        if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Character(value)) = self.next_token() {
-                                if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(var_name.clone(), VariableType::Character(value));
-                                    ast.push(ASTNode::VariableDeclaration(var_name, VariableType::Character(value)));
-                                }
-                            }
-                        }
-                    }
-                }
-                Token::Keyword(ref keyword) if keyword == "float" => {
-                    if let Some(Token::Identifier(var_name)) = self.next_token() {
-                        if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Float(value)) = self.next_token() {
-                                if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(var_name.clone(), VariableType::Float(value));
-                                    ast.push(ASTNode::VariableDeclaration(var_name, VariableType::Float(value)));
-                                }
-                            }
-                        }
+                Token::Keyword(ref keyword) if ["int", "char", "float"].contains(&keyword.as_str()) => {
+                    if let Some(ast_node) = self.parse_variable_declaration(keyword) {
+                        ast.push(ast_node);
                     }
                 }
                 Token::Identifier(ref identifier) => {
@@ -231,40 +200,9 @@ impl Parser {
         while let Some(token) = self.next_token() {
             match token {
                 Token::Symbol('}') => break,
-                Token::Keyword(ref keyword) if keyword == "int" => {
-                    if let Some(Token::Identifier(var_name)) = self.next_token() {
-                        if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Integer(value)) = self.next_token() {
-                                if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(var_name.clone(), VariableType::Integer(value));
-                                    nodes.push(ASTNode::VariableDeclaration(var_name, VariableType::Integer(value)));
-                                }
-                            }
-                        }
-                    }
-                }
-                Token::Keyword(ref keyword) if keyword == "char" => {
-                    if let Some(Token::Identifier(var_name)) = self.next_token() {
-                        if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Character(value)) = self.next_token() {
-                                if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(var_name.clone(), VariableType::Character(value));
-                                    nodes.push(ASTNode::VariableDeclaration(var_name, VariableType::Character(value)));
-                                }
-                            }
-                        }
-                    }
-                }
-                Token::Keyword(ref keyword) if keyword == "float" => {
-                    if let Some(Token::Identifier(var_name)) = self.next_token() {
-                        if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(Token::Float(value)) = self.next_token() {
-                                if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(var_name.clone(), VariableType::Float(value));
-                                    nodes.push(ASTNode::VariableDeclaration(var_name, VariableType::Float(value)));
-                                }
-                            }
-                        }
+                Token::Keyword(ref keyword) if ["int", "char", "float"].contains(&keyword.as_str()) => {
+                    if let Some(ast_node) = self.parse_variable_declaration(keyword) {
+                        nodes.push(ast_node);
                     }
                 }
                 Token::Identifier(ref identifier) if self.variables.contains_key(identifier) => {
@@ -282,6 +220,27 @@ impl Parser {
         }
     
         nodes
+    }
+
+    fn parse_variable_declaration(&mut self, var_type: &str) -> Option<ASTNode> {
+        if let Some(Token::Identifier(var_name)) = self.next_token() {
+            if let Some(Token::Symbol('=')) = self.next_token() {
+                let value = match var_type {
+                    "int" => self.next_token().and_then(|t| if let Token::Integer(v) = t { Some(VariableType::Integer(v)) } else { None }),
+                    "char" => self.next_token().and_then(|t| if let Token::Character(v) = t { Some(VariableType::Character(v)) } else { None }),
+                    "float" => self.next_token().and_then(|t| if let Token::Float(v) = t { Some(VariableType::Float(v)) } else { None }),
+                    _ => None,
+                };
+
+                if let Some(var_value) = value {
+                    if let Some(Token::Symbol(';')) = self.next_token() {
+                        self.variables.insert(var_name.clone(), var_value.clone());
+                        return Some(ASTNode::VariableDeclaration(var_name, var_value));
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn parse_identifier(&mut self, identifier: String) -> Option<ASTNode> {
@@ -348,13 +307,9 @@ impl Parser {
                             let body = self.parse_block();
                             return Some(ASTNode::MainFunction(body));
                         }
-                        return None;
                     }
-                    return None;
                 }
-                return None;
             }
-            return None;
         }
         return None;
     }
@@ -411,7 +366,7 @@ impl Parser {
                 }
             }
         }
-        None
+        return None;
     }
 }    
 
