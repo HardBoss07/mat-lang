@@ -210,30 +210,8 @@ impl Parser {
                     }
                 }
                 Token::Identifier(ref identifier) => {
-                    if let Some(Token::Symbol('=')) = self.next_token() {
-                        if let Some(Token::Integer(value)) = self.next_token() {
-                            self.variables.insert(identifier.clone(), VariableType::Integer(value));
-                            ast.push(ASTNode::VariableChangeValue(identifier.to_string(), VariableType::Integer(value)));
-                        }
-                    } 
-                    if let Some(Token::Operator(operator)) = self.next_token() {
-                        if let Some(Token::Symbol('=')) = self.next_token() {
-                            if let Some(value_token) = self.next_token() {
-                                match value_token {
-                                    Token::Integer(v) => {
-                                        if let Some(Token::Symbol(';')) = self.next_token() {
-                                            ast.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Integer(v))); 
-                                        }
-                                    }
-                                    Token::Float(v) => {
-                                        if let Some(Token::Symbol(';')) = self.next_token() {
-                                            ast.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Float(v)));
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
+                    if let Some(ast_node) = self.parse_identifier(identifier.to_string()) {
+                        ast.push(ast_node);
                     }
                 }             
                 Token::Keyword(ref keyword) if keyword == "sout" => {
@@ -290,56 +268,8 @@ impl Parser {
                     }
                 }
                 Token::Identifier(ref identifier) if self.variables.contains_key(identifier) => {
-                    if let Some(next_token) = self.next_token() {
-                        match next_token {
-                            Token::Operator(operator) => {
-                                if let Some(Token::Symbol('=')) = self.next_token() {
-                                    if let Some(value_token) = self.next_token() {
-                                        match value_token {
-                                            Token::Integer(v) => {
-                                                if let Some(Token::Symbol(';')) = self.next_token() {
-                                                    nodes.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Integer(v)));
-                                                }
-                                            }
-                                            Token::Float(v) => {
-                                                if let Some(Token::Symbol(';')) = self.next_token() {
-                                                    nodes.push(ASTNode::Operation(operator, identifier.to_string(), VariableType::Float(v)));
-                                                }
-                                            }
-                                            _ => {}
-                                        }
-                                    }
-                                }
-                            }
-                            Token::Symbol('=') => {
-                                if let Some(value_token) = self.next_token() {
-                                    match value_token {
-                                        Token::Integer(v) => {
-                                            if let Some(Token::Symbol(';')) = self.next_token() {
-                                                self.variables.insert(identifier.clone(), VariableType::Integer(v));
-                                                nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), VariableType::Integer(v)));
-                                            }
-                                        }
-                                        Token::Character(v) => {
-                                            if let Some(Token::Symbol(';')) = self.next_token() {
-                                                self.variables.insert(identifier.clone(), VariableType::Character(v));
-                                                nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), VariableType::Character(v)));
-                                            }
-                                        }
-                                        Token::Float(v) => {
-                                            if let Some(Token::Symbol(';')) = self.next_token() {
-                                                self.variables.insert(identifier.clone(), VariableType::Float(v));
-                                                nodes.push(ASTNode::VariableChangeValue(identifier.to_string(), VariableType::Float(v)));
-                                            }
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                            }
-                            _ => {
-                                self.position -= 1;
-                            }
-                        }
+                    if let Some(ast_node) = self.parse_identifier(identifier.to_string()) {
+                        nodes.push(ast_node);
                     }
                 }
                 Token::Keyword(ref keyword) if keyword == "sout" => {
@@ -352,6 +282,61 @@ impl Parser {
         }
     
         nodes
+    }
+
+    fn parse_identifier(&mut self, identifier: String) -> Option<ASTNode> {
+        if let Some(next_token) = self.next_token() {
+            match next_token {
+                Token::Operator(operator) => {
+                    if let Some(Token::Symbol('=')) = self.next_token() {
+                        if let Some(value_token) = self.next_token() {
+                            match value_token {
+                                Token::Integer(v) => {
+                                    if let Some(Token::Symbol(';')) = self.next_token() {
+                                        return Some(ASTNode::Operation(operator, identifier, VariableType::Integer(v)));
+                                    }
+                                }
+                                Token::Float(v) => {
+                                    if let Some(Token::Symbol(';')) = self.next_token() {
+                                        return Some(ASTNode::Operation(operator, identifier, VariableType::Float(v)));
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                Token::Symbol('=') => {
+                    if let Some(value_token) = self.next_token() {
+                        match value_token {
+                            Token::Integer(v) => {
+                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                    self.variables.insert(identifier.clone(), VariableType::Integer(v));
+                                    return Some(ASTNode::VariableChangeValue(identifier, VariableType::Integer(v)));
+                                }
+                            }
+                            Token::Character(v) => {
+                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                    self.variables.insert(identifier.clone(), VariableType::Character(v));
+                                    return Some(ASTNode::VariableChangeValue(identifier, VariableType::Character(v)));
+                                }
+                            }
+                            Token::Float(v) => {
+                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                    self.variables.insert(identifier.clone(), VariableType::Float(v));
+                                    return Some(ASTNode::VariableChangeValue(identifier, VariableType::Float(v)));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                _ => {
+                    self.position -= 1;
+                }
+            }
+        }
+        return None
     }
 
     fn parse_void(&mut self) -> Option<ASTNode> {
