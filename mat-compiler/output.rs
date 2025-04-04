@@ -1,5 +1,4 @@
 fn main() {
-   let mut a = true;
-   let mut b = false;
-   println!("a = {}, b = {}", a, b);
+   let mut a = 10;
+   println!("a is below 10. the value is {}", a);
 }

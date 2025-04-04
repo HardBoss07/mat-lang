@@ -1,6 +1,7 @@
 void main() {
-    bool a = tru;
-    bool b = fal;
+    int a = 10;
 
-    sout("a = {a}, b = {b}");
+    if (a < 10) {
+        sout("a is below 10. the value is {a}");
+    }
 }

@@ -12,6 +12,7 @@ enum Token {
     Character(char),
     Float(f64),
     Bool(bool),
+    Condition(String),
 }
 
 #[derive(Debug)]
@@ -21,6 +22,7 @@ enum ASTNode {
     VariableDeclaration(String, VariableType),
     VariableChangeValue(String, VariableType),
     Operation(char, String, VariableType),
+    IfStatement(String, Vec<ASTNode>),
 }
 
 #[derive(Debug, Clone)]
@@ -65,7 +67,7 @@ impl Lexer {
                 }
                 let word = &self.input[start..self.position];
 
-                return Some(if ["void", "int", "float", "char", "sout", "bool"].contains(&word) {
+                return Some(if ["void", "int", "float", "char", "sout", "bool", "if"].contains(&word) {
                     Token::Keyword(word.to_string())
                 } else if ["tru", "fal"].contains(&word) {
                     if word == "tru" {
@@ -128,6 +130,19 @@ impl Lexer {
                 return Some(Token::Operator(current_char));
             }
 
+            if current_char == '(' {
+                self.position += 1;
+                let start = self.position;
+
+                while self.position < chars.len() && chars[self.position] != ')' {
+                    self.position += 1;
+                }
+
+                let condition = &self.input[start..self.position];
+                self.position += 1;
+                return Some(Token::Condition(condition.to_string()));
+            }
+
             if "{}();=".contains(current_char) {
                 self.position += 1;
                 return Some(Token::Symbol(current_char));
@@ -181,6 +196,9 @@ impl Parser {
                 Token::Keyword(ref keyword) if keyword == "void" => {
                     ast.push(self.parse_void().expect("NO VOID FOUND"));
                 }
+                Token::Keyword(ref keyword) if keyword == "if" => {
+
+                }
                 Token::Keyword(ref keyword) if ["int", "char", "float", "bool"].contains(&keyword.as_str()) => {
                     if let Some(ast_node) = self.parse_variable_declaration(keyword) {
                         ast.push(ast_node);
@@ -228,6 +246,16 @@ impl Parser {
         }
     
         nodes
+    }
+
+    fn parse_if_statement(&mut self) -> Option<ASTNode> {
+        if let Some(Token::Condition(condition)) = self.next_token() {
+            if let Some(Token::Symbol('{')) = self.next_token() {
+                let body = self.parse_block();
+                return Some(ASTNode::IfStatement(condition, body));
+            }
+        }
+        None
     }
 
     fn parse_variable_declaration(&mut self, var_type: &str) -> Option<ASTNode> {
