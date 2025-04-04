@@ -11,6 +11,7 @@ enum Token {
     Operator(char),
     Character(char),
     Float(f64),
+    Bool(bool),
 }
 
 #[derive(Debug)]
@@ -27,6 +28,7 @@ enum VariableType {
     Integer(i32),
     Character(char),
     Float(f64),
+    Bool(bool),
 }
 
 #[derive(Debug)]
@@ -63,12 +65,18 @@ impl Lexer {
                 }
                 let word = &self.input[start..self.position];
 
-                return Some(if ["void", "int", "float", "char", "sout"].contains(&word) {
+                return Some(if ["void", "int", "float", "char", "sout", "bool"].contains(&word) {
                     Token::Keyword(word.to_string())
+                } else if ["tru", "fal"].contains(&word) {
+                    if word == "tru" {
+                        Token::Bool(true)
+                    } else {
+                        Token::Bool(false)
+                    }
                 } else {
                     Token::Identifier(word.to_string())
                 });
-            }
+            }            
 
             if current_char.is_digit(10) {
                 let start = self.position;
@@ -173,7 +181,7 @@ impl Parser {
                 Token::Keyword(ref keyword) if keyword == "void" => {
                     ast.push(self.parse_void().expect("NO VOID FOUND"));
                 }
-                Token::Keyword(ref keyword) if ["int", "char", "float"].contains(&keyword.as_str()) => {
+                Token::Keyword(ref keyword) if ["int", "char", "float", "bool"].contains(&keyword.as_str()) => {
                     if let Some(ast_node) = self.parse_variable_declaration(keyword) {
                         ast.push(ast_node);
                     }
@@ -200,7 +208,7 @@ impl Parser {
         while let Some(token) = self.next_token() {
             match token {
                 Token::Symbol('}') => break,
-                Token::Keyword(ref keyword) if ["int", "char", "float"].contains(&keyword.as_str()) => {
+                Token::Keyword(ref keyword) if ["int", "char", "float", "bool"].contains(&keyword.as_str()) => {
                     if let Some(ast_node) = self.parse_variable_declaration(keyword) {
                         nodes.push(ast_node);
                     }
@@ -229,6 +237,7 @@ impl Parser {
                     "int" => self.next_token().and_then(|t| if let Token::Integer(v) = t { Some(VariableType::Integer(v)) } else { None }),
                     "char" => self.next_token().and_then(|t| if let Token::Character(v) = t { Some(VariableType::Character(v)) } else { None }),
                     "float" => self.next_token().and_then(|t| if let Token::Float(v) = t { Some(VariableType::Float(v)) } else { None }),
+                    "bool" => self.next_token().and_then(|t| if let Token::Bool(v) = t { Some(VariableType::Bool(v)) } else { None }),
                     _ => None,
                 };
 
@@ -284,6 +293,12 @@ impl Parser {
                                 if let Some(Token::Symbol(';')) = self.next_token() {
                                     self.variables.insert(identifier.clone(), VariableType::Float(v));
                                     return Some(ASTNode::VariableChangeValue(identifier, VariableType::Float(v)));
+                                }
+                            }
+                            Token::Bool(v) => {
+                                if let Some(Token::Symbol(';')) = self.next_token() {
+                                    self.variables.insert(identifier.clone(), VariableType::Bool(v));
+                                    return Some(ASTNode::VariableChangeValue(identifier, VariableType::Bool(v)));
                                 }
                             }
                             _ => {}
@@ -394,6 +409,7 @@ impl CodeGenerator {
                                     VariableType::Integer(v) => rust_code.push_str(&format!("   let mut {} = {};\n", name, v)),
                                     VariableType::Character(c) => rust_code.push_str(&format!("   let mut {} = '{}';\n", name, c)),
                                     VariableType::Float(f) => rust_code.push_str(&format!("   let mut {} = {};\n", name, f)),
+                                    VariableType::Bool(b) => rust_code.push_str(&format!("   let mut {} = {};\n", name, b)),
                                 }
                             }
                             ASTNode::VariableChangeValue(name, val) => {
@@ -402,6 +418,7 @@ impl CodeGenerator {
                                     VariableType::Integer(v) => rust_code.push_str(&format!("   {} = {};\n", name, v)),
                                     VariableType::Character(c) => rust_code.push_str(&format!("   {} = '{}';\n", name, c)),
                                     VariableType::Float(f) => rust_code.push_str(&format!("   {} = {};\n", name, f)),
+                                    VariableType::Bool(b) => rust_code.push_str(&format!("   {} = {};\n", name, b)),
                                 }
                             }
                             ASTNode::Operation(operator, identifier, variable) => {
@@ -409,6 +426,7 @@ impl CodeGenerator {
                                     VariableType::Integer(v) => rust_code.push_str(&format!("   {} {}= {};\n", identifier, operator, v)),
                                     VariableType::Character(c) => rust_code.push_str(&format!("   {} {}= '{}';\n", identifier, operator, c)),
                                     VariableType::Float(f) => rust_code.push_str(&format!("   {} {}= {};\n", identifier, operator, f)),
+                                    VariableType::Bool(b) => rust_code.push_str(&format!("   {} {}= {};\n", identifier, operator, b)),
                                 }
                             }                            
                             ASTNode::Print(parts) => {
