@@ -12,6 +12,7 @@ enum Token {
     Character(char),
     Float(f64),
     Bool(bool),
+    Condition(String),
 }
 
 #[derive(Debug)]
@@ -21,6 +22,7 @@ enum ASTNode {
     VariableDeclaration(String, VariableType),
     VariableChangeValue(String, VariableType),
     Operation(char, String, VariableType),
+    IfStatement(String, Vec<ASTNode>),
 }
 
 #[derive(Debug, Clone)]
@@ -44,10 +46,10 @@ struct Lexer {
 
 impl Lexer {
     fn new(input: String) -> Self {
-        Self { input, position: 0}
+        Self { input, position: 0 }
     }
 
-    fn next_token(&mut self) -> Option<Token> {
+    fn next_token(&mut self, prev_token: Option<Token>) -> Option<Token> {
         let chars: Vec<char> = self.input.chars().collect();
 
         while self.position < chars.len() {
@@ -65,18 +67,13 @@ impl Lexer {
                 }
                 let word = &self.input[start..self.position];
 
-                return Some(if ["void", "int", "float", "char", "sout", "bool"].contains(&word) {
-                    Token::Keyword(word.to_string())
-                } else if ["tru", "fal"].contains(&word) {
-                    if word == "tru" {
-                        Token::Bool(true)
-                    } else {
-                        Token::Bool(false)
-                    }
-                } else {
-                    Token::Identifier(word.to_string())
+                return Some(match word {
+                    "void" | "int" | "float" | "char" | "sout" | "bool" | "if" => Token::Keyword(word.to_string()),
+                    "tru" => Token::Bool(true),
+                    "fal" => Token::Bool(false),
+                    _ => Token::Identifier(word.to_string()),
                 });
-            }            
+            }
 
             if current_char.is_digit(10) {
                 let start = self.position;
@@ -128,7 +125,24 @@ impl Lexer {
                 return Some(Token::Operator(current_char));
             }
 
-            if "{}();=".contains(current_char) {
+            if "{}();=><".contains(current_char) {
+                //TODO if prev_tonen = keyword::if parse codition instead of tokens
+                if current_char == '(' {
+                    match prev_token {
+                        Some(Token::Keyword(ref keyword)) if keyword == "if" => {
+                            self.position += 1;
+                            let start = self.position;
+                            while self.position < chars.len() && chars[self.position] != ')' {
+                                self.position += 1;
+                            }
+                            let condition = &self.input[start..self.position];
+                            self.position += 1;
+                            return Some(Token::Condition(condition.to_string()));
+                        },
+                        _ => {}
+                    }
+                }
+                
                 self.position += 1;
                 return Some(Token::Symbol(current_char));
             }
@@ -141,7 +155,7 @@ impl Lexer {
 
     fn tokenize(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
-        while let Some(token) = self.next_token() {
+        while let Some(token) = self.next_token(tokens.last().cloned()) {
             tokens.push(token);
         }
         tokens
@@ -181,6 +195,9 @@ impl Parser {
                 Token::Keyword(ref keyword) if keyword == "void" => {
                     ast.push(self.parse_void().expect("NO VOID FOUND"));
                 }
+                Token::Keyword(ref keyword) if keyword == "if" => {
+
+                }
                 Token::Keyword(ref keyword) if ["int", "char", "float", "bool"].contains(&keyword.as_str()) => {
                     if let Some(ast_node) = self.parse_variable_declaration(keyword) {
                         ast.push(ast_node);
@@ -218,6 +235,11 @@ impl Parser {
                         nodes.push(ast_node);
                     }
                 }
+                Token::Keyword(ref keyword) if keyword == "if" => {
+                    if let Some(ast_node) = self.parse_if_statement() {
+                        nodes.push(ast_node);
+                    }
+                }
                 Token::Keyword(ref keyword) if keyword == "sout" => {
                     if let Some(ast_node) = self.parse_sout() {
                         nodes.push(ast_node);
@@ -228,6 +250,16 @@ impl Parser {
         }
     
         nodes
+    }
+
+    fn parse_if_statement(&mut self) -> Option<ASTNode> {
+        if let Some(Token::Condition(condition)) = self.next_token() {
+            if let Some(Token::Symbol('{')) = self.next_token() {
+                let body = self.parse_block();
+                return Some(ASTNode::IfStatement(condition, body));
+            }
+        }
+        None
     }
 
     fn parse_variable_declaration(&mut self, var_type: &str) -> Option<ASTNode> {
