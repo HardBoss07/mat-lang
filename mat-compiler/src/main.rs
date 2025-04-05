@@ -67,16 +67,11 @@ impl Lexer {
                 }
                 let word = &self.input[start..self.position];
 
-                return Some(if ["void", "int", "float", "char", "sout", "bool", "if"].contains(&word) {
-                    Token::Keyword(word.to_string())
-                } else if ["tru", "fal"].contains(&word) {
-                    if word == "tru" {
-                        Token::Bool(true)
-                    } else {
-                        Token::Bool(false)
-                    }
-                } else {
-                    Token::Identifier(word.to_string())
+                return Some(match word {
+                    "void" | "int" | "float" | "char" | "sout" | "bool" | "if" => Token::Keyword(word.to_string()),
+                    "tru" => Token::Bool(true),
+                    "fal" => Token::Bool(false),
+                    _ => Token::Identifier(word.to_string()),
                 });
             }            
 
