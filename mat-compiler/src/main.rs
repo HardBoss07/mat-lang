@@ -46,10 +46,10 @@ struct Lexer {
 
 impl Lexer {
     fn new(input: String) -> Self {
-        Self { input, position: 0}
+        Self { input, position: 0 }
     }
 
-    fn next_token(&mut self) -> Option<Token> {
+    fn next_token(&mut self, prev_token: Option<Token>) -> Option<Token> {
         let chars: Vec<char> = self.input.chars().collect();
 
         while self.position < chars.len() {
@@ -73,7 +73,7 @@ impl Lexer {
                     "fal" => Token::Bool(false),
                     _ => Token::Identifier(word.to_string()),
                 });
-            }            
+            }
 
             if current_char.is_digit(10) {
                 let start = self.position;
@@ -125,20 +125,24 @@ impl Lexer {
                 return Some(Token::Operator(current_char));
             }
 
-            if current_char == '(' {
-                self.position += 1;
-                let start = self.position;
-
-                while self.position < chars.len() && chars[self.position] != ')' {
-                    self.position += 1;
+            if "{}();=><".contains(current_char) {
+                //TODO if prev_tonen = keyword::if parse codition instead of tokens
+                if current_char == '(' {
+                    match prev_token {
+                        Some(Token::Keyword(ref keyword)) if keyword == "if" => {
+                            self.position += 1;
+                            let start = self.position;
+                            while self.position < chars.len() && chars[self.position] != ')' {
+                                self.position += 1;
+                            }
+                            let condition = &self.input[start..self.position];
+                            self.position += 1;
+                            return Some(Token::Condition(condition.to_string()));
+                        },
+                        _ => {}
+                    }
                 }
-
-                let condition = &self.input[start..self.position];
-                self.position += 1;
-                return Some(Token::Condition(condition.to_string()));
-            }
-
-            if "{}();=".contains(current_char) {
+                
                 self.position += 1;
                 return Some(Token::Symbol(current_char));
             }
@@ -151,7 +155,7 @@ impl Lexer {
 
     fn tokenize(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
-        while let Some(token) = self.next_token() {
+        while let Some(token) = self.next_token(tokens.last().cloned()) {
             tokens.push(token);
         }
         tokens
@@ -228,6 +232,11 @@ impl Parser {
                 }
                 Token::Identifier(ref identifier) if self.variables.contains_key(identifier) => {
                     if let Some(ast_node) = self.parse_identifier(identifier.to_string()) {
+                        nodes.push(ast_node);
+                    }
+                }
+                Token::Keyword(ref keyword) if keyword == "if" => {
+                    if let Some(ast_node) = self.parse_if_statement() {
                         nodes.push(ast_node);
                     }
                 }
