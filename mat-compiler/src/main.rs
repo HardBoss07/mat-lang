@@ -15,7 +15,7 @@ enum Token {
     Condition(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ASTNode {
     MainFunction(Vec<ASTNode>),
     Print(Vec<PrintPart>),
@@ -33,7 +33,7 @@ enum VariableType {
     Bool(bool),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum PrintPart {
     Literal(String),
     Variable(String),
@@ -430,69 +430,102 @@ impl CodeGenerator {
     fn generate(&mut self) -> String {
         let mut rust_code = String::from("fn main() {\n");
     
-        for node in &self.ast {
-            match node {
-                ASTNode::MainFunction(body) => {
-                    for inner_node in body {
-                        match inner_node {
-                            ASTNode::VariableDeclaration(name, val) => {
-                                self.variables.insert(name.clone(), val.clone());
-                                match val {
-                                    VariableType::Integer(v) => rust_code.push_str(&format!("   let mut {} = {};\n", name, v)),
-                                    VariableType::Character(c) => rust_code.push_str(&format!("   let mut {} = '{}';\n", name, c)),
-                                    VariableType::Float(f) => rust_code.push_str(&format!("   let mut {} = {};\n", name, f)),
-                                    VariableType::Bool(b) => rust_code.push_str(&format!("   let mut {} = {};\n", name, b)),
-                                }
-                            }
-                            ASTNode::VariableChangeValue(name, val) => {
-                                self.variables.insert(name.clone(), val.clone());
-                                match val {
-                                    VariableType::Integer(v) => rust_code.push_str(&format!("   {} = {};\n", name, v)),
-                                    VariableType::Character(c) => rust_code.push_str(&format!("   {} = '{}';\n", name, c)),
-                                    VariableType::Float(f) => rust_code.push_str(&format!("   {} = {};\n", name, f)),
-                                    VariableType::Bool(b) => rust_code.push_str(&format!("   {} = {};\n", name, b)),
-                                }
-                            }
-                            ASTNode::Operation(operator, identifier, variable) => {
-                                match variable {
-                                    VariableType::Integer(v) => rust_code.push_str(&format!("   {} {}= {};\n", identifier, operator, v)),
-                                    VariableType::Character(c) => rust_code.push_str(&format!("   {} {}= '{}';\n", identifier, operator, c)),
-                                    VariableType::Float(f) => rust_code.push_str(&format!("   {} {}= {};\n", identifier, operator, f)),
-                                    VariableType::Bool(b) => rust_code.push_str(&format!("   {} {}= {};\n", identifier, operator, b)),
-                                }
-                            }                            
-                            ASTNode::Print(parts) => {
-                                let mut format_string = String::new();
-                                let mut variables = Vec::new();
-    
-                                for part in parts {
-                                    match part {
-                                        PrintPart::Literal(lit) => format_string.push_str(&lit),
-                                        PrintPart::Variable(var) => {
-                                            format_string.push_str("{}");
-                                            variables.push(var);
-                                        }
-                                    }
-                                }
-
-                                rust_code.push_str(&format!(
-                                    "   println!(\"{}\", {});\n",
-                                    format_string,
-                                    variables.iter().map(|v| v.as_str()).collect::<Vec<&str>>().join(", ")
-                                ))
-                            }
-                            _ => {}
-                        }
-                    }
+        for node in self.ast.clone() {
+            if let ASTNode::MainFunction(body) = node {
+                for inner_node in body {
+                    rust_code.push_str(&self.generate_node(&inner_node));
                 }
-                _ => {}
             }
         }
-    
+
         rust_code.push_str("}\n");
-    
+
         rust_code
-    }    
+    }
+
+    fn generate_node(&mut self, node: &ASTNode) -> String {
+        match node {
+            ASTNode::VariableDeclaration(name, value) => {
+                self.variables.insert(name.clone(), value.clone());
+                self.generate_variable_declaration(name, value)
+            }
+            ASTNode::VariableChangeValue(name, value) => {
+                self.variables.insert(name.clone(), value.clone());
+                self.generate_variable_change(name, value)
+            }
+            ASTNode::Operation(operator, identifier, value) => {
+                self.generate_operation(&operator.to_string(), identifier, value)
+            }
+            ASTNode::Print(parts) => {
+                self.generate_print(parts)
+            }
+            ASTNode::IfStatement(condition, body_nodes) => {
+                self.generate_if(condition, body_nodes)
+            }
+            _ => String::new(),
+        }
+    }
+
+    fn generate_variable_declaration(&self, name: &str, value: &VariableType) -> String {
+        match value {
+            VariableType::Integer(v) => format!("   let mut {} = {};\n", name, v),
+            VariableType::Character(v) => format!("   let mut {} = '{}';\n", name, v),
+            VariableType::Float(v) => format!("   let mut {} = {};\n", name, v),
+            VariableType::Bool(v) => format!("   let mut {} = {};\n", name, v),
+        }
+    }
+
+    fn generate_variable_change(&self, name: &str, value: &VariableType) -> String {
+        match value {
+            VariableType::Integer(v) => format!("   {} = {};\n", name, v),
+            VariableType::Character(v) => format!("   {} = '{}';\n", name, v),
+            VariableType::Float(v) => format!("   {} = {};\n", name, v),
+            VariableType::Bool(v) => format!("   {} = {};\n", name, v),
+        }
+    }
+
+    fn generate_operation(&self, operator: &str, identifier: &str, value: &VariableType) -> String {
+        match value {
+            VariableType::Integer(v) => format!("   {} {}= {};\n", identifier, operator, v),
+            VariableType::Character(v) => format!("   {} {}= '{}';\n", identifier, operator, v),
+            VariableType::Float(v) => format!("   {} {}= {};\n", identifier, operator, v),
+            VariableType::Bool(v) => format!("   {} {}= {};\n", identifier, operator, v),
+        }
+    }
+
+    fn generate_print(&self, parts: &[PrintPart]) -> String {
+        let mut format_string = String::new();
+        let mut variables = Vec::new();
+
+        for part in parts {
+            match part {
+                PrintPart::Literal(lit) => format_string.push_str(lit),
+                PrintPart::Variable(var) => {
+                    format_string.push_str("{}");
+                    variables.push(var.as_str());
+                }
+            }
+        }
+
+        format!(
+            "   println!(\"{}\", {});\n",
+            format_string,
+            variables.join(", ")
+        )
+    }
+
+    fn generate_if(&self, condition: &str, _body_nodes: &[ASTNode]) -> String {
+        let condition = format!("   if {} {{\n", condition);
+        let body = String::new();
+
+        // TODO body generation
+
+        format!(
+            "{}\n{}   }}\n",
+            condition,
+            body
+        )
+    }
 }
 
 fn main() {
