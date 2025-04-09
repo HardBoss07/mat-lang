@@ -79,6 +79,11 @@ impl Parser {
                         nodes.push(ast_node);
                     }
                 }
+                Token::Keyword(ref keyword) if keyword == "while" => {
+                    if let Some(ast_node) = self.parse_while_loop() {
+                        nodes.push(ast_node);
+                    }
+                }
                 Token::Keyword(ref keyword) if keyword == "sout" => {
                     if let Some(ast_node) = self.parse_sout() {
                         nodes.push(ast_node);
@@ -96,6 +101,16 @@ impl Parser {
             if let Some(Token::Symbol('{')) = self.next_token() {
                 let body = self.parse_block();
                 return Some(ASTNode::IfStatement(condition, body));
+            }
+        }
+        None
+    }
+
+    fn parse_while_loop(&mut self) -> Option<ASTNode> {
+        if let Some(Token::Condition(condition)) = self.next_token() {
+            if let Some(Token::Symbol('{')) = self.next_token() {
+                let body = self.parse_block();
+                return Some(ASTNode::WhileLoop(condition, body));
             }
         }
         None

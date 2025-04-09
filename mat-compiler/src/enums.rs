@@ -20,6 +20,7 @@ pub enum ASTNode {
     VariableChangeValue(String, VariableType),
     Operation(char, String, VariableType),
     IfStatement(String, Vec<ASTNode>),
+    WhileLoop(String, Vec<ASTNode>),
 }
 
 #[derive(Debug, Clone)]

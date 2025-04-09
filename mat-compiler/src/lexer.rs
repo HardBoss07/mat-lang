@@ -29,7 +29,7 @@ impl Lexer {
                 let word = &self.input[start..self.position];
 
                 return Some(match word {
-                    "void" | "int" | "float" | "char" | "sout" | "bool" | "if" => Token::Keyword(word.to_string()),
+                    "void" | "int" | "float" | "char" | "sout" | "bool" | "if" | "while" => Token::Keyword(word.to_string()),
                     "tru" => Token::Bool(true),
                     "fal" => Token::Bool(false),
                     _ => Token::Identifier(word.to_string()),
@@ -87,10 +87,9 @@ impl Lexer {
             }
 
             if "{}();=><".contains(current_char) {
-                //TODO if prev_tonen = keyword::if parse codition instead of tokens
                 if current_char == '(' {
                     match prev_token {
-                        Some(Token::Keyword(ref keyword)) if keyword == "if" => {
+                        Some(Token::Keyword(ref keyword)) if ["if", "while"].contains(&keyword.as_str()) => {
                             self.position += 1;
                             let start = self.position;
                             while self.position < chars.len() && chars[self.position] != ')' {
