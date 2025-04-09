@@ -9,7 +9,7 @@ use parser::Parser;
 use code_generator::CodeGenerator;
 
 fn main() {
-    let input = fs::read_to_string("hello.mat").expect("Failed to read file");
+    let input = fs::read_to_string("input.mat").expect("Failed to read file");
 
     let mut lexer = Lexer::new(input);
     let tokens = lexer.tokenize();
