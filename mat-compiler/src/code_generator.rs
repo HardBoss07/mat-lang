@@ -46,6 +46,9 @@ impl CodeGenerator {
             ASTNode::IfStatement(condition, body_nodes) => {
                 self.generate_if(condition, body_nodes, indent_level)
             }
+            ASTNode::ElseStatement(body_nodes) => {
+                self.generate_else(body_nodes, indent_level)
+            }
             ASTNode::WhileLoop(condition, body_nodes) => {
                 self.generate_while(condition, body_nodes, indent_level)
             }
@@ -116,6 +119,19 @@ impl CodeGenerator {
 
         code.push_str(&format!("{}}}\n", indent));
         
+        code
+    }
+
+    fn generate_else(&mut self, _body_nodes: &Vec<ASTNode>, indent_level: usize) -> String {
+        let indent = "   ".repeat(indent_level);
+        let mut code = format!("{}else {{\n", indent);
+
+        for node in _body_nodes {
+            code.push_str(&self.generate_node(&node, indent_level + 1));
+        }
+
+        code.push_str(&format!("{}}}\n", indent));
+
         code
     }
 

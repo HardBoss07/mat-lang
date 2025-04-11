@@ -5,6 +5,8 @@ void main() {
         a += 1;
         if (a < 8) {
             sout("a is below 8. the value is {a}");
+        } else {
+            sout("a is in between 8 and 10");
         }
     }
 }

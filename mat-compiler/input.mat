@@ -1,7 +1,8 @@
 void main() {
-    int a = 0;
-    while (a < 10) {
-        sout("a is below 10 and currently its {a}");
-        a += 1;
+    int a = 10;
+    if (a <= 10) {
+        sout("A is {a} and below or equal to 10");
+    } else {
+        sout("A is {a} and larger than 10");
     }
 }

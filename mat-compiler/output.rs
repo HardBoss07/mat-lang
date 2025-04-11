@@ -1,7 +1,9 @@
 fn main() {
-   let mut a = 0;
-   while a < 10 {
-      println!("a is below 10 and currently its {}", a);
-      a += 1;
+   let mut a = 10;
+   if a <= 10 {
+      println!("A is {} and below or equal to 10", a);
+   }
+   else {
+      println!("A is {} and larger than 10", a);
    }
 }

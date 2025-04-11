@@ -29,7 +29,7 @@ impl Lexer {
                 let word = &self.input[start..self.position];
 
                 return Some(match word {
-                    "void" | "int" | "float" | "char" | "sout" | "bool" | "if" | "while" => Token::Keyword(word.to_string()),
+                    "void" | "int" | "float" | "char" | "sout" | "bool" | "if" | "else" | "while" => Token::Keyword(word.to_string()),
                     "tru" => Token::Bool(true),
                     "fal" => Token::Bool(false),
                     _ => Token::Identifier(word.to_string()),

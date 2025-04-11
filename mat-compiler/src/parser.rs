@@ -35,7 +35,14 @@ impl Parser {
                     ast.push(self.parse_void().expect("NO VOID FOUND"));
                 }
                 Token::Keyword(ref keyword) if keyword == "if" => {
-
+                    if let Some(ast_node) = self.parse_if_statement() {
+                        ast.push(ast_node);
+                    }
+                }
+                Token::Keyword(ref keyword) if keyword == "else" => {
+                    if let Some(ast_node) = self.parse_else_statement() {
+                        ast.push(ast_node);
+                    }
                 }
                 Token::Keyword(ref keyword) if ["int", "char", "float", "bool"].contains(&keyword.as_str()) => {
                     if let Some(ast_node) = self.parse_variable_declaration(keyword) {
@@ -79,6 +86,11 @@ impl Parser {
                         nodes.push(ast_node);
                     }
                 }
+                Token::Keyword(ref keyword) if keyword == "else" => {
+                    if let Some(ast_node) = self.parse_else_statement() {
+                        nodes.push(ast_node);
+                    }
+                }
                 Token::Keyword(ref keyword) if keyword == "while" => {
                     if let Some(ast_node) = self.parse_while_loop() {
                         nodes.push(ast_node);
@@ -94,6 +106,14 @@ impl Parser {
         }
     
         nodes
+    }
+
+    fn parse_else_statement(&mut self) -> Option<ASTNode> {
+        if let Some(Token::Symbol('{')) = self.next_token() {
+            let body = self.parse_block();
+            return Some(ASTNode::ElseStatement(body));
+        }
+        None
     }
 
     fn parse_if_statement(&mut self) -> Option<ASTNode> {
