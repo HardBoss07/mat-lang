@@ -1,8 +1,4 @@
 void main() {
     int a = 10;
-    if (a <= 10) {
-        sout("A is {a} and below or equal to 10");
-    } else {
-        sout("A is {a} and larger than 10");
-    }
+    string a = "a is {a}";
 }

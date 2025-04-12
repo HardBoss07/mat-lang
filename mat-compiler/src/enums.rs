@@ -30,6 +30,7 @@ pub enum VariableType {
     Character(char),
     Float(f64),
     Bool(bool),
+    String(String),
 }
 
 #[derive(Debug, Clone)]

@@ -63,6 +63,7 @@ impl CodeGenerator {
             VariableType::Character(v) => format!("{}let mut {} = '{}';\n", indent, name, v),
             VariableType::Float(v) => format!("{}let mut {} = {};\n", indent, name, v),
             VariableType::Bool(v) => format!("{}let mut {} = {};\n", indent, name, v),
+            VariableType::String(v) => format!("{}let mut {} = String::from(\"{}\");\n", indent, name, v),
         }
     }
 
@@ -73,6 +74,7 @@ impl CodeGenerator {
             VariableType::Character(v) => format!("{}{} = '{}';\n", indent, name, v),
             VariableType::Float(v) => format!("{}{} = {};\n", indent, name, v),
             VariableType::Bool(v) => format!("{}{} = {};\n", indent, name, v),
+            VariableType::String(v) => format!("{}{} = String::from(\"{}\");\n", indent, name, v),
         }
     }
 
@@ -83,6 +85,7 @@ impl CodeGenerator {
             VariableType::Character(v) => format!("{}{} {}= '{}';\n", indent, identifier, operator, v),
             VariableType::Float(v) => format!("{}{} {}= {};\n", indent, identifier, operator, v),
             VariableType::Bool(v) => format!("{}{} {}= {};\n", indent, identifier, operator, v),
+            _ => String::new()
         }
     }
 

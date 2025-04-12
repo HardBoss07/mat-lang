@@ -44,7 +44,7 @@ impl Parser {
                         ast.push(ast_node);
                     }
                 }
-                Token::Keyword(ref keyword) if ["int", "char", "float", "bool"].contains(&keyword.as_str()) => {
+                Token::Keyword(ref keyword) if ["int", "char", "float", "bool", "string"].contains(&keyword.as_str()) => {
                     if let Some(ast_node) = self.parse_variable_declaration(keyword) {
                         ast.push(ast_node);
                     }
@@ -71,7 +71,7 @@ impl Parser {
         while let Some(token) = self.next_token() {
             match token {
                 Token::Symbol('}') => break,
-                Token::Keyword(ref keyword) if ["int", "char", "float", "bool"].contains(&keyword.as_str()) => {
+                Token::Keyword(ref keyword) if ["int", "char", "float", "bool", "string"].contains(&keyword.as_str()) => {
                     if let Some(ast_node) = self.parse_variable_declaration(keyword) {
                         nodes.push(ast_node);
                     }
@@ -144,6 +144,7 @@ impl Parser {
                     "char" => self.next_token().and_then(|t| if let Token::Character(v) = t { Some(VariableType::Character(v)) } else { None }),
                     "float" => self.next_token().and_then(|t| if let Token::Float(v) = t { Some(VariableType::Float(v)) } else { None }),
                     "bool" => self.next_token().and_then(|t| if let Token::Bool(v) = t { Some(VariableType::Bool(v)) } else { None }),
+                    "string" => self.next_token().and_then(|t| if let Token::StringLiteral(v) = t { Some(VariableType::String(v)) } else { None }),
                     _ => None,
                 };
 
