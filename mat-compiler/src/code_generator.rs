@@ -1,4 +1,4 @@
-use crate::enums::{ASTNode, PrintPart, VariableType};
+use crate::enums::{ASTNode, StringPart, VariableType};
 use std::collections::HashMap;
 
 pub struct CodeGenerator {
@@ -89,15 +89,15 @@ impl CodeGenerator {
         }
     }
 
-    fn generate_print(&self, parts: &[PrintPart], indent_level: usize) -> String {
+    fn generate_print(&self, parts: &[StringPart], indent_level: usize) -> String {
         let indent = "   ".repeat(indent_level);
         let mut format_string = String::new();
         let mut variables = Vec::new();
 
         for part in parts {
             match part {
-                PrintPart::Literal(lit) => format_string.push_str(lit),
-                PrintPart::Variable(var) => {
+                StringPart::Literal(lit) => format_string.push_str(lit),
+                StringPart::Variable(var) => {
                     format_string.push_str("{}");
                     variables.push(var.as_str());
                 }

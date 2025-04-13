@@ -1,4 +1,6 @@
 void main() {
     int a = 10;
-    string a = "a is {a}";
+    sout("this is the string variable a {a}");
+    string b = "a is {a}";
+    sout("this is the string variable b {b}");
 }

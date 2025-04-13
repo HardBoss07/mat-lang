@@ -1,4 +1,4 @@
-use crate::enums::{ASTNode, Token, VariableType, PrintPart};
+use crate::enums::{ASTNode, Token, VariableType, StringPart};
 use std::collections::HashMap;
 
 pub struct Parser {
@@ -252,7 +252,7 @@ impl Parser {
                                 return None;
                             }
                             if !current_literal.is_empty() {
-                                parts.push(PrintPart::Literal(current_literal.clone()));
+                                parts.push(StringPart::Literal(current_literal.clone()));
                                 current_literal.clear();
                             }
                             in_interpolation = true;
@@ -262,7 +262,7 @@ impl Parser {
                                 return None;
                             }
                             if !variable_name.is_empty() {
-                                parts.push(PrintPart::Variable(variable_name.clone()));
+                                parts.push(StringPart::Variable(variable_name.clone()));
                                 variable_name.clear();
                             }
                             in_interpolation = false;
@@ -278,7 +278,7 @@ impl Parser {
                 }
     
                 if !current_literal.is_empty() {
-                    parts.push(PrintPart::Literal(current_literal));
+                    parts.push(StringPart::Literal(current_literal));
                 }
     
                 if let Some(Token::Symbol(')')) = self.next_token() {

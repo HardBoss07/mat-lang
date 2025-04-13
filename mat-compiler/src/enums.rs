@@ -15,7 +15,7 @@ pub enum Token {
 #[derive(Debug, Clone)]
 pub enum ASTNode {
     MainFunction(Vec<ASTNode>),
-    Print(Vec<PrintPart>),
+    Print(Vec<StringPart>),
     VariableDeclaration(String, VariableType),
     VariableChangeValue(String, VariableType),
     Operation(char, String, VariableType),
@@ -34,7 +34,7 @@ pub enum VariableType {
 }
 
 #[derive(Debug, Clone)]
-pub enum PrintPart {
+pub enum StringPart {
     Literal(String),
     Variable(String),
 }
