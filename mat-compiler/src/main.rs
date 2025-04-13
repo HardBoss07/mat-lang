@@ -2,6 +2,7 @@ mod lexer;
 mod parser;
 mod code_generator;
 mod enums;
+mod common;
 
 use std::fs;
 use lexer::Lexer;

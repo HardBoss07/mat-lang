@@ -1,4 +1,5 @@
 use crate::enums::{ASTNode, StringPart, VariableType};
+use crate::common;
 use std::collections::HashMap;
 
 pub struct CodeGenerator {
@@ -91,24 +92,12 @@ impl CodeGenerator {
 
     fn generate_print(&self, parts: &[StringPart], indent_level: usize) -> String {
         let indent = "   ".repeat(indent_level);
-        let mut format_string = String::new();
-        let mut variables = Vec::new();
-
-        for part in parts {
-            match part {
-                StringPart::Literal(lit) => format_string.push_str(lit),
-                StringPart::Variable(var) => {
-                    format_string.push_str("{}");
-                    variables.push(var.as_str());
-                }
-            }
-        }
+        let content = common::s_parts_to_string(parts.to_vec());
 
         format!(
-            "{}println!(\"{}\", {});\n",
+            "{}println!({});\n",
             indent,
-            format_string,
-            variables.join(", ")
+            content,
         )
     }
 

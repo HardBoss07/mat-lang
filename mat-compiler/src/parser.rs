@@ -1,4 +1,5 @@
-use crate::enums::{ASTNode, Token, VariableType, StringPart};
+use crate::enums::{ASTNode, Token, VariableType};
+use crate::common;
 use std::collections::HashMap;
 
 pub struct Parser {
@@ -238,52 +239,12 @@ impl Parser {
 
     fn parse_sout(&mut self) -> Option<ASTNode> {
         if let Some(Token::Symbol('(')) = self.next_token() {
-            let mut parts = Vec::new();
-    
             if let Some(Token::StringLiteral(string)) = self.next_token() {
-                let mut current_literal = String::new();
-                let mut in_interpolation = false;
-                let mut variable_name = String::new();
-    
-                for c in string.chars() {
-                    match c {
-                        '{' => {
-                            if in_interpolation {
-                                return None;
-                            }
-                            if !current_literal.is_empty() {
-                                parts.push(StringPart::Literal(current_literal.clone()));
-                                current_literal.clear();
-                            }
-                            in_interpolation = true;
+                if let Some(parts) = common::s_lit_to_s_parts(string) {
+                    if let Some(Token::Symbol(')')) = self.next_token() {
+                        if let Some(Token::Symbol(';')) = self.next_token() {
+                            return Some(ASTNode::Print(parts));
                         }
-                        '}' => {
-                            if !in_interpolation {
-                                return None;
-                            }
-                            if !variable_name.is_empty() {
-                                parts.push(StringPart::Variable(variable_name.clone()));
-                                variable_name.clear();
-                            }
-                            in_interpolation = false;
-                        }
-                        _ => {
-                            if in_interpolation {
-                                variable_name.push(c);
-                            } else {
-                                current_literal.push(c);
-                            }
-                        }
-                    }
-                }
-    
-                if !current_literal.is_empty() {
-                    parts.push(StringPart::Literal(current_literal));
-                }
-    
-                if let Some(Token::Symbol(')')) = self.next_token() {
-                    if let Some(Token::Symbol(';')) = self.next_token() {
-                        return Some(ASTNode::Print(parts));
                     }
                 }
             }
