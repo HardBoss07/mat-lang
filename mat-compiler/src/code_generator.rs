@@ -64,7 +64,7 @@ impl CodeGenerator {
             VariableType::Character(v) => format!("{}let mut {} = '{}';\n", indent, name, v),
             VariableType::Float(v) => format!("{}let mut {} = {};\n", indent, name, v),
             VariableType::Bool(v) => format!("{}let mut {} = {};\n", indent, name, v),
-            VariableType::String(v) => format!("{}let mut {} = String::from(\"{}\");\n", indent, name, v),
+            VariableType::String(v) => format!("{}let mut {} = format!({});\n", indent, name, common::s_parts_to_string(common::s_lit_to_s_parts(v.to_string()).expect("ERROR WITH COMMON.RS"))),
         }
     }
 
@@ -75,7 +75,7 @@ impl CodeGenerator {
             VariableType::Character(v) => format!("{}{} = '{}';\n", indent, name, v),
             VariableType::Float(v) => format!("{}{} = {};\n", indent, name, v),
             VariableType::Bool(v) => format!("{}{} = {};\n", indent, name, v),
-            VariableType::String(v) => format!("{}{} = String::from(\"{}\");\n", indent, name, v),
+            VariableType::String(v) => format!("{}{} = format!({});\n",  indent, name, common::s_parts_to_string(common::s_lit_to_s_parts(v.to_string()).expect("ERROR WITH COMMON.RS"))),
         }
     }
 
