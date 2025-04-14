@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Keyword(String),
     StringLiteral(String),
@@ -15,6 +15,8 @@ pub enum Token {
 #[derive(Debug, Clone)]
 pub enum ASTNode {
     MainFunction(Vec<ASTNode>),
+    Function(String, Vec<ASTNode>),
+    FunctionCall(String),
     Print(Vec<StringPart>),
     VariableDeclaration(String, VariableType),
     VariableChangeValue(String, VariableType),
