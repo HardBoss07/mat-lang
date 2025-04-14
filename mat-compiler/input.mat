@@ -1,6 +1,9 @@
 void main() {
     int a = 10;
     sout("this is the string variable a {a}");
-    string b = "a is {a}";
-    sout("this is the string variable b {b}");
+    testVoid();
+}
+
+void testVoid() {
+    sout("the test void has been called");
 }

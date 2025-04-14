@@ -77,7 +77,7 @@ impl Parser {
                         nodes.push(ast_node);
                     }
                 }
-                Token::Identifier(ref identifier) if self.variables.contains_key(identifier) => {
+                Token::Identifier(ref identifier) => {
                     if let Some(ast_node) = self.parse_identifier(identifier.to_string()) {
                         nodes.push(ast_node);
                     }
@@ -162,6 +162,17 @@ impl Parser {
 
     fn parse_identifier(&mut self, identifier: String) -> Option<ASTNode> {
         if let Some(next_token) = self.next_token() {
+            if next_token == Token::Symbol('(') {
+                if let Some(Token::Symbol(')')) = self.next_token() {
+                    if let Some(Token::Symbol(';')) = self.next_token() {
+                        return Some(ASTNode::FunctionCall(identifier));
+                    }
+                }
+            } else {
+                self.position -= 1;
+            }
+        }
+        if let Some(next_token) = self.next_token() {
             match next_token {
                 Token::Operator(operator) => {
                     if let Some(Token::Symbol('=')) = self.next_token() {
@@ -218,17 +229,20 @@ impl Parser {
                 }
             }
         }
-        return None
+        return None;
     }
 
     fn parse_void(&mut self) -> Option<ASTNode> {
-        if let Some(Token::Identifier(main_keyword)) = self.next_token() {
-            if main_keyword == "main" {
-                if let Some(Token::Symbol('(')) = self.next_token() {
-                    if let Some(Token::Symbol(')')) = self.next_token() {
-                        if let Some(Token::Symbol('{')) = self.next_token() {
-                            let body = self.parse_block();
+        if let Some(Token::Identifier(fn_name)) = self.next_token() {
+            if let Some(Token::Symbol('(')) = self.next_token() {
+                if let Some(Token::Symbol(')')) = self.next_token() {
+                    if let Some(Token::Symbol('{')) = self.next_token() {
+                        let body = self.parse_block();
+
+                        if fn_name == "main" {
                             return Some(ASTNode::MainFunction(body));
+                        } else {
+                            return Some(ASTNode::Function(fn_name, body));
                         }
                     }
                 }
