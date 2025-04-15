@@ -14,7 +14,7 @@ pub enum Token {
 
 #[derive(Debug, Clone)]
 pub enum ASTNode {
-    MainFunction(Vec<ASTNode>),
+//    MainFunction(Vec<ASTNode>),
     Function(String, Vec<ASTNode>),
     FunctionCall(String),
     Print(Vec<StringPart>),

@@ -238,12 +238,7 @@ impl Parser {
                 if let Some(Token::Symbol(')')) = self.next_token() {
                     if let Some(Token::Symbol('{')) = self.next_token() {
                         let body = self.parse_block();
-
-                        if fn_name == "main" {
-                            return Some(ASTNode::MainFunction(body));
-                        } else {
                             return Some(ASTNode::Function(fn_name, body));
-                        }
                     }
                 }
             }

@@ -13,17 +13,11 @@ impl CodeGenerator {
     }
 
     pub fn generate(&mut self) -> String {
-        let mut rust_code = String::from("fn main() {\n");
+        let mut rust_code = String::new();
     
         for node in self.ast.clone() {
-            if let ASTNode::MainFunction(body) = node {
-                for inner_node in body {
-                    rust_code.push_str(&self.generate_node(&inner_node, 1));
-                }
-            }
+            rust_code.push_str(&self.generate_node(&node, 0));
         }
-
-        rust_code.push_str("}\n");
 
         rust_code
     }
@@ -53,8 +47,18 @@ impl CodeGenerator {
             ASTNode::WhileLoop(condition, body_nodes) => {
                 self.generate_while(condition, body_nodes, indent_level)
             }
-            _ => String::new(),
+            ASTNode::Function(fn_name, body_nodes) => {
+                self.generate_function(fn_name, body_nodes, indent_level)
+            }
+            ASTNode::FunctionCall(fn_name) => {
+                self.generate_function_call(fn_name, indent_level)
+            }
         }
+    }
+
+    fn generate_function_call(&self, fn_name: &str, indent_level: usize) -> String {
+        let indent = "   ".repeat(indent_level);
+        format!("{}{}();\n", indent, fn_name)
     }
 
     fn generate_variable_declaration(&self, name: &str, value: &VariableType, indent_level: usize) -> String {
@@ -133,6 +137,19 @@ impl CodeGenerator {
         
         for node in _body_nodes {
             code.push_str(&self.generate_node(&node, indent_level + 1));
+        }
+
+        code.push_str(&format!("{}}}\n", indent));
+
+        code
+    }
+
+    fn generate_function(&mut self, fn_name: &str, _body_nodes: &Vec<ASTNode>, indent_level: usize) -> String {
+        let indent = "   ".repeat(indent_level);
+        let mut code = format!("{}fn {}() {{\n", indent, fn_name);
+
+        for node in _body_nodes {
+            code.push_str(&self.generate_node(node, indent_level + 1));
         }
 
         code.push_str(&format!("{}}}\n", indent));
