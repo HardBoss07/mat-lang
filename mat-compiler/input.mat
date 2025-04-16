@@ -1,9 +1,8 @@
 void main() {
-    int a = 10;
-    sout("this is the string variable a {a}");
-    testVoid();
-}
-
-void testVoid() {
-    sout("the test void has been called");
+    int[] numbers = {1, 2, 3, 4, 5};
+    int i = 0;
+    while (i < 6) {
+        sout("current number is {numbers[i]}");
+        i += 1;
+    }
 }

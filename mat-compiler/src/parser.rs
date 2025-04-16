@@ -1,11 +1,11 @@
-use crate::enums::{ASTNode, Token, VariableType};
+use crate::enums::{ASTNode, Token, PrimitiveVariable};
 use crate::common;
 use std::collections::HashMap;
 
 pub struct Parser {
     tokens: Vec<Token>,
     position: usize,
-    pub variables: HashMap<String, VariableType>,
+    pub variables: HashMap<String, PrimitiveVariable>,
 }
 
 impl Parser {
@@ -141,11 +141,11 @@ impl Parser {
         if let Some(Token::Identifier(var_name)) = self.next_token() {
             if let Some(Token::Symbol('=')) = self.next_token() {
                 let value = match var_type {
-                    "int" => self.next_token().and_then(|t| if let Token::Integer(v) = t { Some(VariableType::Integer(v)) } else { None }),
-                    "char" => self.next_token().and_then(|t| if let Token::Character(v) = t { Some(VariableType::Character(v)) } else { None }),
-                    "float" => self.next_token().and_then(|t| if let Token::Float(v) = t { Some(VariableType::Float(v)) } else { None }),
-                    "bool" => self.next_token().and_then(|t| if let Token::Bool(v) = t { Some(VariableType::Bool(v)) } else { None }),
-                    "string" => self.next_token().and_then(|t| if let Token::StringLiteral(v) = t { Some(VariableType::String(v)) } else { None }),
+                    "int" => self.next_token().and_then(|t| if let Token::Integer(v) = t { Some(PrimitiveVariable::Integer(v)) } else { None }),
+                    "char" => self.next_token().and_then(|t| if let Token::Character(v) = t { Some(PrimitiveVariable::Character(v)) } else { None }),
+                    "float" => self.next_token().and_then(|t| if let Token::Float(v) = t { Some(PrimitiveVariable::Float(v)) } else { None }),
+                    "bool" => self.next_token().and_then(|t| if let Token::Bool(v) = t { Some(PrimitiveVariable::Bool(v)) } else { None }),
+                    "string" => self.next_token().and_then(|t| if let Token::StringLiteral(v) = t { Some(PrimitiveVariable::String(v)) } else { None }),
                     _ => None,
                 };
 
@@ -180,12 +180,12 @@ impl Parser {
                             match value_token {
                                 Token::Integer(v) => {
                                     if let Some(Token::Symbol(';')) = self.next_token() {
-                                        return Some(ASTNode::Operation(operator, identifier, VariableType::Integer(v)));
+                                        return Some(ASTNode::Operation(operator, identifier, PrimitiveVariable::Integer(v)));
                                     }
                                 }
                                 Token::Float(v) => {
                                     if let Some(Token::Symbol(';')) = self.next_token() {
-                                        return Some(ASTNode::Operation(operator, identifier, VariableType::Float(v)));
+                                        return Some(ASTNode::Operation(operator, identifier, PrimitiveVariable::Float(v)));
                                     }
                                 }
                                 _ => {}
@@ -198,26 +198,26 @@ impl Parser {
                         match value_token {
                             Token::Integer(v) => {
                                 if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(identifier.clone(), VariableType::Integer(v));
-                                    return Some(ASTNode::VariableChangeValue(identifier, VariableType::Integer(v)));
+                                    self.variables.insert(identifier.clone(), PrimitiveVariable::Integer(v));
+                                    return Some(ASTNode::VariableChangeValue(identifier, PrimitiveVariable::Integer(v)));
                                 }
                             }
                             Token::Character(v) => {
                                 if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(identifier.clone(), VariableType::Character(v));
-                                    return Some(ASTNode::VariableChangeValue(identifier, VariableType::Character(v)));
+                                    self.variables.insert(identifier.clone(), PrimitiveVariable::Character(v));
+                                    return Some(ASTNode::VariableChangeValue(identifier, PrimitiveVariable::Character(v)));
                                 }
                             }
                             Token::Float(v) => {
                                 if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(identifier.clone(), VariableType::Float(v));
-                                    return Some(ASTNode::VariableChangeValue(identifier, VariableType::Float(v)));
+                                    self.variables.insert(identifier.clone(), PrimitiveVariable::Float(v));
+                                    return Some(ASTNode::VariableChangeValue(identifier, PrimitiveVariable::Float(v)));
                                 }
                             }
                             Token::Bool(v) => {
                                 if let Some(Token::Symbol(';')) = self.next_token() {
-                                    self.variables.insert(identifier.clone(), VariableType::Bool(v));
-                                    return Some(ASTNode::VariableChangeValue(identifier, VariableType::Bool(v)));
+                                    self.variables.insert(identifier.clone(), PrimitiveVariable::Bool(v));
+                                    return Some(ASTNode::VariableChangeValue(identifier, PrimitiveVariable::Bool(v)));
                                 }
                             }
                             _ => {}

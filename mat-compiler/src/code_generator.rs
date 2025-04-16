@@ -1,14 +1,14 @@
-use crate::enums::{ASTNode, StringPart, VariableType};
+use crate::enums::{ASTNode, StringPart, PrimitiveVariable};
 use crate::common;
 use std::collections::HashMap;
 
 pub struct CodeGenerator {
     ast: Vec<ASTNode>,
-    variables: HashMap<String, VariableType>
+    variables: HashMap<String, PrimitiveVariable>
 }
 
 impl CodeGenerator {
-    pub fn new(ast: Vec<ASTNode>, variables: HashMap<String, VariableType>) -> Self {
+    pub fn new(ast: Vec<ASTNode>, variables: HashMap<String, PrimitiveVariable>) -> Self {
         Self { ast, variables }
     }
 
@@ -61,35 +61,35 @@ impl CodeGenerator {
         format!("{}{}();\n", indent, fn_name)
     }
 
-    fn generate_variable_declaration(&self, name: &str, value: &VariableType, indent_level: usize) -> String {
+    fn generate_variable_declaration(&self, name: &str, value: &PrimitiveVariable, indent_level: usize) -> String {
         let indent = "   ".repeat(indent_level);
         match value {
-            VariableType::Integer(v) => format!("{}let mut {} = {};\n", indent, name, v),
-            VariableType::Character(v) => format!("{}let mut {} = '{}';\n", indent, name, v),
-            VariableType::Float(v) => format!("{}let mut {} = {};\n", indent, name, v),
-            VariableType::Bool(v) => format!("{}let mut {} = {};\n", indent, name, v),
-            VariableType::String(v) => format!("{}let mut {} = format!({});\n", indent, name, common::s_parts_to_string(common::s_lit_to_s_parts(v.to_string()).expect("ERROR WITH COMMON.RS"))),
+            PrimitiveVariable::Integer(v) => format!("{}let mut {} = {};\n", indent, name, v),
+            PrimitiveVariable::Character(v) => format!("{}let mut {} = '{}';\n", indent, name, v),
+            PrimitiveVariable::Float(v) => format!("{}let mut {} = {};\n", indent, name, v),
+            PrimitiveVariable::Bool(v) => format!("{}let mut {} = {};\n", indent, name, v),
+            PrimitiveVariable::String(v) => format!("{}let mut {} = format!({});\n", indent, name, common::s_parts_to_string(common::s_lit_to_s_parts(v.to_string()).expect("ERROR WITH COMMON.RS"))),
         }
     }
 
-    fn generate_variable_change(&self, name: &str, value: &VariableType, indent_level: usize) -> String {
+    fn generate_variable_change(&self, name: &str, value: &PrimitiveVariable, indent_level: usize) -> String {
         let indent = "   ".repeat(indent_level);
         match value {
-            VariableType::Integer(v) => format!("{}{} = {};\n", indent, name, v),
-            VariableType::Character(v) => format!("{}{} = '{}';\n", indent, name, v),
-            VariableType::Float(v) => format!("{}{} = {};\n", indent, name, v),
-            VariableType::Bool(v) => format!("{}{} = {};\n", indent, name, v),
-            VariableType::String(v) => format!("{}{} = format!({});\n",  indent, name, common::s_parts_to_string(common::s_lit_to_s_parts(v.to_string()).expect("ERROR WITH COMMON.RS"))),
+            PrimitiveVariable::Integer(v) => format!("{}{} = {};\n", indent, name, v),
+            PrimitiveVariable::Character(v) => format!("{}{} = '{}';\n", indent, name, v),
+            PrimitiveVariable::Float(v) => format!("{}{} = {};\n", indent, name, v),
+            PrimitiveVariable::Bool(v) => format!("{}{} = {};\n", indent, name, v),
+            PrimitiveVariable::String(v) => format!("{}{} = format!({});\n",  indent, name, common::s_parts_to_string(common::s_lit_to_s_parts(v.to_string()).expect("ERROR WITH COMMON.RS"))),
         }
     }
 
-    fn generate_operation(&self, operator: &str, identifier: &str, value: &VariableType, indent_level: usize) -> String {
+    fn generate_operation(&self, operator: &str, identifier: &str, value: &PrimitiveVariable, indent_level: usize) -> String {
         let indent = "   ".repeat(indent_level);
         match value {
-            VariableType::Integer(v) => format!("{}{} {}= {};\n", indent, identifier, operator, v),
-            VariableType::Character(v) => format!("{}{} {}= '{}';\n", indent, identifier, operator, v),
-            VariableType::Float(v) => format!("{}{} {}= {};\n", indent, identifier, operator, v),
-            VariableType::Bool(v) => format!("{}{} {}= {};\n", indent, identifier, operator, v),
+            PrimitiveVariable::Integer(v) => format!("{}{} {}= {};\n", indent, identifier, operator, v),
+            PrimitiveVariable::Character(v) => format!("{}{} {}= '{}';\n", indent, identifier, operator, v),
+            PrimitiveVariable::Float(v) => format!("{}{} {}= {};\n", indent, identifier, operator, v),
+            PrimitiveVariable::Bool(v) => format!("{}{} {}= {};\n", indent, identifier, operator, v),
             _ => String::new()
         }
     }

@@ -14,20 +14,24 @@ pub enum Token {
 
 #[derive(Debug, Clone)]
 pub enum ASTNode {
-//    MainFunction(Vec<ASTNode>),
     Function(String, Vec<ASTNode>),
     FunctionCall(String),
     Print(Vec<StringPart>),
-    VariableDeclaration(String, VariableType),
-    VariableChangeValue(String, VariableType),
-    Operation(char, String, VariableType),
+    VariableDeclaration(String, PrimitiveVariable),
+    VariableChangeValue(String, PrimitiveVariable),
+    Operation(char, String, PrimitiveVariable),
     IfStatement(String, Vec<ASTNode>),
     ElseStatement(Vec<ASTNode>),
     WhileLoop(String, Vec<ASTNode>),
 }
 
 #[derive(Debug, Clone)]
-pub enum VariableType {
+pub enum ComplexVariable {
+    Array(String, Vec<PrimitiveVariable>),
+}
+
+#[derive(Debug, Clone)]
+pub enum PrimitiveVariable {
     Integer(i32),
     Character(char),
     Float(f64),
