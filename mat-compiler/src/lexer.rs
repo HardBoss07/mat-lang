@@ -86,7 +86,7 @@ impl Lexer {
                 return Some(Token::Operator(current_char));
             }
 
-            if "{}();=><[]".contains(current_char) {
+            if "{}();=><[],".contains(current_char) {
                 if current_char == '(' {
                     match prev_token {
                         Some(Token::Keyword(ref keyword)) if ["if", "while"].contains(&keyword.as_str()) => {

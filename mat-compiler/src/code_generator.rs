@@ -53,7 +53,14 @@ impl CodeGenerator {
             ASTNode::FunctionCall(fn_name) => {
                 self.generate_function_call(fn_name, indent_level)
             }
+            ASTNode::ArrayDeclaration(identifier, length, values) => {
+                self.generate_array_declaration(identifier, length, values, indent_level)
+            }
         }
+    }
+
+    fn generate_array_declaration(&self, identifier: &str, length: usize, values: Vec<PrimitiveVariable>, indent_level: usize) -> String {
+        return String::new();
     }
 
     fn generate_function_call(&self, fn_name: &str, indent_level: usize) -> String {

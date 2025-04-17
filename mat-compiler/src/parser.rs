@@ -73,8 +73,18 @@ impl Parser {
             match token {
                 Token::Symbol('}') => break,
                 Token::Keyword(ref keyword) if ["int", "char", "float", "bool", "string"].contains(&keyword.as_str()) => {
-                    if let Some(ast_node) = self.parse_variable_declaration(keyword) {
-                        nodes.push(ast_node);
+                    let Some(nt) = self.next_token();
+                    match nt {
+                        Some(Token::Identifier(identifier)) => {
+                            if let Some(ast_node) = self.parse_variable_declaration(keyword, identifier) {
+                                nodes.push(ast_node);
+                            }
+                        }
+                        Some(Token::Symbol('[')) => {
+                            if let Some(ast_node) = self.parse_array_declaration(keyword) {
+                                nodes.push(ast_node);
+                            }
+                        }
                     }
                 }
                 Token::Identifier(ref identifier) => {
@@ -137,23 +147,53 @@ impl Parser {
         None
     }
 
-    fn parse_variable_declaration(&mut self, var_type: &str) -> Option<ASTNode> {
-        if let Some(Token::Identifier(var_name)) = self.next_token() {
-            if let Some(Token::Symbol('=')) = self.next_token() {
-                let value = match var_type {
-                    "int" => self.next_token().and_then(|t| if let Token::Integer(v) = t { Some(PrimitiveVariable::Integer(v)) } else { None }),
-                    "char" => self.next_token().and_then(|t| if let Token::Character(v) = t { Some(PrimitiveVariable::Character(v)) } else { None }),
-                    "float" => self.next_token().and_then(|t| if let Token::Float(v) = t { Some(PrimitiveVariable::Float(v)) } else { None }),
-                    "bool" => self.next_token().and_then(|t| if let Token::Bool(v) = t { Some(PrimitiveVariable::Bool(v)) } else { None }),
-                    "string" => self.next_token().and_then(|t| if let Token::StringLiteral(v) = t { Some(PrimitiveVariable::String(v)) } else { None }),
-                    _ => None,
-                };
+    fn parse_array_declaration(&mut self, var_type: &str) -> Option<ASTNode> {
+        if let Some(Token::Integer(length)) = self.next_token() {
+            if let Some(Token::Symbol(']')) = self.next_token() {
+                if let Some(Token::Identifier(var_name)) = self.next_token() {
+                    if let Some(Token::Symbol('=')) = self.next_token() {
+                        if let Some(Token::Symbol('{')) = self.next_token() {
+                            let mut array = Vec::new();
+                            for i in 0..length {
+                                let value = match var_type {
+                                    "int" => self.next_token().and_then(|t| if let Token::Integer(v) = t { Some(PrimitiveVariable::Integer(v)) } else { None }),
+                                    "char" => self.next_token().and_then(|t| if let Token::Character(v) = t { Some(PrimitiveVariable::Character(v)) } else { None }),
+                                    "float" => self.next_token().and_then(|t| if let Token::Float(v) = t { Some(PrimitiveVariable::Float(v)) } else { None }),
+                                    "bool" => self.next_token().and_then(|t| if let Token::Bool(v) = t { Some(PrimitiveVariable::Bool(v)) } else { None }),
+                                    "string" => self.next_token().and_then(|t| if let Token::StringLiteral(v) = t { Some(PrimitiveVariable::String(v)) } else { None }),
+                                    _ => None,
+                                };
+                                if let Some(Token::Symbol(',')) {
+                                    array.push(value);
+                                } 
+                            }
 
-                if let Some(var_value) = value {
-                    if let Some(Token::Symbol(';')) = self.next_token() {
-                        self.variables.insert(var_name.clone(), var_value.clone());
-                        return Some(ASTNode::VariableDeclaration(var_name, var_value));
+                            if let Some(Token::Symbol(';')) = self.next_token() {
+                                return Some(ASTNode::ArrayDeclaration(ComplexVariable::Array(var_name, length, array)));
+                            }
+                        }
                     }
+                }
+            }
+        }
+        None
+    }
+
+    fn parse_variable_declaration(&mut self, var_type: &str, identifier: String) -> Option<ASTNode> {
+            if let Some(Token::Symbol('=')) = self.next_token() {
+            let value = match var_type {
+                "int" => self.next_token().and_then(|t| if let Token::Integer(v) = t { Some(PrimitiveVariable::Integer(v)) } else { None }),
+                "char" => self.next_token().and_then(|t| if let Token::Character(v) = t { Some(PrimitiveVariable::Character(v)) } else { None }),
+                "float" => self.next_token().and_then(|t| if let Token::Float(v) = t { Some(PrimitiveVariable::Float(v)) } else { None }),
+                "bool" => self.next_token().and_then(|t| if let Token::Bool(v) = t { Some(PrimitiveVariable::Bool(v)) } else { None }),
+                "string" => self.next_token().and_then(|t| if let Token::StringLiteral(v) = t { Some(PrimitiveVariable::String(v)) } else { None }),
+                _ => None,
+            };
+
+            if let Some(var_value) = value {
+                if let Some(Token::Symbol(';')) = self.next_token() {
+                    self.variables.insert(var_name.clone(), var_value.clone());
+                    return Some(ASTNode::VariableDeclaration(identifier, var_value));
                 }
             }
         }
