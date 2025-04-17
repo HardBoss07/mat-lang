@@ -23,11 +23,12 @@ pub enum ASTNode {
     IfStatement(String, Vec<ASTNode>),
     ElseStatement(Vec<ASTNode>),
     WhileLoop(String, Vec<ASTNode>),
+    ArrayDeclaration(ComplexVariable::Array(String, usize, Vec<PrimitiveVariable>)),
 }
 
 #[derive(Debug, Clone)]
 pub enum ComplexVariable {
-    Array(String, Vec<PrimitiveVariable>),
+    Array(String, usize, Vec<PrimitiveVariable>),
 }
 
 #[derive(Debug, Clone)]
