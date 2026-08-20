@@ -20,7 +20,8 @@ items:
       is_pub: false
       name: one_arg
       params:
-        - name: n
+        - is_mutable: false
+          name: n
           ty: Int
       return_type: Int
       body:
@@ -31,11 +32,14 @@ items:
       is_pub: false
       name: multi_args
       params:
-        - name: a
+        - is_mutable: false
+          name: a
           ty: Int
-        - name: b
+        - is_mutable: false
+          name: b
           ty: Bool
-        - name: c
+        - is_mutable: false
+          name: c
           ty: F64
       return_type: F64
       body:
@@ -46,7 +50,8 @@ items:
       is_pub: false
       name: factorial
       params:
-        - name: n
+        - is_mutable: false
+          name: n
           ty: Int
       return_type: Int
       body:

@@ -7,7 +7,8 @@ items:
       is_pub: false
       name: check
       params:
-        - name: code
+        - is_mutable: false
+          name: code
           ty: Int
       return_type:
         Result:
