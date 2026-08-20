@@ -1,38 +1,114 @@
 import std::fs;
 import std::io;
+import std::math;
 
 fn main() {
-    let file_path: String = "examples/output.txt";
-    let text_to_write: String = "Hello from mat-lang standard library I/O!";
+    io::println_str("=== 1. Standard Math & Functions ===");
+    
+    // Scalar math functions
+    let angle: f64 = 0.7853981633974483; // PI / 4 (45 degrees)
+    let sin_val: f64 = math::sin(angle);
+    let cos_val: f64 = math::cos(angle);
+    let sqrt_two: f64 = math::sqrt(2.0);
 
-    // Demonstrating std::io functions
-    io::print_str("Writing content to file: ");
-    io::println_str(file_path);
+    println("sin(PI/4): {sin_val}");
+    println("cos(PI/4): {cos_val}");
+    println("sqrt(2): {sqrt_two}");
+    println("Max of 10.5 and 20.3: {math::max(10.5, 20.3)}");
+    println("Clamped 15.0 between (0, 10): {math::clamp(15.0, 0.0, 10.0)}");
 
-    // Demonstrating std::fs::write_string
-    let write_res: Result<bool, String> = fs::write_string(file_path, text_to_write);
+    io::println_str("\n=== 2. Vector Math Operations ===");
 
-    match (write_res) {
-        Ok(success) => {
-            io::println_str("Successfully wrote text to disk.");
+    let mut v1: Vec<f64> = Vec::new();
+    v1.push(1.0);
+    v1.push(2.0);
+    v1.push(3.0);
+
+    let mut v2: Vec<f64> = Vec::new();
+    v2.push(4.0);
+    v2.push(5.0);
+    v2.push(6.0);
+
+    // Element-wise addition
+    let add_res: Result<Vec<f64>, String> = math::vec_add(v1, v2);
+    match (add_res) {
+        Ok(v_sum) => {
+            io::println_str("Vector addition (v1 + v2) successful!");
+            println("Total sum of result elements: {math::vec_sum(v_sum)}");
         }
         Err(err) => {
-            io::println_str("Failed to write to file: {err}");
+            println("Vector addition failed: {err}");
         }
     }
 
-    io::println_str("\nReading content back from disk...");
-
-    // Demonstrating std::fs::read_to_string
-    let read_res = fs::read_to_string(file_path);
-
-    match (read_res) {
-        Ok(content) => {
-            io::print_str("File Content:\n");
-            io::println_str(content);
+    // Dot product
+    let dot_res: Result<f64, String> = math::vec_dot(v1, v2);
+    match (dot_res) {
+        Ok(dot_prod) => {
+            println("Dot product (v1 . v2): {dot_prod}");
         }
         Err(err) => {
-            io::println_str("Failed to read file: {err}");
+            println("Dot product failed: {err}");
+        }
+    }
+
+    // Min and Max within a vector
+    let min_res: Result<f64, String> = math::vec_min(v1);
+    match (min_res) {
+        Ok(min_val) => println("Min element in v1: {min_val}");
+        Err(err)    => println("Error: {err}");
+    }
+
+    io::println_str("\n=== 3. Console Reading & Interactive Input ===");
+
+    io::print_str("Enter custom text to save to disk: ");
+    let user_input: String = io::read_console();
+    println("Captured user input: \"{user_input}\"");
+
+    io::println_str("\n=== 4. Stream File Handle I/O ===");
+
+    let file_path: String = "examples/output.txt";
+
+    // Creating and writing to a file via File handle
+    let create_res: Result<fs::File, String> = fs::create(file_path);
+    match (create_res) {
+        Ok(file) => {
+            io::println_str("Created file handle successfully.");
+
+            let write_res: Result<int, String> = fs::write(file, user_input);
+            match (write_res) {
+                Ok(bytes_written) => println("Wrote {bytes_written} bytes to file.");
+                Err(err)          => println("Failed writing content: {err}");
+            }
+
+            fs::flush(file);
+            fs::close(file);
+            io::println_str("File stream flushed and closed.");
+        }
+        Err(err) => {
+            println("Failed to create file handle: {err}");
+        }
+    }
+
+    // Re-opening the file for reading
+    io::println_str("\nReading content back from disk...");
+    let open_res: Result<fs::File, String> = fs::open(file_path, "rb");
+    match (open_res) {
+        Ok(file) => {
+            let read_res: Result<String, String> = fs::read_to_string(file);
+            match (read_res) {
+                Ok(content) => {
+                    io::print_str("File Content Read:\n");
+                    io::println_str(content);
+                }
+                Err(err) => {
+                    println("Failed to read file content: {err}");
+                }
+            }
+            fs::close(file);
+        }
+        Err(err) => {
+            println("Failed to open file for reading: {err}");
         }
     }
 }
