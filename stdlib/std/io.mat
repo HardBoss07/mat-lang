@@ -3,5 +3,9 @@ pub fn print_str(msg: String) {
 }
 
 pub fn println_str(msg: String) {
-    println(msg);
+    _mat_rt_println_str(msg);
+}
+
+pub fn read_console() -> String {
+    return _mat_rt_read_line();
 }

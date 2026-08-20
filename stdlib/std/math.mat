@@ -1,0 +1,119 @@
+// IEEE 754 64-bit Floating-Point Constants
+pub let PI: f64 = 3.14159265358979323846264338327950288;
+pub let E: f64 = 2.71828182845904523536028747135266249;
+pub let TAU: f64 = 6.28318530717958647692528676655900576;
+pub let SQRT_2: f64 = 1.41421356237309504880168872420969807;
+pub let LN_2: f64 = 0.693147180559945309417232121458176568;
+pub let LN_10: f64 = 2.30258509299404568401799145468436421;
+
+/* --- Scalar Math Wrappers --- */
+
+pub fn sin(val: f64) -> f64 { return _mat_rt_sin(val); }
+pub fn cos(val: f64) -> f64 { return _mat_rt_cos(val); }
+pub fn tan(val: f64) -> f64 { return _mat_rt_tan(val); }
+pub fn asin(val: f64) -> f64 { return _mat_rt_asin(val); }
+pub fn acos(val: f64) -> f64 { return _mat_rt_acos(val); }
+pub fn atan(val: f64) -> f64 { return _mat_rt_atan(val); }
+pub fn atan2(y: f64, x: f64) -> f64 { return _mat_rt_atan2(y, x); }
+pub fn sqrt(val: f64) -> f64 { return _mat_rt_sqrt(val); }
+pub fn pow(base: f64, exp: f64) -> f64 { return _mat_rt_pow(base, exp); }
+pub fn abs(val: f64) -> f64 { return _mat_rt_abs_f64(val); }
+pub fn abs_int(val: int) -> int { return _mat_rt_abs_int(val); }
+pub fn floor(val: f64) -> f64 { return _mat_rt_floor(val); }
+pub fn ceil(val: f64) -> f64 { return _mat_rt_ceil(val); }
+pub fn round(val: f64) -> f64 { return _mat_rt_round(val); }
+
+pub fn max(a: f64, b: f64) -> f64 {
+    if (a > b) { return a; }
+    return b;
+}
+
+pub fn min(a: f64, b: f64) -> f64 {
+    if (a < b) { return a; }
+    return b;
+}
+
+pub fn clamp(val: f64, min_val: f64, max_val: f64) -> f64 {
+    if (val < min_val) { return min_val; }
+    if (val > max_val) { return max_val; }
+    return val;
+}
+
+/* --- Vector Calculations (Vec<f64>) --- */
+
+pub fn vec_sum(v: Vec<f64>) -> f64 {
+    let mut total: f64 = 0.0;
+    for x in v {
+        total += x;
+    }
+    return total;
+}
+
+pub fn vec_min(v: Vec<f64>) -> Result<f64, String> {
+    if (v.len() == 0) {
+        return Err("Cannot compute min of an empty vector");
+    }
+    let mut current_min: f64 = v.get(0);
+    fori (let i: int = 1; i < v.len(); i++) {
+        let val: f64 = v.get(i);
+        if (val < current_min) {
+            current_min = val;
+        }
+    }
+    return Ok(current_min);
+}
+
+pub fn vec_max(v: Vec<f64>) -> Result<f64, String> {
+    if (v.len() == 0) {
+        return Err("Cannot compute max of an empty vector");
+    }
+    let mut current_max: f64 = v.get(0);
+    fori (let i: int = 1; i < v.len(); i++) {
+        let val: f64 = v.get(i);
+        if (val > current_max) {
+            current_max = val;
+        }
+    }
+    return Ok(current_max);
+}
+
+pub fn vec_add(a: Vec<f64>, b: Vec<f64>) -> Result<Vec<f64>, String> {
+    if (a.len() != b.len()) {
+        return Err("Vector dimension mismatch in vec_add: {a.len()} != {b.len()}");
+    }
+    let mut result: Vec<f64> = Vec::new();
+    fori (let i: int = 0; i < a.len(); i++) {
+        result.push(a.get(i) + b.get(i));
+    }
+    return Ok(result);
+}
+
+pub fn vec_mul(a: Vec<f64>, b: Vec<f64>) -> Result<Vec<f64>, String> {
+    if (a.len() != b.len()) {
+        return Err("Vector dimension mismatch in vec_mul: {a.len()} != {b.len()}");
+    }
+    let mut result: Vec<f64> = Vec::new();
+    fori (let i: int = 0; i < a.len(); i++) {
+        result.push(a.get(i) * b.get(i));
+    }
+    return Ok(result);
+}
+
+pub fn vec_scale(v: Vec<f64>, scalar: f64) -> Vec<f64> {
+    let mut result: Vec<f64> = Vec::new();
+    for x in v {
+        result.push(x * scalar);
+    }
+    return result;
+}
+
+pub fn vec_dot(a: Vec<f64>, b: Vec<f64>) -> Result<f64, String> {
+    if (a.len() != b.len()) {
+        return Err("Vector dimension mismatch in vec_dot: {a.len()} != {b.len()}");
+    }
+    let mut total: f64 = 0.0;
+    fori (let i: int = 0; i < a.len(); i++) {
+        total += a.get(i) * b.get(i);
+    }
+    return Ok(total);
+}

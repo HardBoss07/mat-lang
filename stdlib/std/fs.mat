@@ -1,13 +1,95 @@
-pub fn read_to_string(path: String) -> Result<String, String> {
-    let content: String = _mat_rt_read_file(path);
+pub enum FileMode {
+    Read,
+    Write,
+    Append,
+    ReadWrite,
+}
+
+pub struct File {
+    pub handle: int,
+    pub path: String,
+    pub is_open: bool,
+}
+
+pub fn open(path: String, mode: String) -> Result<File, String> {
+    let ptr: int = _mat_rt_file_open(path, mode);
+    if (ptr == 0) {
+        return Err("Failed to open file at path: {path}");
+    }
+
+    let file: File = File {
+        handle: ptr,
+        path: path,
+        is_open: tru,
+    };
+    return Ok(file);
+}
+
+pub fn create(path: String) -> Result<File, String> {
+    return open(path, "wb");
+}
+
+pub fn read_line(file: File) -> Result<String, String> {
+    if (file.is_open == fal || file.handle == 0) {
+        return Err("Cannot read from closed file handle");
+    }
+    let line: String = _mat_rt_file_read_line(file.handle);
+    if (line == "") {
+        return Err("EOF or error reading line");
+    }
+    return Ok(line);
+}
+
+pub fn read_to_string(file: File) -> Result<String, String> {
+    if (file.is_open == fal || file.handle == 0) {
+        return Err("Cannot read from closed file handle");
+    }
+    let content: String = _mat_rt_file_read_to_string(file.handle);
     return Ok(content);
 }
 
-pub fn write_string(path: String, content: String) -> Result<bool, String> {
-    let success: bool = _mat_rt_write_file(path, content);
+pub fn write(file: File, content: String) -> Result<int, String> {
+    if (file.is_open == fal || file.handle == 0) {
+        return Err("Cannot write to closed file handle");
+    }
+    let bytes_written: int = _mat_rt_file_write(file.handle, content);
+    if (bytes_written < 0) {
+        return Err("Failed to write content to file");
+    }
+    return Ok(bytes_written);
+}
+
+pub fn flush(file: File) -> Result<bool, String> {
+    if (file.is_open == fal || file.handle == 0) {
+        return Err("Cannot flush closed file handle");
+    }
+    let success: bool = _mat_rt_file_flush(file.handle);
     if (success == tru) {
         return Ok(tru);
-    } else {
-        return Err("Failed to write to file");
     }
+    return Err("Failed to flush file stream");
+}
+
+pub fn seek(file: File, offset: int, whence: int) -> Result<int, String> {
+    if (file.is_open == fal || file.handle == 0) {
+        return Err("Cannot seek in closed file handle");
+    }
+    let new_pos: int = _mat_rt_file_seek(file.handle, offset, whence);
+    if (new_pos < 0) {
+        return Err("Seek operation failed");
+    }
+    return Ok(new_pos);
+}
+
+pub fn close(mut file: File) -> Result<bool, String> {
+    if (file.is_open == fal || file.handle == 0) {
+        return Err("File handle is already closed");
+    }
+    let success: bool = _mat_rt_file_close(file.handle);
+    file.is_open = fal;
+    file.handle = 0;
+    if (success == tru) {
+        return Ok(tru);
+    }
+    return Err("Error closing file stream");
 }
