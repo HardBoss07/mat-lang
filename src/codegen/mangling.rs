@@ -1,8 +1,7 @@
-/// Mangles module path into global target symbols (e.g. `_mat_math_calc_add`)
-pub fn mangle_symbol(module_path: &[&str], symbol_name: &str) -> String {
-    if module_path.is_empty() {
-        format!("_mat_{}", symbol_name)
+pub fn mangle_symbol(symbol_name: &str) -> String {
+    if symbol_name == "main" {
+        "main".to_string()
     } else {
-        format!("_mat_{}_{}", module_path.join("_"), symbol_name)
+        format!("_mat_{}", symbol_name)
     }
 }

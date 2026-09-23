@@ -4,7 +4,7 @@ pub mod type_checker;
 pub use symbol_table::SymbolTable;
 pub use type_checker::TypeChecker;
 
-use crate::ast::Statement;
+use crate::ast::Program;
 use crate::error::Result;
 
 pub struct SemanticAnalyzer {
@@ -20,11 +20,7 @@ impl SemanticAnalyzer {
         }
     }
 
-    pub fn analyze(&mut self, statements: &[Statement]) -> Result<()> {
-        for stmt in statements {
-            self.type_checker
-                .check_statement(stmt, &mut self.symbol_table)?;
-        }
-        Ok(())
+    pub fn analyze(&mut self, program: &Program) -> Result<()> {
+        self.type_checker.check_program(program, &self.symbol_table)
     }
 }

@@ -1,8 +1,10 @@
-/// Manages Boehm GC allocator symbols (@GC_malloc) and runtime bindings
-pub struct RuntimeBindings;
+use inkwell::context::Context;
+use inkwell::module::Module;
 
-impl RuntimeBindings {
-    pub fn gc_malloc_fn_name() -> &'static str {
-        "GC_malloc"
-    }
+pub fn declare_runtime_symbols<'a>(context: &'a Context, module: &Module<'a>) {
+    let i32_type = context.i32_type();
+    let ptr_type = context.ptr_type(inkwell::AddressSpace::default());
+
+    let puts_type = i32_type.fn_type(&[ptr_type.into()], false);
+    module.add_function("puts", puts_type, None);
 }

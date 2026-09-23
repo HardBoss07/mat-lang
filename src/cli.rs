@@ -1,53 +1,58 @@
-use crate::Result;
-use clap::{Parser, Subcommand};
+use clap::{Parser as ClapParser, Subcommand};
+use inkwell::context::Context;
+use std::fs;
 use std::path::PathBuf;
 
-#[derive(Parser, Debug)]
-#[command(
-    name = "matc",
-    version,
-    about = "Compiler for the mat programming language"
-)]
+use crate::Result;
+use crate::codegen::CodegenEngine;
+use crate::parser::Parser;
+use crate::semantic::SemanticAnalyzer;
+
+#[derive(ClapParser, Debug)]
+#[command(name = "matc", version, about = "Compiler for the mat language")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
-
-    #[arg(short, long, global = true)]
-    pub verbose: bool,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Compile a .mat file to an executable
     Build {
-        /// Input source file path (.mat)
         source: PathBuf,
 
-        /// Output binary destination path
         #[arg(short, long)]
         output: Option<PathBuf>,
 
-        /// Emit LLVM IR file (.ll) alongside executable
         #[arg(long)]
         emit_llvm: bool,
     },
-    /// Run source file directly
-    Run { source: PathBuf },
 }
 
 impl Cli {
     pub fn run(&self) -> Result<()> {
         match &self.command {
             Commands::Build {
-                source,
-                output,
-                emit_llvm,
+                source, emit_llvm, ..
             } => {
-                tracing::info!(file = ?source, emit_llvm = %emit_llvm, "Building target");
-                Ok(())
-            }
-            Commands::Run { source } => {
-                tracing::info!(file = ?source, "Executing target");
+                let source_code = fs::read_to_string(source)?;
+
+                // 1. Parse AST
+                let mut parser = Parser::new(&source_code);
+                let ast = parser.parse_program()?;
+
+                // 2. Semantic Analysis
+                let mut analyzer = SemanticAnalyzer::new();
+                analyzer.analyze(&ast)?;
+
+                // 3. LLVM IR Generation
+                let context = Context::create();
+                let codegen = CodegenEngine::new(&context, "main_module");
+                codegen.compile_program(&ast)?;
+
+                if *emit_llvm {
+                    println!("{}", codegen.emit_llvm_ir());
+                }
+
                 Ok(())
             }
         }

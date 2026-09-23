@@ -5,32 +5,34 @@ pub use span::Span;
 pub use types::Type;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Identifier {
-    pub name: String,
-    pub span: Span,
+pub enum Expression {
+    StringLiteral(String, Span),
+    Call {
+        callee: String,
+        arguments: Vec<Expression>,
+        span: Span,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
-    Let {
-        name: Identifier,
-        type_annotation: Option<Type>,
-        initializer: Expression,
-        is_mutable: bool,
-        span: Span,
-    },
-    Return {
-        value: Option<Expression>,
-        span: Span,
-    },
     Expression(Expression),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expression {
-    Integer(i64, Span),
-    Float(f64, Span),
-    Boolean(bool, Span),
-    StringLiteral(String, Span),
-    Identifier(Identifier),
+pub struct FunctionDeclaration {
+    pub name: String,
+    pub return_type: Type,
+    pub body: Vec<Statement>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Item {
+    Function(FunctionDeclaration),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Program {
+    pub items: Vec<Item>,
 }
