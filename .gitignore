@@ -30,3 +30,5 @@ Thumbs.db
 # Binary executables
 output
 output.exe
+
+/examples/

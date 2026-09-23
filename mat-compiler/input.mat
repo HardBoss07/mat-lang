@@ -1,8 +1,0 @@
-void main() {
-    int[5] numbers = {0, 1, 2, 3, 4, 5};
-    int i = 0;
-    while (i < 6) {
-        sout("current number is {numbers[i]}");
-        i += 1;
-    }
-}

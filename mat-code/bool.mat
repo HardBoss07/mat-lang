@@ -1,6 +1,0 @@
-void main() {
-    bool a = tru;
-    bool b = fal;
-
-    sout("a = {a}, b = {b}");
-}

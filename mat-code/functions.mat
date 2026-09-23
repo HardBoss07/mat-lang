@@ -1,7 +1,0 @@
-void main() {
-    testVoid();
-}
-
-void testVoid() {
-    sout("the test void has been called");
-}
