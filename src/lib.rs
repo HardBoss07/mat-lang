@@ -1,7 +1,9 @@
 pub mod ast;
+pub mod cli;
 pub mod codegen;
-pub mod driver;
+pub mod error;
 pub mod lexer;
-pub mod linker;
 pub mod parser;
-pub mod typechecker;
+pub mod semantic;
+
+pub use error::{MatcError, Result};
