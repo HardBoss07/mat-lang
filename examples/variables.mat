@@ -1,0 +1,6 @@
+fn main() {
+    let name: String = "M4tt3o";
+    let mut age: int = 30;
+
+    println("User: {name} age {age}!");
+}

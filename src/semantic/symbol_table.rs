@@ -5,6 +5,7 @@ use std::collections::HashMap;
 pub struct Symbol {
     pub name: String,
     pub ty: Type,
+    pub is_mutable: bool,
 }
 
 pub struct SymbolTable {
@@ -14,17 +15,30 @@ pub struct SymbolTable {
 impl SymbolTable {
     pub fn new() -> Self {
         let mut global_scope = HashMap::new();
-        // Register built-in functions
         global_scope.insert(
             "println".to_string(),
             Symbol {
                 name: "println".to_string(),
                 ty: Type::Void,
+                is_mutable: false,
             },
         );
 
         Self {
             scopes: vec![global_scope],
+        }
+    }
+
+    pub fn insert(&mut self, name: String, ty: Type, is_mutable: bool) {
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.insert(
+                name.clone(),
+                Symbol {
+                    name,
+                    ty,
+                    is_mutable,
+                },
+            );
         }
     }
 

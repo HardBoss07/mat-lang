@@ -21,6 +21,7 @@ impl SemanticAnalyzer {
     }
 
     pub fn analyze(&mut self, program: &Program) -> Result<()> {
-        self.type_checker.check_program(program, &self.symbol_table)
+        self.type_checker
+            .check_program(program, &mut self.symbol_table)
     }
 }

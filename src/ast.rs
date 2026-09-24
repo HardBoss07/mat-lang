@@ -6,7 +6,11 @@ pub use types::Type;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
+    Identifier(String, Span),
+    IntLiteral(i64, Span),
+    BoolLiteral(bool, Span),
     StringLiteral(String, Span),
+    InterpolatedString(Vec<Expression>, Span),
     Call {
         callee: String,
         arguments: Vec<Expression>,
@@ -16,6 +20,13 @@ pub enum Expression {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
+    Let {
+        name: String,
+        is_mutable: bool,
+        ty: Type,
+        value: Expression,
+        span: Span,
+    },
     Expression(Expression),
 }
 

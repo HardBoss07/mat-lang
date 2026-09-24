@@ -7,4 +7,7 @@ pub fn declare_runtime_symbols<'a>(context: &'a Context, module: &Module<'a>) {
 
     let puts_type = i32_type.fn_type(&[ptr_type.into()], false);
     module.add_function("puts", puts_type, None);
+
+    let printf_type = i32_type.fn_type(&[ptr_type.into()], true);
+    module.add_function("printf", printf_type, None);
 }
