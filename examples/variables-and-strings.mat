@@ -1,0 +1,15 @@
+fn main() {
+    let name: String = "M4tt3o";
+    let mut age: int = 30;
+    let is_active: bool = tru;
+    let score: f64 = 98.5;
+
+    println("User: {name}");
+    println("Status - Age: {age}, Active: {is_active}, Score: {score}");
+
+    age++;
+
+    let mut greeting: String = "Hello";
+    greeting = "{greeting}, {name}! Next year you will be {age}.";
+    println(greeting);
+}
