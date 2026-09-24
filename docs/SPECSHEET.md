@@ -19,8 +19,34 @@
 | `int`              | 64-bit signed integer (default) | `i64`              |
 | `i32`, `i16`, `i8` | Fixed-width integers            | `i32`, `i16`, `i8` |
 | `f64`              | Double-precision float          | `double`           |
-| `bool`             | Boolean                         | `i1`               |
+| `bool`             | Boolean (`tru` / `fal`)         | `i1`               |
 | `char`             | Unicode / ASCII character       | `i32` / `i8`       |
+
+### Integer & Numeric Literals
+
+**mat** supports decimal, hexadecimal, and binary integer literal formats, with optional underscores `_` as visual digit separators:
+
+- **Decimal:** `100`, `1_000_000`
+- **Hexadecimal:** `0xA5`, `0xFF_00_AB`
+- **Binary:** `0b10101000`, `0b1100_0011`
+
+```mat
+let hex_val: i32 = 0xA5;
+let bin_val: i8 = 0b10100100;
+let mask: int = 0xFF_00_FF;
+```
+
+### String Interpolation
+
+Strings support inline expression and variable interpolation enclosed in curly braces `{}`. String interpolation is resolved at compile time into structured string concatenation and runtime formatting calls.
+
+```mat
+let content_var: String = "foobar";
+let number: int = 23;
+
+content_var = "foobar {number}";
+println("Content: {content_var}");
+```
 
 ### Error Handling via `Result<T, E>`
 
@@ -60,9 +86,15 @@ score *= 2;
 score /= 4;
 score++;
 score--;
+
+// Bitwise shift operators & short-form compound assignments
+let mut mask: int = 0b0001;
+mask <<= 3; // Bitwise shift-left assignment (mask becomes 0b1000)
+mask >>= 1; // Bitwise shift-right assignment (mask becomes 0b0100)
+let shifted: int = mask << 2; // Standard bitwise left-shift
 ```
 
-## 4. Structs, Tuples, and Arrays
+## 4. Structs, Tuples, Enums, and Arrays
 
 ### 4.1 Structs
 
@@ -79,7 +111,7 @@ fn create_player(name: String) -> Player {
     return Player {
         name: name,
         score: 0,
-        is_active: true,
+        is_active: tru,
     };
 }
 ```
@@ -89,33 +121,70 @@ fn create_player(name: String) -> Player {
 Heterogeneous sequences indexed with `.0`, `.1`:
 
 ```mat
-let point: (int, int, bool) = (10, 20, true);
+let point: (int, int, bool) = (10, 20, tru);
 let x: int = point.0;
 let is_valid: bool = point.2;
 ```
 
-### 4.3 Fixed Arrays & Heap Vectors
+### 4.3 Fixed Arrays & Heap Vectors (1D & 2D)
 
-- **Arrays:** Stack-allocated fixed length (`[int; 4]`).
-- **Vectors:** Heap-allocated dynamic sequences (`Vec<T>`).
+- **Arrays:** Stack-allocated fixed length (`[int; 4]`, 2D: `[[int; 3]; 2]`).
+- **Vectors:** Heap-allocated dynamic sequences (`Vec<T>`, 2D: `Vec<Vec<T>>`).
 
 ```mat
-// Stack Array
+// 1D & 2D Stack Arrays
 let fixed_nums: [int; 3] = [1, 2, 3];
+let grid_2d: [[int; 3]; 2] = [
+    [1, 2, 3],
+    [4, 5, 6]
+];
+let cell: int = grid_2d[1][0]; // Access row 1, col 0 (4)
 
-// Dynamic Vector (Managed by GC)
+// Dynamic Vector & Nested 2D Vectors (Managed by GC)
 let mut dynamic_list: Vec<int> = Vec::new();
 dynamic_list.push(10);
 dynamic_list.push(20);
-let first: int = dynamic_list.get(0);
+
+let mut matrix_2d: Vec<Vec<int>> = Vec::new();
+let mut row1: Vec<int> = Vec::new();
+row1.push(1);
+row1.push(0);
+matrix_2d.push(row1);
+let element: int = matrix_2d.get(0).get(0);
+```
+
+### 4.4 Enums (Tagged Unions / ADTs)
+
+Enums support rich Rust-like payload variants, including unit variants, tuple-like payloads, and struct-like payloads.
+
+```mat
+pub enum NetworkState {
+    Idle,
+    Connected(String),
+    Error(i32, String),
+    Data { bytes: Vec<i8>, count: int },
+}
+
+fn handle_state(state: NetworkState) {
+    match (state) {
+        NetworkState::Idle => println("State: Idle");
+        NetworkState::Connected(ip) => println("Connected to {ip}");
+        NetworkState::Error(code, msg) => println("Error {code}: {msg}");
+        NetworkState::Data { bytes, count } => println("Received {count} bytes");
+    }
+}
 ```
 
 ## 5. Control Flow
 
 ### 5.1 Conditionals (`if` / `else`)
 
+Conditionals evaluate boolean expressions that resolve to `tru` or `fal`.
+
 ```mat
-if (score > 50) {
+let is_ready: bool = tru;
+
+if (score > 50 && is_ready == tru) {
     println("High score!");
 } else {
     println("Keep trying!");
@@ -175,8 +244,7 @@ The standard input and output bindings interface directly with LLVM-compiled run
 fn main() {
     print("Enter username: ");
     let username: String = read_line();
-    println("Welcome:");
-    println(username);
+    println("Welcome {username}!");
 }
 ```
 
@@ -219,7 +287,7 @@ import utils;
 fn main() {
     let sum: int = calc::add(10, 20);
     let obj: calc::Calculation = calc::Calculation { value: sum };
-    println(obj.value);
+    println("Calculated result: {obj.value}");
 }
 ```
 
@@ -234,5 +302,6 @@ When compiling **mat** using Rust:
 - Global names are mangled (`_mat_math_calc_add`).
 - Heap types invoke the GC allocator (`@GC_malloc`).
 - Local variable mutations generate LLVM `alloca`, `load`, and `store` instructions.
+- String interpolation expressions `{expr}` are lowered to dynamic runtime buffer formatting routines (`_mat_rt_fmt_string`).
 
 4. **Linking Phase:** Passes emitted `.ll` bitcode through `clang` to link against `libgc` (Boehm GC) and standard C system libraries, outputting the final executable file.
