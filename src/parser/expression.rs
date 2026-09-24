@@ -8,11 +8,12 @@ use crate::ast::{Expression, Span};
 
 pub fn parse_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
     let _ = multispace0.parse_next(input)?;
-    let first = alpha1.parse_next(input)?;
-    let rest = take_while(0.., |c: char| c.is_alphanumeric() || c == '_').parse_next(input)?;
-
-    let len = first.len() + rest.len();
-    Ok(&first[..len])
+    (
+        alpha1,
+        take_while(0.., |c: char| c.is_alphanumeric() || c == '_'),
+    )
+        .take()
+        .parse_next(input)
 }
 
 pub fn parse_identifier(input: &mut &str) -> ModalResult<Expression> {
@@ -26,16 +27,23 @@ pub fn parse_identifier(input: &mut &str) -> ModalResult<Expression> {
 pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
     let _ = multispace0.parse_next(input)?;
     let digits = digit1.parse_next(input)?;
-    let value = digits.parse::<i64>().unwrap();
-    Ok(Expression::IntLiteral(value, Span::new(0, digits.len())))
+    let val = digits.parse::<i64>().unwrap();
+    Ok(Expression::IntLiteral(val, Span::new(0, digits.len())))
+}
+
+pub fn parse_float_literal(input: &mut &str) -> ModalResult<Expression> {
+    let _ = multispace0.parse_next(input)?;
+    let float_str: &str = (digit1, '.', digit1).take().parse_next(input)?;
+    let val: f64 = float_str.parse().unwrap();
+    Ok(Expression::FloatLiteral(val, Span::new(0, float_str.len())))
 }
 
 pub fn parse_bool_literal(input: &mut &str) -> ModalResult<Expression> {
     let _ = multispace0.parse_next(input)?;
-    let value =
+    let val =
         alt((literal("tru").map(|_| true), literal("fal").map(|_| false))).parse_next(input)?;
 
-    Ok(Expression::BoolLiteral(value, Span::new(0, 3)))
+    Ok(Expression::BoolLiteral(val, Span::new(0, 3)))
 }
 
 pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression> {
@@ -120,6 +128,7 @@ pub fn parse_expression(input: &mut &str) -> ModalResult<Expression> {
         parse_call_expression,
         parse_string_or_interpolated,
         parse_bool_literal,
+        parse_float_literal,
         parse_int_literal,
         parse_identifier,
     ))

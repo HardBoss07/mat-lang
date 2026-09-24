@@ -9,7 +9,7 @@ use crate::parser::expression::{parse_expression, parse_identifier_str};
 
 pub fn parse_type(input: &mut &str) -> ModalResult<Type> {
     let _ = multispace0.parse_next(input)?;
-    let type_str = parse_identifier_str(input)?;
+    let type_str = parse_identifier_str.parse_next(input)?;
     match type_str {
         "int" => Ok(Type::Int),
         "i32" => Ok(Type::I32),
@@ -20,10 +20,6 @@ pub fn parse_type(input: &mut &str) -> ModalResult<Type> {
         "String" => Ok(Type::String),
         other => Ok(Type::Custom(other.to_string())),
     }
-}
-
-pub fn parse_statement(input: &mut &str) -> ModalResult<Statement> {
-    alt((parse_let_statement, parse_expression_statement)).parse_next(input)
 }
 
 pub fn parse_let_statement(input: &mut &str) -> ModalResult<Statement> {
@@ -55,6 +51,51 @@ pub fn parse_let_statement(input: &mut &str) -> ModalResult<Statement> {
     })
 }
 
+pub fn parse_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
+    let _ = multispace0.parse_next(input)?;
+    let target = parse_identifier_str.parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+    let _ = literal('=').parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+    let value = parse_expression.parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+    let _ = literal(';').parse_next(input)?;
+
+    Ok(Statement::Assignment {
+        target: target.to_string(),
+        value,
+        span: Span::new(0, 0),
+    })
+}
+
+pub fn parse_increment_statement(input: &mut &str) -> ModalResult<Statement> {
+    let _ = multispace0.parse_next(input)?;
+    let target = parse_identifier_str.parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+    let _ = literal("++").parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+    let _ = literal(';').parse_next(input)?;
+
+    Ok(Statement::Increment {
+        target: target.to_string(),
+        span: Span::new(0, 0),
+    })
+}
+
+pub fn parse_decrement_statement(input: &mut &str) -> ModalResult<Statement> {
+    let _ = multispace0.parse_next(input)?;
+    let target = parse_identifier_str.parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+    let _ = literal("--").parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+    let _ = literal(';').parse_next(input)?;
+
+    Ok(Statement::Decrement {
+        target: target.to_string(),
+        span: Span::new(0, 0),
+    })
+}
+
 pub fn parse_expression_statement(input: &mut &str) -> ModalResult<Statement> {
     let _ = multispace0.parse_next(input)?;
     let expr = parse_expression.parse_next(input)?;
@@ -62,4 +103,15 @@ pub fn parse_expression_statement(input: &mut &str) -> ModalResult<Statement> {
     let _ = literal(';').parse_next(input)?;
 
     Ok(Statement::Expression(expr))
+}
+
+pub fn parse_statement(input: &mut &str) -> ModalResult<Statement> {
+    alt((
+        parse_let_statement,
+        parse_increment_statement,
+        parse_decrement_statement,
+        parse_assignment_statement,
+        parse_expression_statement,
+    ))
+    .parse_next(input)
 }

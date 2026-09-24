@@ -8,6 +8,7 @@ pub use types::Type;
 pub enum Expression {
     Identifier(String, Span),
     IntLiteral(i64, Span),
+    FloatLiteral(f64, Span),
     BoolLiteral(bool, Span),
     StringLiteral(String, Span),
     InterpolatedString(Vec<Expression>, Span),
@@ -25,6 +26,19 @@ pub enum Statement {
         is_mutable: bool,
         ty: Type,
         value: Expression,
+        span: Span,
+    },
+    Assignment {
+        target: String,
+        value: Expression,
+        span: Span,
+    },
+    Increment {
+        target: String,
+        span: Span,
+    },
+    Decrement {
+        target: String,
         span: Span,
     },
     Expression(Expression),

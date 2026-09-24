@@ -42,6 +42,35 @@ impl TypeChecker {
                 }
                 symbols.insert(name.clone(), ty.clone(), *is_mutable);
             }
+            Statement::Assignment { target, value, .. } => {
+                let sym = symbols.lookup(target).ok_or_else(|| MatcError::TypeError {
+                    message: format!("Undefined variable: {}", target),
+                })?;
+                if !sym.is_mutable {
+                    return Err(MatcError::TypeError {
+                        message: format!("Cannot assign to immutable variable '{}'", target),
+                    });
+                }
+                let val_type = self.infer_expression_type(value, symbols)?;
+                if val_type != sym.ty {
+                    return Err(MatcError::TypeError {
+                        message: format!(
+                            "Type mismatch for variable '{}': expected {:?}, got {:?}",
+                            target, sym.ty, val_type
+                        ),
+                    });
+                }
+            }
+            Statement::Increment { target, .. } | Statement::Decrement { target, .. } => {
+                let sym = symbols.lookup(target).ok_or_else(|| MatcError::TypeError {
+                    message: format!("Undefined variable: {}", target),
+                })?;
+                if !sym.is_mutable {
+                    return Err(MatcError::TypeError {
+                        message: format!("Cannot mutate immutable variable '{}'", target),
+                    });
+                }
+            }
             Statement::Expression(expr) => {
                 self.infer_expression_type(expr, symbols)?;
             }
@@ -58,6 +87,7 @@ impl TypeChecker {
                 Ok(sym.ty.clone())
             }
             Expression::IntLiteral(_, _) => Ok(Type::Int),
+            Expression::FloatLiteral(_, _) => Ok(Type::F64),
             Expression::BoolLiteral(_, _) => Ok(Type::Bool),
             Expression::StringLiteral(_, _) => Ok(Type::String),
             Expression::InterpolatedString(parts, _) => {
