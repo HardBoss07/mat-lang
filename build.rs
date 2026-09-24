@@ -1,10 +1,35 @@
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=runtime/mat_runtime.c");
     println!("cargo:rerun-if-env-changed=LLVM_SYS_181_PREFIX");
     println!("cargo:rerun-if-env-changed=MATC_FORCE_LLVM_OPT");
+
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+    // Compile runtime/mat_runtime.c into a static library during cargo build
+    cc::Build::new()
+        .file("runtime/mat_runtime.c")
+        .warnings(false)
+        .compile("mat_runtime");
+
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let generated_lib_name = if target_os == "windows" {
+        "mat_runtime.lib"
+    } else {
+        "libmat_runtime.a"
+    };
+
+    let generated_lib_path = out_dir.join(generated_lib_name);
+    let embedded_dest_path = out_dir.join("mat_runtime_embedded.bin");
+
+    if generated_lib_path.exists() {
+        fs::copy(&generated_lib_path, &embedded_dest_path)
+            .expect("Failed to copy compiled runtime library for embedding");
+    }
 
     let profile = env::var("PROFILE").unwrap_or_else(|_| "debug".to_string());
     let opt_level = env::var("OPT_LEVEL").unwrap_or_else(|_| "0".to_string());
