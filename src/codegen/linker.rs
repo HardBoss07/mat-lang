@@ -4,9 +4,26 @@ use std::process::Command;
 
 use crate::error::{MatcError, Result};
 
+const RUNTIME_LIB_BYTES: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/mat_runtime_embedded.bin"));
+
 pub fn link_object_file(obj_path: &Path, output_path: &Path) -> Result<()> {
+    let ext = if cfg!(target_os = "windows") {
+        "lib"
+    } else {
+        "a"
+    };
+    let runtime_lib_path = obj_path.with_file_name(format!("mat_runtime.{}", ext));
+
+    fs::write(&runtime_lib_path, RUNTIME_LIB_BYTES).map_err(|e| {
+        MatcError::CodegenError(format!("Failed to write runtime library file: {}", e))
+    })?;
+
     let mut cmd = Command::new("clang");
-    cmd.arg(obj_path).arg("-o").arg(output_path);
+    cmd.arg(obj_path)
+        .arg(&runtime_lib_path)
+        .arg("-o")
+        .arg(output_path);
 
     if cfg!(target_os = "windows") {
         cmd.arg("-fuse-ld=lld-link");
@@ -19,6 +36,8 @@ pub fn link_object_file(obj_path: &Path, output_path: &Path) -> Result<()> {
     let status = cmd
         .status()
         .map_err(|e| MatcError::CodegenError(format!("Failed to execute clang linker: {}", e)))?;
+
+    let _ = fs::remove_file(&runtime_lib_path);
 
     if !status.success() {
         return Err(MatcError::CodegenError(format!(
@@ -34,7 +53,6 @@ pub fn link_object_file(obj_path: &Path, output_path: &Path) -> Result<()> {
 fn find_msvc_lib_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
 
-    // 1. Check if LIB environment variable is already populated
     if let Ok(lib_env) = std::env::var("LIB") {
         for path in std::env::split_paths(&lib_env) {
             if path.exists() {
@@ -46,7 +64,6 @@ fn find_msvc_lib_paths() -> Vec<PathBuf> {
         }
     }
 
-    // 2. Discover Visual Studio installations using vswhere
     let vswhere_path =
         PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe");
     let mut search_roots = Vec::new();
@@ -75,7 +92,6 @@ fn find_msvc_lib_paths() -> Vec<PathBuf> {
         }
     }
 
-    // Fallback standard installation paths
     search_roots.extend(vec![
         PathBuf::from(r"C:\Program Files\Microsoft Visual Studio\2022\Community"),
         PathBuf::from(r"C:\Program Files\Microsoft Visual Studio\2022\BuildTools"),
@@ -85,7 +101,6 @@ fn find_msvc_lib_paths() -> Vec<PathBuf> {
         PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools"),
     ]);
 
-    // Search for MSVC runtime libraries (libcmt.lib, oldnames.lib)
     for root in search_roots {
         let msvc_base = root.join("VC").join("Tools").join("MSVC");
         if msvc_base.exists() {
@@ -107,7 +122,6 @@ fn find_msvc_lib_paths() -> Vec<PathBuf> {
         }
     }
 
-    // Search for Windows SDK libraries (ucrt.lib, kernel32.lib)
     let sdk_base = PathBuf::from(r"C:\Program Files (x86)\Windows Kits\10\Lib");
     if sdk_base.exists() {
         if let Ok(entries) = fs::read_dir(&sdk_base) {
