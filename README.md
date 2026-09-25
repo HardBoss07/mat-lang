@@ -15,6 +15,20 @@ An experimental programming language built in Rust targeting **LLVM IR 18.1.8**.
 - **Clang:** System `clang` executable available in `PATH`.
 - **Visual Studio C++ Build Tools (Windows):** MSVC C++ build tools installed (`Desktop development with C++` workload). No special shell or `vcvars64.bat` required.
 
+## Cloning
+
+To clone the repository along with all required submodules in one command:
+
+```bash
+git clone --recurse-submodules https://github.com/HardBoss07/mat-lang.git
+```
+
+Or, if you have already cloned the repository:
+
+```bash
+git submodule update --init --recursive
+```
+
 ## Usage
 
 ### Direct Execution (`run`)
