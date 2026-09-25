@@ -53,6 +53,16 @@ impl<'ctx> CodegenEngine<'ctx> {
         let entry_block = self.context.append_basic_block(fn_value, "entry");
         self.builder.position_at_end(entry_block);
 
+        // Emit GC & runtime initialization at the start of main()
+        if symbol_name == "main" {
+            let init_fn = self.module.get_function("_mat_rt_init").ok_or_else(|| {
+                MatcError::CodegenError("Runtime symbol _mat_rt_init not declared".to_string())
+            })?;
+            self.builder
+                .build_call(init_fn, &[], "call_rt_init")
+                .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+        }
+
         let mut local_vars: HashMap<String, (PointerValue<'ctx>, Type)> = HashMap::new();
 
         for stmt in &func.body {

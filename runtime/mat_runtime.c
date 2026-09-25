@@ -10,6 +10,14 @@
 #define MAT_MALLOC(sz) malloc(sz)
 #endif
 
+// Must be called as the very first instruction in the compiled binary's main()
+void _mat_rt_init(void)
+{
+#ifdef MAT_USE_GC
+    GC_INIT();
+#endif
+}
+
 // Dynamically calculates required string length and allocates buffer
 char *_mat_rt_fmt_string(const char *fmt, ...)
 {

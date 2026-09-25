@@ -8,6 +8,11 @@ pub fn declare_runtime_symbols<'a>(context: &'a Context, module: &Module<'a>) {
     let void_type = context.void_type();
     let ptr_type = context.ptr_type(inkwell::AddressSpace::default());
 
+    if module.get_function("_mat_rt_init").is_none() {
+        let fn_type = void_type.fn_type(&[], false);
+        module.add_function("_mat_rt_init", fn_type, None);
+    }
+
     if module.get_function("_mat_rt_fmt_string").is_none() {
         let fmt_type = ptr_type.fn_type(&[ptr_type.into()], true);
         module.add_function("_mat_rt_fmt_string", fmt_type, None);

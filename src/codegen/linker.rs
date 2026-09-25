@@ -27,10 +27,15 @@ pub fn link_object_file(obj_path: &Path, output_path: &Path) -> Result<()> {
 
     if cfg!(target_os = "windows") {
         cmd.arg("-fuse-ld=lld-link");
+        cmd.arg("-luser32");
+        cmd.arg("-ladvapi32");
 
         for lib_path in find_msvc_lib_paths() {
             cmd.arg(format!("-L{}", lib_path.display()));
         }
+    } else {
+        cmd.arg("-lpthread");
+        cmd.arg("-ldl");
     }
 
     let status = cmd

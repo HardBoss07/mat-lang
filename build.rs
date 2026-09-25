@@ -12,76 +12,42 @@ fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
-    // 1. Build Boehm GC statically using cc (Fix B)
-    let mut gc_build = cc::Build::new();
-    gc_build
+    // Build GC and mat_runtime together into one static library
+    let mut build = cc::Build::new();
+    build
         .file("vendor/bdwgc/extra/gc.c")
-        .include("vendor/bdwgc/include")
-        // Force native compiler atomics (Interlocked* on MSVC / __atomic_* on GCC/Clang)
-        .define("GC_BUILTIN_ATOMIC", None)
-        // Prevent dllimport declarations for static linking
-        .define("GC_NOT_DLL", None)
-        // Enable multithreading support (replaces enable_threads=ON)
-        .define("GC_THREADS", None)
-        .warnings(false);
-
-    if target_os == "windows" {
-        gc_build.define("_CRT_SECURE_NO_WARNINGS", None);
-        if env::var("CC").is_err() {
-            gc_build.compiler("clang");
-        }
-    }
-
-    gc_build.compile("gc");
-
-    let gc_lib_name = if target_os == "windows" {
-        "gc.lib"
-    } else {
-        "libgc.a"
-    };
-
-    let gc_lib_path = out_dir.join(gc_lib_name);
-    let gc_embedded_path = out_dir.join("gc_embedded.bin");
-
-    if gc_lib_path.exists() {
-        fs::copy(&gc_lib_path, &gc_embedded_path)
-            .expect("Failed to copy compiled GC library for embedding");
-    }
-
-    // 2. Compile runtime/mat_runtime.c with access to vendor/bdwgc/include
-    let mut runtime_build = cc::Build::new();
-    runtime_build
         .file("runtime/mat_runtime.c")
         .include("vendor/bdwgc/include")
         .define("GC_BUILTIN_ATOMIC", None)
         .define("GC_NOT_DLL", None)
         .define("GC_THREADS", None)
+        .define("MAT_USE_GC", None)
         .warnings(false);
 
     if target_os == "windows" {
-        runtime_build.define("_CRT_SECURE_NO_WARNINGS", None);
+        build.define("_CRT_SECURE_NO_WARNINGS", None);
         if env::var("CC").is_err() {
-            runtime_build.compiler("clang");
+            build.compiler("clang");
         }
     }
 
-    runtime_build.compile("mat_runtime");
+    build.compile("mat_runtime");
 
-    let generated_lib_name = if target_os == "windows" {
+    let lib_name = if target_os == "windows" {
         "mat_runtime.lib"
     } else {
         "libmat_runtime.a"
     };
 
-    let generated_lib_path = out_dir.join(generated_lib_name);
+    let generated_lib_path = out_dir.join(lib_name);
     let embedded_dest_path = out_dir.join("mat_runtime_embedded.bin");
 
     if generated_lib_path.exists() {
         fs::copy(&generated_lib_path, &embedded_dest_path)
-            .expect("Failed to copy compiled runtime library for embedding");
+            .expect("Failed to copy combined runtime library for embedding");
     }
 
-    // 3. Compiler Feature & Target Flags
+    // Compiler Profile Settings
     let profile = env::var("PROFILE").unwrap_or_else(|_| "debug".to_string());
     let opt_level = env::var("OPT_LEVEL").unwrap_or_else(|_| "0".to_string());
 
