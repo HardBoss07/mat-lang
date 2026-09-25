@@ -22,6 +22,13 @@ fn main() {
         .define("GC_NOT_DLL", None)
         .define("GC_THREADS", None)
         .define("MAT_USE_GC", None)
+        .define("SMALL_CONFIG", None)
+        .define("GC_NO_FINALIZATION", None)
+        .define("NO_EXECUTE_PERMISSION", None)
+        .define("DONT_ADD_BYTE_AT_END", None)
+        .flag("-ffunction-sections")
+        .flag("-fdata-sections")
+        .flag("-Os")
         .warnings(false);
 
     if target_os == "windows" {

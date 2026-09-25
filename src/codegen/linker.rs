@@ -23,19 +23,30 @@ pub fn link_object_file(obj_path: &Path, output_path: &Path) -> Result<()> {
     cmd.arg(obj_path)
         .arg(&runtime_lib_path)
         .arg("-o")
-        .arg(output_path);
+        .arg(output_path)
+        .arg("-Os");
 
     if cfg!(target_os = "windows") {
         cmd.arg("-fuse-ld=lld-link");
         cmd.arg("-luser32");
         cmd.arg("-ladvapi32");
 
+        cmd.arg("-Wl,/OPT:REF");
+        cmd.arg("-Wl,/OPT:ICF");
+
         for lib_path in find_msvc_lib_paths() {
             cmd.arg(format!("-L{}", lib_path.display()));
         }
-    } else {
+    } else if cfg!(target_os = "macos") {
+        cmd.arg("-s");
         cmd.arg("-lpthread");
         cmd.arg("-ldl");
+        cmd.arg("-Wl,-dead_strip");
+    } else {
+        cmd.arg("-s");
+        cmd.arg("-lpthread");
+        cmd.arg("-ldl");
+        cmd.arg("-Wl,--gc-sections");
     }
 
     let status = cmd
