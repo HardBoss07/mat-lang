@@ -2,7 +2,7 @@ use winnow::ModalResult;
 use winnow::Parser;
 use winnow::ascii::{alpha1, digit1, multispace0};
 use winnow::combinator::{alt, delimited, separated};
-use winnow::token::{literal, take_until, take_while};
+use winnow::token::{literal, take_while};
 
 use crate::ast::{Expression, Span};
 
@@ -48,14 +48,42 @@ pub fn parse_bool_literal(input: &mut &str) -> ModalResult<Expression> {
 
 pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression> {
     let _ = multispace0.parse_next(input)?;
-    let raw_content: &str = delimited('"', take_until(0.., '"'), '"').parse_next(input)?;
+
+    if !input.starts_with('"') {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+
+    // Advance past opening quote
+    *input = &input[1..];
 
     let mut parts = Vec::new();
     let mut current_text = String::new();
-    let mut chars = raw_content.chars().peekable();
+    let mut escaped = false;
 
-    while let Some(c) = chars.next() {
-        if c == '{' {
+    while !input.is_empty() {
+        let c = input.chars().next().unwrap();
+        *input = &input[c.len_utf8()..];
+
+        if escaped {
+            match c {
+                'n' => current_text.push('\n'),
+                't' => current_text.push('\t'),
+                '\\' => current_text.push('\\'),
+                '"' => current_text.push('"'),
+                '\'' => current_text.push('\''),
+                other => {
+                    current_text.push('\\');
+                    current_text.push(other);
+                }
+            }
+            escaped = false;
+        } else if c == '\\' {
+            escaped = true;
+        } else if c == '"' {
+            break;
+        } else if c == '{' {
             if !current_text.is_empty() {
                 parts.push(Expression::StringLiteral(
                     current_text.clone(),
@@ -65,12 +93,23 @@ pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression>
             }
 
             let mut expr_str = String::new();
-            while let Some(&inner_c) = chars.peek() {
-                if inner_c == '}' {
-                    chars.next();
+            let mut in_brace_escaped = false;
+
+            while !input.is_empty() {
+                let inner_c = input.chars().next().unwrap();
+                *input = &input[inner_c.len_utf8()..];
+
+                if in_brace_escaped {
+                    expr_str.push(inner_c);
+                    in_brace_escaped = false;
+                } else if inner_c == '\\' {
+                    in_brace_escaped = true;
+                    expr_str.push(inner_c);
+                } else if inner_c == '}' {
                     break;
+                } else {
+                    expr_str.push(inner_c);
                 }
-                expr_str.push(chars.next().unwrap());
             }
 
             let mut expr_slice = expr_str.trim();
@@ -92,21 +131,11 @@ pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression>
         }
     }
 
-    Ok(Expression::InterpolatedString(
-        parts,
-        Span::new(0, raw_content.len() + 2),
-    ))
+    Ok(Expression::InterpolatedString(parts, Span::new(0, 0)))
 }
 
 pub fn parse_string_literal(input: &mut &str) -> ModalResult<Expression> {
-    let start = 0;
-    let content: &str = delimited('"', take_until(0.., '"'), '"').parse_next(input)?;
-    let end = content.len() + 2;
-
-    Ok(Expression::StringLiteral(
-        content.to_string(),
-        Span::new(start, end),
-    ))
+    parse_string_or_interpolated(input)
 }
 
 pub fn parse_call_expression(input: &mut &str) -> ModalResult<Expression> {

@@ -2,6 +2,11 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <locale.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #ifdef MAT_USE_GC
 #include <gc.h>
@@ -10,15 +15,20 @@
 #define MAT_MALLOC(sz) malloc(sz)
 #endif
 
-// Must be called as the very first instruction in the compiled binary's main()
 void _mat_rt_init(void)
 {
 #ifdef MAT_USE_GC
     GC_INIT();
 #endif
+
+#ifdef _WIN32
+    SetConsoleOutputCP(65001);
+    SetConsoleCP(65001);
+#endif
+
+    setlocale(LC_ALL, ".UTF-8");
 }
 
-// Dynamically calculates required string length and allocates buffer
 char *_mat_rt_fmt_string(const char *fmt, ...)
 {
     if (!fmt)
@@ -61,26 +71,12 @@ char *_mat_rt_fmt_string(const char *fmt, ...)
 // Null-safe standard output helpers
 void _mat_rt_print_str(const char *str)
 {
-    if (str)
-    {
-        fputs(str, stdout);
-    }
-    else
-    {
-        fputs("<null>", stdout);
-    }
+    fputs(str ? str : "<null>", stdout);
 }
 
 void _mat_rt_println_str(const char *str)
 {
-    if (str)
-    {
-        puts(str);
-    }
-    else
-    {
-        puts("<null>");
-    }
+    puts(str ? str : "<null>");
 }
 
 void _mat_rt_println_int(long long val)

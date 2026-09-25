@@ -62,3 +62,30 @@ impl<'a> Lexer<'a> {
         Self { input }
     }
 }
+
+pub fn read_string_literal(chars: &mut std::str::Chars) -> Result<String, String> {
+    let mut string_val = String::new();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '"' => return Ok(string_val),
+            '\\' => match chars.next() {
+                Some('n') => string_val.push('\n'),
+                Some('t') => string_val.push('\t'),
+                Some('\\') => string_val.push('\\'),
+                Some('"') => string_val.push('"'),
+                Some('\'') => string_val.push('\''),
+                Some(escaped) => {
+                    string_val.push('\\');
+                    string_val.push(escaped);
+                }
+                None => {
+                    return Err("Unterminated escape sequence in string literal".to_string());
+                }
+            },
+            other => string_val.push(other),
+        }
+    }
+
+    Err("Unterminated string literal".to_string())
+}

@@ -1,0 +1,24 @@
+fn main() {
+    println("ä ö ü Ä Ö Ü ß");
+
+    println("Line 1\nLine 2");
+    println("Tabbed:\tColumn 1\tColumn 2");
+    println("Escaped Backslash: \\");
+    println("Escaped Double Quote: \"Hello\"");
+    println("Escaped Single Quote: \'A\'");
+
+    let item: String = "Mütze";
+    let price: int = 15;
+    println("Selected item: {item} - Price: {price}€");
+
+    println("Accents: é è ê ë à â ç ñ Å æ ø");
+
+    println("Symbols: € £ ¥ © ® ™ § ° ± ∞ ≠ ≤ ≥");
+
+    println("Cyrillic: Привет");
+    println("Greek: Καλημέρα");
+    println("CJK: 漢字 ひらがな 한국어");
+    println("Hebrew / Arabic: שלום مرحبا");
+
+    println("Emojis: 🚀 🎉 👾 ✅ ⚠️ 𐍈");
+}
