@@ -6,9 +6,12 @@ pub enum Type {
     I16,
     I8,
     F64,
+    F32,
     Bool,
     Char,
     String,
+    Tuple(Vec<Type>),
+    Array(Box<Type>, usize),
     Custom(String),
     Result(Box<Type>, Box<Type>),
 }

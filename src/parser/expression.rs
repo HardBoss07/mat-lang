@@ -17,45 +17,74 @@ pub fn parse_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
 }
 
 pub fn parse_identifier(input: &mut &str) -> ModalResult<Expression> {
-    let name = parse_identifier_str.parse_next(input)?;
-    Ok(Expression::Identifier(
-        name.to_string(),
-        Span::new(0, name.len()),
-    ))
+    let checkpoint = *input;
+    match parse_identifier_str.parse_next(input) {
+        Ok(name) => Ok(Expression::Identifier(
+            name.to_string(),
+            Span::new(0, name.len()),
+        )),
+        Err(e) => {
+            *input = checkpoint;
+            Err(e)
+        }
+    }
 }
 
 pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
+    let checkpoint = *input;
     let _ = multispace0.parse_next(input)?;
-    let digits = digit1.parse_next(input)?;
-    let val = digits.parse::<i64>().unwrap();
-    Ok(Expression::IntLiteral(val, Span::new(0, digits.len())))
+    let digits_res: ModalResult<&str> = digit1.parse_next(input);
+    if let Ok(digits) = digits_res {
+        if let Ok(val) = digits.parse::<i64>() {
+            return Ok(Expression::IntLiteral(val, Span::new(0, digits.len())));
+        }
+    }
+    *input = checkpoint;
+    Err(winnow::error::ErrMode::Backtrack(
+        winnow::error::ContextError::default(),
+    ))
 }
 
 pub fn parse_float_literal(input: &mut &str) -> ModalResult<Expression> {
+    let checkpoint = *input;
     let _ = multispace0.parse_next(input)?;
-    let float_str: &str = (digit1, '.', digit1).take().parse_next(input)?;
-    let val: f64 = float_str.parse().unwrap();
-    Ok(Expression::FloatLiteral(val, Span::new(0, float_str.len())))
+    let float_res: ModalResult<&str> = (digit1, '.', digit1).take().parse_next(input);
+    if let Ok(float_str) = float_res {
+        if let Ok(val) = float_str.parse::<f64>() {
+            return Ok(Expression::FloatLiteral(val, Span::new(0, float_str.len())));
+        }
+    }
+    *input = checkpoint;
+    Err(winnow::error::ErrMode::Backtrack(
+        winnow::error::ContextError::default(),
+    ))
 }
 
 pub fn parse_bool_literal(input: &mut &str) -> ModalResult<Expression> {
+    let checkpoint = *input;
     let _ = multispace0.parse_next(input)?;
-    let val =
-        alt((literal("tru").map(|_| true), literal("fal").map(|_| false))).parse_next(input)?;
-
-    Ok(Expression::BoolLiteral(val, Span::new(0, 3)))
+    let bool_res: ModalResult<bool> =
+        alt((literal("tru").map(|_| true), literal("fal").map(|_| false))).parse_next(input);
+    if let Ok(val) = bool_res {
+        return Ok(Expression::BoolLiteral(val, Span::new(0, 3)));
+    }
+    *input = checkpoint;
+    Err(winnow::error::ErrMode::Backtrack(
+        winnow::error::ContextError::default(),
+    ))
 }
 
 pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression> {
+    let checkpoint = *input;
     let _ = multispace0.parse_next(input)?;
 
     if !input.starts_with('"') {
+        *input = checkpoint;
         return Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::default(),
         ));
     }
 
-    // Advance past opening quote
     *input = &input[1..];
 
     let mut parts = Vec::new();
@@ -134,32 +163,164 @@ pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression>
     Ok(Expression::InterpolatedString(parts, Span::new(0, 0)))
 }
 
-pub fn parse_string_literal(input: &mut &str) -> ModalResult<Expression> {
-    parse_string_or_interpolated(input)
-}
-
-pub fn parse_call_expression(input: &mut &str) -> ModalResult<Expression> {
-    let callee = parse_identifier_str.parse_next(input)?;
+pub fn parse_tuple_or_parenthesized(input: &mut &str) -> ModalResult<Expression> {
+    let checkpoint = *input;
     let _ = multispace0.parse_next(input)?;
-    let args: Vec<Expression> =
-        delimited('(', separated(0.., parse_expression, ','), ')').parse_next(input)?;
+    if !input.starts_with('(') {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[1..];
+    let _ = multispace0.parse_next(input)?;
 
-    Ok(Expression::Call {
-        callee: callee.to_string(),
-        arguments: args,
-        span: Span::new(0, 0),
-    })
+    if input.starts_with(')') {
+        *input = &input[1..];
+        return Ok(Expression::TupleLiteral(vec![], Span::new(0, 0)));
+    }
+
+    let first = match parse_expression.parse_next(input) {
+        Ok(expr) => expr,
+        Err(e) => {
+            *input = checkpoint;
+            return Err(e);
+        }
+    };
+    let _ = multispace0.parse_next(input)?;
+
+    if input.starts_with(',') {
+        let mut elements = vec![first];
+        while input.starts_with(',') {
+            *input = &input[1..];
+            let _ = multispace0.parse_next(input)?;
+            if input.starts_with(')') {
+                break;
+            }
+            match parse_expression.parse_next(input) {
+                Ok(elem) => elements.push(elem),
+                Err(e) => {
+                    *input = checkpoint;
+                    return Err(e);
+                }
+            }
+            let _ = multispace0.parse_next(input)?;
+        }
+        if input.starts_with(')') {
+            *input = &input[1..];
+            Ok(Expression::TupleLiteral(elements, Span::new(0, 0)))
+        } else {
+            *input = checkpoint;
+            Err(winnow::error::ErrMode::Backtrack(
+                winnow::error::ContextError::default(),
+            ))
+        }
+    } else {
+        if input.starts_with(')') {
+            *input = &input[1..];
+            Ok(first)
+        } else {
+            *input = checkpoint;
+            Err(winnow::error::ErrMode::Backtrack(
+                winnow::error::ContextError::default(),
+            ))
+        }
+    }
 }
 
-pub fn parse_expression(input: &mut &str) -> ModalResult<Expression> {
+pub fn parse_array_literal(input: &mut &str) -> ModalResult<Expression> {
+    let checkpoint = *input;
+    let _ = multispace0.parse_next(input)?;
+    if !input.starts_with('[') {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+
+    let arr_res: ModalResult<Vec<Expression>> =
+        delimited('[', separated(0.., parse_expression, ','), ']').parse_next(input);
+    if let Ok(elements) = arr_res {
+        return Ok(Expression::ArrayLiteral(elements, Span::new(0, 0)));
+    }
+
+    *input = checkpoint;
+    Err(winnow::error::ErrMode::Backtrack(
+        winnow::error::ContextError::default(),
+    ))
+}
+
+pub fn parse_primary_expression(input: &mut &str) -> ModalResult<Expression> {
     let _ = multispace0.parse_next(input)?;
     alt((
-        parse_call_expression,
         parse_string_or_interpolated,
         parse_bool_literal,
         parse_float_literal,
         parse_int_literal,
+        parse_tuple_or_parenthesized,
+        parse_array_literal,
         parse_identifier,
     ))
     .parse_next(input)
+}
+
+pub fn parse_expression(input: &mut &str) -> ModalResult<Expression> {
+    let mut expr = parse_primary_expression.parse_next(input)?;
+
+    loop {
+        let _ = multispace0.parse_next(input)?;
+        if input.starts_with('(') {
+            let callee_name = match &expr {
+                Expression::Identifier(name, _) => name.clone(),
+                _ => break,
+            };
+            let args_res: ModalResult<Vec<Expression>> =
+                delimited('(', separated(0.., parse_expression, ','), ')').parse_next(input);
+            if let Ok(args) = args_res {
+                expr = Expression::Call {
+                    callee: callee_name,
+                    arguments: args,
+                    span: Span::new(0, 0),
+                };
+                continue;
+            }
+            break;
+        } else if input.starts_with('.') {
+            let mut checkpoint = *input;
+            checkpoint = &checkpoint[1..];
+            let idx_res: ModalResult<&str> = digit1.parse_next(&mut checkpoint);
+            if let Ok(idx_str) = idx_res {
+                *input = checkpoint;
+                let index: usize = idx_str.parse().unwrap();
+                expr = Expression::TupleAccess {
+                    expr: Box::new(expr),
+                    index,
+                    span: Span::new(0, 0),
+                };
+                continue;
+            } else {
+                break;
+            }
+        } else if input.starts_with('[') {
+            let mut checkpoint = *input;
+            checkpoint = &checkpoint[1..];
+            if let Ok(index) = parse_expression.parse_next(&mut checkpoint) {
+                let _ = multispace0.parse_next(&mut checkpoint)?;
+                if checkpoint.starts_with(']') {
+                    checkpoint = &checkpoint[1..];
+                    *input = checkpoint;
+                    expr = Expression::ArrayAccess {
+                        expr: Box::new(expr),
+                        index: Box::new(index),
+                        span: Span::new(0, 0),
+                    };
+                    continue;
+                }
+            }
+            break;
+        }
+        break;
+    }
+
+    Ok(expr)
 }

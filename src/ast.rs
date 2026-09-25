@@ -12,6 +12,18 @@ pub enum Expression {
     BoolLiteral(bool, Span),
     StringLiteral(String, Span),
     InterpolatedString(Vec<Expression>, Span),
+    TupleLiteral(Vec<Expression>, Span),
+    ArrayLiteral(Vec<Expression>, Span),
+    TupleAccess {
+        expr: Box<Expression>,
+        index: usize,
+        span: Span,
+    },
+    ArrayAccess {
+        expr: Box<Expression>,
+        index: Box<Expression>,
+        span: Span,
+    },
     Call {
         callee: String,
         arguments: Vec<Expression>,
@@ -24,7 +36,7 @@ pub enum Statement {
     Let {
         name: String,
         is_mutable: bool,
-        ty: Type,
+        ty: Option<Type>,
         value: Expression,
         span: Span,
     },

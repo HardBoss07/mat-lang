@@ -1,0 +1,54 @@
+fn main() {
+    let numb = 5;
+    let score = 98.5;
+    let is_active = tru;
+    let name = "Mütze";
+
+    println("--- Implicit Primitive Inference ---");
+    println("numb: {numb}");
+    println("score: {score}");
+    println("is_active: {is_active}");
+    println("name: {name}");
+
+    let count: i32 = 54;
+    let val: f32 = 80.4;
+    let small_byte: i8 = 127;
+
+    println("--- Explicit Primitive Narrowing ---");
+    println("count (i32): {count}");
+    println("val (f32): {val}");
+    println("small_byte (i8): {small_byte}");
+
+    let implicit_tuple = ("String", 54, 80.4);
+    let explicit_tuple: (String, i32, f32) = ("Narrowed", 54, 80.4);
+
+    let t_str: String = implicit_tuple.0;
+    let t_int: int = implicit_tuple.1;
+    let t_f64: f64 = implicit_tuple.2;
+
+    let e_str: String = explicit_tuple.0;
+    let e_i32: i32 = explicit_tuple.1;
+    let e_f32: f32 = explicit_tuple.2;
+
+    println("--- Tuple Access ---");
+    println("implicit element 0: {t_str}");
+    println("implicit element 1: {t_int}");
+    println("implicit element 2: {t_f64}");
+    println("explicit element 0: {e_str}");
+    println("explicit element 1: {e_i32}");
+    println("explicit element 2: {e_f32}");
+
+    let implicit_array = [4, 3, 5, 6];
+    let explicit_array: [i8; 4] = [1, 2, 3, 4];
+
+    let first_elem: int = implicit_array[0];
+    let last_elem: int = implicit_array[3];
+    let ex_elem1: i8 = explicit_array[1];
+    let ex_elem2: i8 = explicit_array[2];
+
+    println("--- Array Access ---");
+    println("implicit array[0]: {first_elem}");
+    println("implicit array[3]: {last_elem}");
+    println("explicit array[1]: {ex_elem1}");
+    println("explicit array[2]: {ex_elem2}");
+}
