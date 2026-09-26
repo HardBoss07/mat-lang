@@ -4,6 +4,24 @@ pub mod types;
 pub use span::Span;
 pub use types::Type;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Shl,
+    Shr,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FormatSpecifier {
+    None,
+    Bin,
+    Hex,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Identifier(String, Span),
@@ -11,9 +29,15 @@ pub enum Expression {
     FloatLiteral(f64, Span),
     BoolLiteral(bool, Span),
     StringLiteral(String, Span),
-    InterpolatedString(Vec<Expression>, Span),
+    InterpolatedString(Vec<(Expression, FormatSpecifier)>, Span),
     TupleLiteral(Vec<Expression>, Span),
     ArrayLiteral(Vec<Expression>, Span),
+    Binary {
+        op: BinaryOp,
+        left: Box<Expression>,
+        right: Box<Expression>,
+        span: Span,
+    },
     TupleAccess {
         expr: Box<Expression>,
         index: usize,
@@ -42,6 +66,12 @@ pub enum Statement {
     },
     Assignment {
         target: String,
+        value: Expression,
+        span: Span,
+    },
+    CompoundAssignment {
+        target: String,
+        op: BinaryOp,
         value: Expression,
         span: Span,
     },
