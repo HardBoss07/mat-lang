@@ -2,17 +2,17 @@
 
 ## Key Differentiating Features (`mat` vs. `Rust`)
 
-| Feature / Syntax         | `mat` Syntax                         | Rust Equivalent             | Why it differs                                                                               |
-| ------------------------ | ------------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------- |
-| **Module Import**        | `import std::io;`                    | `use std::io;`              | Uses standard `import` keyword common in modern languages.                                   |
-| **Default Integer**      | `int` (64-bit signed)                | `i64` / `isize`             | `int` is the default 64-bit integer type; fixed-width `i32` is explicit.                     |
-| **Boolean Literals**     | `tru`, `fal`                         | `true`, `false`             | Concise 3-letter boolean keyword primitives (`tru` / `fal`).                                 |
-| **String Interpolation** | `"Hello {name}"`                     | `format!("Hello {}", name)` | First-class string interpolation directly in string literals without formatting macros.      |
-| **Pointers & Lifetimes** | _None_ (`String`, `Vec<T>`)          | `&str`, `&mut T`, `'a`      | GC-managed heap types eliminate borrow checker syntax, references, and lifetime annotations. |
-| **Increment/Decrement**  | `x++;` `x--;`                        | `x += 1;`                   | Restores standard C-style unary mutation operators.                                          |
-| **Bitwise Shift Assign** | `a <<= 3;` `a >>= 1;`                | `a <<= 3;`                  | Short-form compound bitwise shift operators (`<<=`, `>>=`).                                  |
-| **Index Loop**           | `fori (let i: int = 0; i < 10; i++)` | `for i in 0..10`            | Explicit 3-part C-style iterator loop keyword (`fori`).                                      |
-| **Sequence Loop**        | `for item in items`                  | `for item in &items`        | Iterates directly over values/GC-handles without explicit borrowing (`&`).                   |
+| Feature / Syntax         | `mat` Syntax                         | Rust Equivalent                | Why it differs                                                                                                                           |
+| ------------------------ | ------------------------------------ | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Module Import**        | `import std::io;`                    | `use std::io;`                 | Uses standard `import` keyword common in modern languages.                                                                               |
+| **Default Integer**      | `int` (64-bit signed)                | `i64` / `isize`                | `int` is the default 64-bit integer type; fixed-width `i32` is explicit.                                                                 |
+| **Boolean Literals**     | `tru`, `fal`                         | `true`, `false`                | Concise 3-letter boolean keyword primitives (`tru` / `fal`).                                                                             |
+| **String Interpolation** | `"Value: {val:bin}"` / `"{val:hex}"` | `format!("Value: {:#b}", val)` | First-class string interpolation directly in string literals with explicit `:bin`/`:b` (`0b`) and `:hex`/`:x` (`0x`) format annotations. |
+| **Pointers & Lifetimes** | _None_ (`String`, `Vec<T>`)          | `&str`, `&mut T`, `'a`         | GC-managed heap types eliminate borrow checker syntax, references, and lifetime annotations.                                             |
+| **Increment/Decrement**  | `x++;` `x--;`                        | `x += 1;`                      | Restores standard C-style unary mutation operators.                                                                                      |
+| **Bitwise Shift Assign** | `a <<= 3;` `a >>= 1;`                | `a <<= 3;`                     | Short-form compound bitwise shift operators (`<<=`, `>>=`).                                                                              |
+| **Index Loop**           | `fori (let i: int = 0; i < 10; i++)` | `for i in 0..10`               | Explicit 3-part C-style iterator loop keyword (`fori`).                                                                                  |
+| **Sequence Loop**        | `for item in items`                  | `for item in &items`           | Iterates directly over values/GC-handles without explicit borrowing (`&`).                                                               |
 
 ## Complete Syntax Showcase (`example.mat`)
 
@@ -53,11 +53,15 @@ fn main() {
     let hex_mask: i32 = 0xA5;
     let bin_flags: i8 = 0b10100100;
 
-    // String Interpolation
+    // String Interpolation with :bin and :hex Formatters
     let mut content_var: String = "foobar";
     let number: int = 23;
+    let mask: int = 0b1000;
+
     content_var = "foobar {number}";
     println("Content: {content_var}");
+    println("Mask in Binary: {mask:bin}"); // Prints "Mask in Binary: 0b1000"
+    println("Mask in Hex: {mask:hex}");   // Prints "Mask in Hex: 0x8"
 
     // Unary, Infix, and Bitwise Shift Operators
     score += 25;

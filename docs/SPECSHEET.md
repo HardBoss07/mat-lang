@@ -36,16 +36,31 @@ let bin_val: i8 = 0b10100100;
 let mask: int = 0xFF_00_FF;
 ```
 
-### String Interpolation
+### String Interpolation & Format Specifiers
 
-Strings support inline expression and variable interpolation enclosed in curly braces `{}`. String interpolation is resolved at compile time into structured string concatenation and runtime formatting calls.
+Strings support inline expression and variable interpolation enclosed in curly braces `{}`. String interpolation is resolved at compile time into dynamic string concatenation and runtime buffer formatting calls.
+
+Interpolated expressions support global format specifiers following a colon `:`:
+
+| Specifier      | Target Type                  | Output Description & Example                                   |
+| -------------- | ---------------------------- | -------------------------------------------------------------- |
+| _(None)_       | Any primitive                | Default string representation (e.g., `42`, `tru`)              |
+| `:bin` or `:b` | Integer (`int`, `i32`, etc.) | Formats integer as binary with `0b` prefix (e.g., `0b1010`)    |
+| `:hex` or `:x` | Integer (`int`, `i32`, etc.) | Formats integer as hexadecimal with `0x` prefix (e.g., `0xA5`) |
+
+Format specifiers work universally across all interpolated strings, whether assigned to a `String` variable or passed directly to `println(...)` / `print(...)`.
 
 ```mat
-let content_var: String = "foobar";
-let number: int = 23;
+let mask: int = 0b0001 << 3; // 8
+let value: int = 0xA5;       // 165
 
-content_var = "foobar {number}";
-println("Content: {content_var}");
+// Assigned to a String variable
+let formatted: String = "Binary: {mask:bin}, Hex: {value:hex}";
+println(formatted); // "Binary: 0b1000, Hex: 0xA5"
+
+// Direct inline formatting in print functions
+println("Mask: {mask:b}"); // "Mask: 0b1000"
+println("Hex: {value:x}");  // "Hex: 0xA5"
 ```
 
 ### Error Handling via `Result<T, E>`
