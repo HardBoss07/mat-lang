@@ -1,5 +1,5 @@
 use super::function::FunctionCompiler;
-use crate::ast::{Expression, Type};
+use crate::ast::{BinaryOp, Expression, FormatSpecifier, Type};
 use crate::error::{MatcError, Result};
 use inkwell::types::BasicType;
 use inkwell::values::{AsValueRef, BasicValueEnum};
@@ -41,6 +41,95 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                     .build_load(llvm_ty, *ptr, name)
                     .map_err(|e| MatcError::CodegenError(e.to_string()))?;
                 Ok(loaded)
+            }
+            Expression::Binary {
+                op, left, right, ..
+            } => {
+                let left_val = self.compile_expression(left)?;
+                let right_val = self.compile_expression(right)?;
+
+                if left_val.is_int_value() && right_val.is_int_value() {
+                    let l_int = left_val.into_int_value();
+                    let r_int = right_val.into_int_value();
+                    let res = match op {
+                        BinaryOp::Add => self
+                            .engine
+                            .builder
+                            .build_int_add(l_int, r_int, "addtmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                        BinaryOp::Sub => self
+                            .engine
+                            .builder
+                            .build_int_sub(l_int, r_int, "subtmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                        BinaryOp::Mul => self
+                            .engine
+                            .builder
+                            .build_int_mul(l_int, r_int, "multmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                        BinaryOp::Div => self
+                            .engine
+                            .builder
+                            .build_int_signed_div(l_int, r_int, "divtmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                        BinaryOp::Mod => self
+                            .engine
+                            .builder
+                            .build_int_signed_rem(l_int, r_int, "modtmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                        BinaryOp::Shl => self
+                            .engine
+                            .builder
+                            .build_left_shift(l_int, r_int, "shltmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                        BinaryOp::Shr => self
+                            .engine
+                            .builder
+                            .build_right_shift(l_int, r_int, true, "shrtmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                    };
+                    Ok(res.into())
+                } else if left_val.is_float_value() && right_val.is_float_value() {
+                    let l_float = left_val.into_float_value();
+                    let r_float = right_val.into_float_value();
+                    let res = match op {
+                        BinaryOp::Add => self
+                            .engine
+                            .builder
+                            .build_float_add(l_float, r_float, "addtmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                        BinaryOp::Sub => self
+                            .engine
+                            .builder
+                            .build_float_sub(l_float, r_float, "subtmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                        BinaryOp::Mul => self
+                            .engine
+                            .builder
+                            .build_float_mul(l_float, r_float, "multmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                        BinaryOp::Div => self
+                            .engine
+                            .builder
+                            .build_float_div(l_float, r_float, "divtmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                        BinaryOp::Mod => self
+                            .engine
+                            .builder
+                            .build_float_rem(l_float, r_float, "modtmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                        _ => {
+                            return Err(MatcError::CodegenError(
+                                "Shift operators not supported for float values".to_string(),
+                            ));
+                        }
+                    };
+                    Ok(res.into())
+                } else {
+                    Err(MatcError::CodegenError(
+                        "Mismatched or unsupported types in binary operation".to_string(),
+                    ))
+                }
             }
             Expression::TupleLiteral(elements, _) => {
                 let mut field_values = Vec::new();
@@ -178,38 +267,16 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                 let mut fmt_string = String::new();
                 let mut args: Vec<BasicValueEnum<'ctx>> = Vec::new();
 
-                for part in parts {
+                for (part, specifier) in parts {
                     match part {
                         Expression::StringLiteral(s, _) => {
-                            fmt_string.push_str(&s.replace('%', "%%"))
+                            fmt_string.push_str(&s.replace('%', "%%"));
                         }
                         other => {
                             let val = self.compile_expression(other)?;
-                            if val.is_int_value() {
-                                let int_val = val.into_int_value();
-                                if int_val.get_type().get_bit_width() == 1 {
-                                    fmt_string.push_str("%s");
-                                    let tru_ptr = self
-                                        .engine
-                                        .builder
-                                        .build_global_string_ptr("tru", "str_tru")
-                                        .map_err(|e| MatcError::CodegenError(e.to_string()))?
-                                        .as_pointer_value();
-                                    let fal_ptr = self
-                                        .engine
-                                        .builder
-                                        .build_global_string_ptr("fal", "str_fal")
-                                        .map_err(|e| MatcError::CodegenError(e.to_string()))?
-                                        .as_pointer_value();
-
-                                    let bool_str = self
-                                        .engine
-                                        .builder
-                                        .build_select(int_val, tru_ptr, fal_ptr, "bool_str")
-                                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
-                                    args.push(bool_str);
-                                } else {
-                                    fmt_string.push_str("%lld");
+                            match specifier {
+                                FormatSpecifier::Bin => {
+                                    let int_val = val.into_int_value();
                                     let i64_val = if int_val.get_type().get_bit_width() < 64 {
                                         self.engine
                                             .builder
@@ -219,18 +286,105 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                                                 "i64_ext",
                                             )
                                             .map_err(|e| MatcError::CodegenError(e.to_string()))?
-                                            .into()
                                     } else {
-                                        val
+                                        int_val
                                     };
-                                    args.push(i64_val);
+                                    let fmt_bin_fn =
+                                        self.engine.module.get_function("_mat_rt_fmt_bin").unwrap();
+                                    let call_res = self
+                                        .engine
+                                        .builder
+                                        .build_call(fmt_bin_fn, &[i64_val.into()], "call_fmt_bin")
+                                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                                    let formatted_ptr =
+                                        unsafe { BasicValueEnum::new(call_res.as_value_ref()) };
+                                    fmt_string.push_str("%s");
+                                    args.push(formatted_ptr);
                                 }
-                            } else if val.is_float_value() {
-                                fmt_string.push_str("%g");
-                                args.push(val);
-                            } else if val.is_pointer_value() {
-                                fmt_string.push_str("%s");
-                                args.push(val);
+                                FormatSpecifier::Hex => {
+                                    let int_val = val.into_int_value();
+                                    let i64_val = if int_val.get_type().get_bit_width() < 64 {
+                                        self.engine
+                                            .builder
+                                            .build_int_s_extend(
+                                                int_val,
+                                                self.engine.context.i64_type(),
+                                                "i64_ext",
+                                            )
+                                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                                    } else {
+                                        int_val
+                                    };
+                                    let fmt_hex_fn =
+                                        self.engine.module.get_function("_mat_rt_fmt_hex").unwrap();
+                                    let call_res = self
+                                        .engine
+                                        .builder
+                                        .build_call(fmt_hex_fn, &[i64_val.into()], "call_fmt_hex")
+                                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                                    let formatted_ptr =
+                                        unsafe { BasicValueEnum::new(call_res.as_value_ref()) };
+                                    fmt_string.push_str("%s");
+                                    args.push(formatted_ptr);
+                                }
+                                FormatSpecifier::None => {
+                                    if val.is_int_value() {
+                                        let int_val = val.into_int_value();
+                                        if int_val.get_type().get_bit_width() == 1 {
+                                            fmt_string.push_str("%s");
+                                            let tru_ptr = self
+                                                .engine
+                                                .builder
+                                                .build_global_string_ptr("tru", "str_tru")
+                                                .map_err(|e| {
+                                                    MatcError::CodegenError(e.to_string())
+                                                })?
+                                                .as_pointer_value();
+                                            let fal_ptr = self
+                                                .engine
+                                                .builder
+                                                .build_global_string_ptr("fal", "str_fal")
+                                                .map_err(|e| {
+                                                    MatcError::CodegenError(e.to_string())
+                                                })?
+                                                .as_pointer_value();
+
+                                            let bool_str = self
+                                                .engine
+                                                .builder
+                                                .build_select(int_val, tru_ptr, fal_ptr, "bool_str")
+                                                .map_err(|e| {
+                                                    MatcError::CodegenError(e.to_string())
+                                                })?;
+                                            args.push(bool_str);
+                                        } else {
+                                            fmt_string.push_str("%lld");
+                                            let i64_val = if int_val.get_type().get_bit_width() < 64
+                                            {
+                                                self.engine
+                                                    .builder
+                                                    .build_int_s_extend(
+                                                        int_val,
+                                                        self.engine.context.i64_type(),
+                                                        "i64_ext",
+                                                    )
+                                                    .map_err(|e| {
+                                                        MatcError::CodegenError(e.to_string())
+                                                    })?
+                                                    .into()
+                                            } else {
+                                                val
+                                            };
+                                            args.push(i64_val);
+                                        }
+                                    } else if val.is_float_value() {
+                                        fmt_string.push_str("%g");
+                                        args.push(val);
+                                    } else if val.is_pointer_value() {
+                                        fmt_string.push_str("%s");
+                                        args.push(val);
+                                    }
+                                }
                             }
                         }
                     }
