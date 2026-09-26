@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <string.h>
 #include <locale.h>
 
 #ifdef _WIN32
@@ -66,6 +67,56 @@ char *_mat_rt_fmt_string(const char *fmt, ...)
     va_end(args_copy);
 
     return buf;
+}
+
+char *_mat_rt_fmt_bin(long long val)
+{
+    char buf[67];
+    buf[0] = '0';
+    buf[1] = 'b';
+    if (val == 0)
+    {
+        buf[2] = '0';
+        buf[3] = '\0';
+    }
+    else
+    {
+        unsigned long long uval = (unsigned long long)val;
+        char tmp[65];
+        int pos = 0;
+        while (uval > 0)
+        {
+            tmp[pos++] = (uval & 1) ? '1' : '0';
+            uval >>= 1;
+        }
+        int out_pos = 2;
+        for (int i = pos - 1; i >= 0; i--)
+        {
+            buf[out_pos++] = tmp[i];
+        }
+        buf[out_pos] = '\0';
+    }
+
+    size_t len = strlen(buf);
+    char *res = (char *)MAT_MALLOC(len + 1);
+    if (res)
+    {
+        memcpy(res, buf, len + 1);
+    }
+    return res;
+}
+
+char *_mat_rt_fmt_hex(long long val)
+{
+    char buf[64];
+    snprintf(buf, sizeof(buf), "0x%llX", (unsigned long long)val);
+    size_t len = strlen(buf);
+    char *res = (char *)MAT_MALLOC(len + 1);
+    if (res)
+    {
+        memcpy(res, buf, len + 1);
+    }
+    return res;
 }
 
 // Null-safe standard output helpers

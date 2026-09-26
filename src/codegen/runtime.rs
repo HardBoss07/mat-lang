@@ -18,6 +18,16 @@ pub fn declare_runtime_symbols<'a>(context: &'a Context, module: &Module<'a>) {
         module.add_function("_mat_rt_fmt_string", fmt_type, None);
     }
 
+    if module.get_function("_mat_rt_fmt_bin").is_none() {
+        let fn_type = ptr_type.fn_type(&[i64_type.into()], false);
+        module.add_function("_mat_rt_fmt_bin", fn_type, None);
+    }
+
+    if module.get_function("_mat_rt_fmt_hex").is_none() {
+        let fn_type = ptr_type.fn_type(&[i64_type.into()], false);
+        module.add_function("_mat_rt_fmt_hex", fn_type, None);
+    }
+
     if module.get_function("_mat_rt_println_str").is_none() {
         let fn_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("_mat_rt_println_str", fn_type, None);
