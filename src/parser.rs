@@ -1,5 +1,10 @@
 pub mod expression;
 pub mod statement;
+pub mod types;
+
+pub use expression::parse_expression;
+pub use statement::parse_statement;
+pub use types::parse_type;
 
 use winnow::ModalResult;
 use winnow::Parser as WinnowParser;
@@ -9,7 +14,6 @@ use winnow::token::literal;
 
 use crate::ast::{FunctionDeclaration, Item, Program, Span, Type};
 use crate::error::{MatcError, Result};
-use crate::parser::statement::parse_statement;
 
 fn parse_function(input: &mut &str) -> ModalResult<FunctionDeclaration> {
     let _ = multispace0.parse_next(input)?;
