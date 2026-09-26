@@ -99,6 +99,7 @@ score += 15;
 score -= 5;
 score *= 2;
 score /= 4;
+score %= 3; // Modulo assignment
 score++;
 score--;
 

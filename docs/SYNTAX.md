@@ -63,8 +63,9 @@ fn main() {
     println("Mask in Binary: {mask:bin}"); // Prints "Mask in Binary: 0b1000"
     println("Mask in Hex: {mask:hex}");   // Prints "Mask in Hex: 0x8"
 
-    // Unary, Infix, and Bitwise Shift Operators
+    // Unary, Infix, Modulo, and Bitwise Shift Operators
     score += 25;
+    score %= 7;
     score++;
     let mut mask: int = 0b0001;
     mask <<= 3; // Bitwise left shift short form (0b1000)
