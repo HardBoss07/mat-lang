@@ -44,22 +44,21 @@ impl TypeChecker {
                         message: format!("Undefined variable: {}", target),
                     })?
                     .clone();
-                if !sym.is_mutable {
-                    return Err(MatcError::TypeError {
-                        message: format!("Cannot assign to immutable variable '{}'", target),
-                    });
-                }
+                self.check_expr(value, &sym.ty, symbols)?;
+            }
+            Statement::CompoundAssignment { target, value, .. } => {
+                let sym = symbols
+                    .lookup(target)
+                    .ok_or_else(|| MatcError::TypeError {
+                        message: format!("Undefined variable: {}", target),
+                    })?
+                    .clone();
                 self.check_expr(value, &sym.ty, symbols)?;
             }
             Statement::Increment { target, .. } | Statement::Decrement { target, .. } => {
-                let sym = symbols.lookup(target).ok_or_else(|| MatcError::TypeError {
+                let _ = symbols.lookup(target).ok_or_else(|| MatcError::TypeError {
                     message: format!("Undefined variable: {}", target),
                 })?;
-                if !sym.is_mutable {
-                    return Err(MatcError::TypeError {
-                        message: format!("Cannot mutate immutable variable '{}'", target),
-                    });
-                }
             }
             Statement::Expression(expr) => {
                 self.synthesize_expr(expr, symbols)?;
@@ -81,10 +80,23 @@ impl TypeChecker {
             Expression::BoolLiteral(_, _) => Ok(Type::Bool),
             Expression::StringLiteral(_, _) => Ok(Type::String),
             Expression::InterpolatedString(parts, _) => {
-                for part in parts {
+                for (part, _specifier) in parts {
                     self.synthesize_expr(part, symbols)?;
                 }
                 Ok(Type::String)
+            }
+            Expression::Binary { left, right, .. } => {
+                let left_ty = self.synthesize_expr(left, symbols)?;
+                let right_ty = self.synthesize_expr(right, symbols)?;
+                if left_ty != right_ty {
+                    return Err(MatcError::TypeError {
+                        message: format!(
+                            "Binary operator type mismatch: expected {:?}, got {:?}",
+                            left_ty, right_ty
+                        ),
+                    });
+                }
+                Ok(left_ty)
             }
             Expression::TupleLiteral(elements, _) => {
                 let mut types = Vec::new();
@@ -208,6 +220,19 @@ impl TypeChecker {
             },
             (Expression::FloatLiteral(_, _), Type::F32) => Ok(Type::F32),
             (Expression::FloatLiteral(_, _), Type::F64) => Ok(Type::F64),
+            (Expression::Binary { left, right, .. }, target_ty) => {
+                let left_ty = self.check_expr(left, target_ty, symbols)?;
+                let right_ty = self.check_expr(right, target_ty, symbols)?;
+                if left_ty != *target_ty || right_ty != *target_ty {
+                    return Err(MatcError::TypeError {
+                        message: format!(
+                            "Type mismatch in binary expression: expected {:?}",
+                            target_ty
+                        ),
+                    });
+                }
+                Ok(target_ty.clone())
+            }
             (Expression::TupleLiteral(elements, _), Type::Tuple(target_types)) => {
                 if elements.len() != target_types.len() {
                     return Err(MatcError::TypeError {
