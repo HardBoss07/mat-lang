@@ -4,7 +4,7 @@ use winnow::ascii::multispace0;
 use winnow::combinator::{alt, opt};
 use winnow::token::literal;
 
-use crate::ast::{Span, Statement};
+use crate::ast::{BinaryOp, Span, Statement};
 use crate::parser::expression::parse_expression;
 use crate::parser::expression::primary::parse_identifier_str;
 use crate::parser::types::parse_type;
@@ -76,6 +76,74 @@ pub fn parse_let_statement(input: &mut &str) -> ModalResult<Statement> {
         name: name.to_string(),
         is_mutable,
         ty,
+        value,
+        span: Span::new(0, 0),
+    })
+}
+
+pub fn parse_compound_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
+    let checkpoint = *input;
+    let _ = multispace0.parse_next(input)?;
+
+    let target = match parse_identifier_str.parse_next(input) {
+        Ok(t) => t,
+        Err(e) => {
+            *input = checkpoint;
+            return Err(e);
+        }
+    };
+    let _ = multispace0.parse_next(input)?;
+
+    let op = if input.starts_with("+=") {
+        *input = &input[2..];
+        BinaryOp::Add
+    } else if input.starts_with("-=") {
+        *input = &input[2..];
+        BinaryOp::Sub
+    } else if input.starts_with("*=") {
+        *input = &input[2..];
+        BinaryOp::Mul
+    } else if input.starts_with("/=") {
+        *input = &input[2..];
+        BinaryOp::Div
+    } else if input.starts_with("%=") {
+        *input = &input[2..];
+        BinaryOp::Mod
+    } else if input.starts_with("<<=") {
+        *input = &input[3..];
+        BinaryOp::Shl
+    } else if input.starts_with(">>=") {
+        *input = &input[3..];
+        BinaryOp::Shr
+    } else {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    };
+
+    let _ = multispace0.parse_next(input)?;
+
+    let value = match parse_expression.parse_next(input) {
+        Ok(v) => v,
+        Err(e) => {
+            *input = checkpoint;
+            return Err(e);
+        }
+    };
+    let _ = multispace0.parse_next(input)?;
+
+    if !input.starts_with(';') {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    let _ = literal(';').parse_next(input)?;
+
+    Ok(Statement::CompoundAssignment {
+        target: target.to_string(),
+        op,
         value,
         span: Span::new(0, 0),
     })
@@ -228,6 +296,7 @@ pub fn parse_statement(input: &mut &str) -> ModalResult<Statement> {
         parse_let_statement,
         parse_increment_statement,
         parse_decrement_statement,
+        parse_compound_assignment_statement,
         parse_assignment_statement,
         parse_expression_statement,
     ))

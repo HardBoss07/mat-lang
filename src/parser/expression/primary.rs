@@ -7,7 +7,7 @@ use winnow::token::take_while;
 use super::literals::{
     parse_bool_literal, parse_float_literal, parse_int_literal, parse_string_or_interpolated,
 };
-use crate::ast::{Expression, Span};
+use crate::ast::{BinaryOp, Expression, Span};
 
 pub fn parse_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
     let _ = multispace0.parse_next(input)?;
@@ -134,7 +134,7 @@ pub fn parse_primary_expression(input: &mut &str) -> ModalResult<Expression> {
     .parse_next(input)
 }
 
-pub fn parse_expression(input: &mut &str) -> ModalResult<Expression> {
+pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
     let mut expr = parse_primary_expression.parse_next(input)?;
 
     loop {
@@ -193,4 +193,107 @@ pub fn parse_expression(input: &mut &str) -> ModalResult<Expression> {
     }
 
     Ok(expr)
+}
+
+pub fn parse_multiplicative_expression(input: &mut &str) -> ModalResult<Expression> {
+    let mut left = parse_postfix_expression.parse_next(input)?;
+
+    loop {
+        let _ = multispace0.parse_next(input)?;
+        if input.starts_with("*=") || input.starts_with("/=") || input.starts_with("%=") {
+            break;
+        }
+
+        let op = if input.starts_with('*') {
+            BinaryOp::Mul
+        } else if input.starts_with('/') {
+            BinaryOp::Div
+        } else if input.starts_with('%') {
+            BinaryOp::Mod
+        } else {
+            break;
+        };
+
+        *input = &input[1..];
+
+        let right = parse_postfix_expression.parse_next(input)?;
+        left = Expression::Binary {
+            op,
+            left: Box::new(left),
+            right: Box::new(right),
+            span: Span::new(0, 0),
+        };
+    }
+
+    Ok(left)
+}
+
+pub fn parse_additive_expression(input: &mut &str) -> ModalResult<Expression> {
+    let mut left = parse_multiplicative_expression.parse_next(input)?;
+
+    loop {
+        let _ = multispace0.parse_next(input)?;
+        if input.starts_with("+=")
+            || input.starts_with("-=")
+            || input.starts_with("++")
+            || input.starts_with("--")
+        {
+            break;
+        }
+
+        let op = if input.starts_with('+') {
+            BinaryOp::Add
+        } else if input.starts_with('-') {
+            BinaryOp::Sub
+        } else {
+            break;
+        };
+
+        *input = &input[1..];
+
+        let right = parse_multiplicative_expression.parse_next(input)?;
+        left = Expression::Binary {
+            op,
+            left: Box::new(left),
+            right: Box::new(right),
+            span: Span::new(0, 0),
+        };
+    }
+
+    Ok(left)
+}
+
+pub fn parse_shift_expression(input: &mut &str) -> ModalResult<Expression> {
+    let mut left = parse_additive_expression.parse_next(input)?;
+
+    loop {
+        let _ = multispace0.parse_next(input)?;
+        if input.starts_with("<<=") || input.starts_with(">>=") {
+            break;
+        }
+
+        let op = if input.starts_with("<<") {
+            BinaryOp::Shl
+        } else if input.starts_with(">>") {
+            BinaryOp::Shr
+        } else {
+            break;
+        };
+
+        *input = &input[2..];
+
+        let right = parse_additive_expression.parse_next(input)?;
+        left = Expression::Binary {
+            op,
+            left: Box::new(left),
+            right: Box::new(right),
+            span: Span::new(0, 0),
+        };
+    }
+
+    Ok(left)
+}
+
+pub fn parse_expression(input: &mut &str) -> ModalResult<Expression> {
+    parse_shift_expression(input)
 }
