@@ -1,0 +1,39 @@
+fn main() {
+    let age: int = 18;
+    let mut score: int = 100;
+
+    println("Age: {age}, Score: {score}");
+
+    score = score + 10;
+    score += 10;
+    println("Current Score: {score}");
+
+    score = score - 5;
+    score -= 5;
+    println("Current Score: {score}");
+
+    score = score * 2;
+    score *= 2;
+    println("Current Score: {score}");
+
+    score = score / 4;
+    score /= 4;
+    println("Current Score: {score}");
+
+    score = score % 7;
+    score %= 3;
+    println("Current Score after Mod: {score}");
+
+    age++;
+    score--;
+
+    println("Age: {age}, Score: {score}");
+
+    let mut mask: int = 0b0001;
+    mask <<= 3;
+    println("Mask after left shift: {mask:bin}");
+    mask >>= 1;
+    println("Mask after right shift: {mask:bin}");
+    let shifted: int = mask << 2;
+    println("Shifted Mask: {shifted:bin}");
+}
