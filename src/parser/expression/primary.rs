@@ -85,16 +85,14 @@ pub fn parse_tuple_or_parenthesized(input: &mut &str) -> ModalResult<Expression>
                 winnow::error::ContextError::default(),
             ))
         }
+    } else if input.starts_with(')') {
+        *input = &input[1..];
+        Ok(first)
     } else {
-        if input.starts_with(')') {
-            *input = &input[1..];
-            Ok(first)
-        } else {
-            *input = checkpoint;
-            Err(winnow::error::ErrMode::Backtrack(
-                winnow::error::ContextError::default(),
-            ))
-        }
+        *input = checkpoint;
+        Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ))
     }
 }
 
@@ -168,9 +166,8 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
                     span: Span::new(0, 0),
                 };
                 continue;
-            } else {
-                break;
             }
+            break;
         } else if input.starts_with('[') {
             let mut checkpoint = *input;
             checkpoint = &checkpoint[1..];
@@ -294,6 +291,118 @@ pub fn parse_shift_expression(input: &mut &str) -> ModalResult<Expression> {
     Ok(left)
 }
 
+pub fn parse_relational_expression(input: &mut &str) -> ModalResult<Expression> {
+    let mut left = parse_shift_expression.parse_next(input)?;
+
+    loop {
+        let _ = multispace0.parse_next(input)?;
+        if input.starts_with("<<") || input.starts_with(">>") {
+            break;
+        }
+
+        let op = if input.starts_with("<=") {
+            BinaryOp::Lte
+        } else if input.starts_with(">=") {
+            BinaryOp::Gte
+        } else if input.starts_with('<') {
+            BinaryOp::Lt
+        } else if input.starts_with('>') {
+            BinaryOp::Gt
+        } else {
+            break;
+        };
+
+        match op {
+            BinaryOp::Lte | BinaryOp::Gte => *input = &input[2..],
+            _ => *input = &input[1..],
+        }
+
+        let right = parse_shift_expression.parse_next(input)?;
+        left = Expression::Binary {
+            op,
+            left: Box::new(left),
+            right: Box::new(right),
+            span: Span::new(0, 0),
+        };
+    }
+
+    Ok(left)
+}
+
+pub fn parse_equality_expression(input: &mut &str) -> ModalResult<Expression> {
+    let mut left = parse_relational_expression.parse_next(input)?;
+
+    loop {
+        let _ = multispace0.parse_next(input)?;
+
+        let op = if input.starts_with("==") {
+            BinaryOp::Eq
+        } else if input.starts_with("!=") {
+            BinaryOp::Neq
+        } else {
+            break;
+        };
+
+        *input = &input[2..];
+
+        let right = parse_relational_expression.parse_next(input)?;
+        left = Expression::Binary {
+            op,
+            left: Box::new(left),
+            right: Box::new(right),
+            span: Span::new(0, 0),
+        };
+    }
+
+    Ok(left)
+}
+
+pub fn parse_logical_and_expression(input: &mut &str) -> ModalResult<Expression> {
+    let mut left = parse_equality_expression.parse_next(input)?;
+
+    loop {
+        let _ = multispace0.parse_next(input)?;
+
+        if input.starts_with("&&") {
+            *input = &input[2..];
+            let right = parse_equality_expression.parse_next(input)?;
+            left = Expression::Binary {
+                op: BinaryOp::And,
+                left: Box::new(left),
+                right: Box::new(right),
+                span: Span::new(0, 0),
+            };
+        } else {
+            break;
+        }
+    }
+
+    Ok(left)
+}
+
+pub fn parse_logical_or_expression(input: &mut &str) -> ModalResult<Expression> {
+    let mut left = parse_logical_and_expression.parse_next(input)?;
+
+    loop {
+        let _ = multispace0.parse_next(input)?;
+
+        if input.starts_with("||") {
+            *input = &input[2..];
+            let right = parse_logical_and_expression.parse_next(input)?;
+            left = Expression::Binary {
+                op: BinaryOp::Or,
+                left: Box::new(left),
+                right: Box::new(right),
+                span: Span::new(0, 0),
+            };
+        } else {
+            break;
+        }
+    }
+
+    Ok(left)
+}
+
 pub fn parse_expression(input: &mut &str) -> ModalResult<Expression> {
-    parse_shift_expression(input)
+    parse_logical_or_expression(input)
 }
