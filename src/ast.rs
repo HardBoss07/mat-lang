@@ -13,6 +13,14 @@ pub enum BinaryOp {
     Mod,
     Shl,
     Shr,
+    Eq,
+    Neq,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
+    And,
+    Or,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,6 +91,36 @@ pub enum Statement {
         target: String,
         span: Span,
     },
+    Loop {
+        body: Vec<Statement>,
+        span: Span,
+    },
+    While {
+        condition: Expression,
+        body: Vec<Statement>,
+        span: Span,
+    },
+    ForI {
+        init: Box<Statement>,
+        condition: Expression,
+        step: Box<Statement>,
+        body: Vec<Statement>,
+        span: Span,
+    },
+    ForIn {
+        var_name: String,
+        iterable: Expression,
+        body: Vec<Statement>,
+        span: Span,
+    },
+    If {
+        condition: Expression,
+        then_branch: Vec<Statement>,
+        else_branch: Option<Vec<Statement>>,
+        span: Span,
+    },
+    Break(Span),
+    Continue(Span),
     Expression(Expression),
 }
 
