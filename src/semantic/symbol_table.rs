@@ -29,6 +29,16 @@ impl SymbolTable {
         }
     }
 
+    pub fn push_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    pub fn pop_scope(&mut self) {
+        if self.scopes.len() > 1 {
+            self.scopes.pop();
+        }
+    }
+
     pub fn insert(&mut self, name: String, ty: Type, is_mutable: bool) {
         if let Some(scope) = self.scopes.last_mut() {
             scope.insert(

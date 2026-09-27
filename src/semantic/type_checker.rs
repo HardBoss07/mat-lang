@@ -1,5 +1,5 @@
 use super::symbol_table::SymbolTable;
-use crate::ast::{Expression, Item, Program, Statement, Type};
+use crate::ast::{BinaryOp, Expression, Item, Program, Statement, Type};
 use crate::error::{MatcError, Result};
 
 pub struct TypeChecker;
@@ -63,6 +63,98 @@ impl TypeChecker {
             Statement::Expression(expr) => {
                 self.synthesize_expr(expr, symbols)?;
             }
+            Statement::Loop { body, .. } => {
+                symbols.push_scope();
+                for inner_stmt in body {
+                    self.check_statement(inner_stmt, symbols)?;
+                }
+                symbols.pop_scope();
+            }
+            Statement::While {
+                condition, body, ..
+            } => {
+                let cond_ty = self.synthesize_expr(condition, symbols)?;
+                if cond_ty != Type::Bool {
+                    return Err(MatcError::TypeError {
+                        message: format!("While condition must be bool, got {:?}", cond_ty),
+                    });
+                }
+                symbols.push_scope();
+                for inner_stmt in body {
+                    self.check_statement(inner_stmt, symbols)?;
+                }
+                symbols.pop_scope();
+            }
+            Statement::ForI {
+                init,
+                condition,
+                step,
+                body,
+                ..
+            } => {
+                symbols.push_scope();
+                self.check_statement(init, symbols)?;
+                let cond_ty = self.synthesize_expr(condition, symbols)?;
+                if cond_ty != Type::Bool {
+                    return Err(MatcError::TypeError {
+                        message: format!("Fori condition must be bool, got {:?}", cond_ty),
+                    });
+                }
+                self.check_statement(step, symbols)?;
+                for inner_stmt in body {
+                    self.check_statement(inner_stmt, symbols)?;
+                }
+                symbols.pop_scope();
+            }
+            Statement::ForIn {
+                var_name,
+                iterable,
+                body,
+                ..
+            } => {
+                let iter_ty = self.synthesize_expr(iterable, symbols)?;
+                let elem_ty = match iter_ty {
+                    Type::Array(elem, _) => *elem,
+                    other => {
+                        return Err(MatcError::TypeError {
+                            message: format!("Cannot iterate over non-array type {:?}", other),
+                        });
+                    }
+                };
+                symbols.push_scope();
+                symbols.insert(var_name.clone(), elem_ty, false);
+                for inner_stmt in body {
+                    self.check_statement(inner_stmt, symbols)?;
+                }
+                symbols.pop_scope();
+            }
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                let cond_ty = self.synthesize_expr(condition, symbols)?;
+                if cond_ty != Type::Bool {
+                    return Err(MatcError::TypeError {
+                        message: format!("If condition must be bool, got {:?}", cond_ty),
+                    });
+                }
+                symbols.push_scope();
+                for inner_stmt in then_branch {
+                    self.check_statement(inner_stmt, symbols)?;
+                }
+                symbols.pop_scope();
+
+                if let Some(else_stmts) = else_branch {
+                    symbols.push_scope();
+                    for inner_stmt in else_stmts {
+                        self.check_statement(inner_stmt, symbols)?;
+                    }
+                    symbols.pop_scope();
+                }
+            }
+            Statement::Break(_) | Statement::Continue(_) => {}
         }
         Ok(())
     }
@@ -85,7 +177,9 @@ impl TypeChecker {
                 }
                 Ok(Type::String)
             }
-            Expression::Binary { left, right, .. } => {
+            Expression::Binary {
+                op, left, right, ..
+            } => {
                 let left_ty = self.synthesize_expr(left, symbols)?;
                 let right_ty = self.synthesize_expr(right, symbols)?;
                 if left_ty != right_ty {
@@ -96,7 +190,17 @@ impl TypeChecker {
                         ),
                     });
                 }
-                Ok(left_ty)
+                match op {
+                    BinaryOp::Eq
+                    | BinaryOp::Neq
+                    | BinaryOp::Lt
+                    | BinaryOp::Lte
+                    | BinaryOp::Gt
+                    | BinaryOp::Gte
+                    | BinaryOp::And
+                    | BinaryOp::Or => Ok(Type::Bool),
+                    _ => Ok(left_ty),
+                }
             }
             Expression::TupleLiteral(elements, _) => {
                 let mut types = Vec::new();
