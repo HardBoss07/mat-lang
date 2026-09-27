@@ -1,4 +1,4 @@
-use super::function::FunctionCompiler;
+use super::function::{FunctionCompiler, LoopBlocks};
 use crate::ast::{BinaryOp, Statement, Type};
 use crate::error::{MatcError, Result};
 use inkwell::values::BasicValueEnum;
@@ -136,6 +136,11 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                             .engine
                             .builder
                             .build_right_shift(l_int, r_int, true, "shrtmp"),
+                        _ => {
+                            return Err(MatcError::CodegenError(
+                                "Unsupported compound assignment op".to_string(),
+                            ));
+                        }
                     }
                     .map_err(|e| MatcError::CodegenError(e.to_string()))?
                     .into()
@@ -229,6 +234,463 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                     .builder
                     .build_store(*ptr, dec)
                     .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+            }
+            Statement::Loop { body, .. } => {
+                let loop_body = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "loop_body");
+                let loop_after = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "loop_after");
+
+                self.engine
+                    .builder
+                    .build_unconditional_branch(loop_body)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                self.engine.builder.position_at_end(loop_body);
+                self.loop_stack.push(LoopBlocks {
+                    continue_target: loop_body,
+                    break_target: loop_after,
+                });
+
+                self.symbol_table.push_scope();
+                for stmt in body {
+                    self.compile_statement(stmt)?;
+                }
+                self.symbol_table.pop_scope();
+                self.loop_stack.pop();
+
+                if self
+                    .engine
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_terminator()
+                    .is_none()
+                {
+                    self.engine
+                        .builder
+                        .build_unconditional_branch(loop_body)
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                }
+
+                self.engine.builder.position_at_end(loop_after);
+            }
+            Statement::While {
+                condition, body, ..
+            } => {
+                let while_cond = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "while_cond");
+                let while_body = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "while_body");
+                let while_after = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "while_after");
+
+                self.engine
+                    .builder
+                    .build_unconditional_branch(while_cond)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                self.engine.builder.position_at_end(while_cond);
+                let cond_val = self.compile_expression(condition)?.into_int_value();
+                self.engine
+                    .builder
+                    .build_conditional_branch(cond_val, while_body, while_after)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                self.engine.builder.position_at_end(while_body);
+                self.loop_stack.push(LoopBlocks {
+                    continue_target: while_cond,
+                    break_target: while_after,
+                });
+
+                self.symbol_table.push_scope();
+                for stmt in body {
+                    self.compile_statement(stmt)?;
+                }
+                self.symbol_table.pop_scope();
+                self.loop_stack.pop();
+
+                if self
+                    .engine
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_terminator()
+                    .is_none()
+                {
+                    self.engine
+                        .builder
+                        .build_unconditional_branch(while_cond)
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                }
+
+                self.engine.builder.position_at_end(while_after);
+            }
+            Statement::ForI {
+                init,
+                condition,
+                step,
+                body,
+                ..
+            } => {
+                self.symbol_table.push_scope();
+                self.compile_statement(init)?;
+
+                let for_cond = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "for_cond");
+                let for_body = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "for_body");
+                let for_step = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "for_step");
+                let for_after = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "for_after");
+
+                self.engine
+                    .builder
+                    .build_unconditional_branch(for_cond)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                self.engine.builder.position_at_end(for_cond);
+                let cond_val = self.compile_expression(condition)?.into_int_value();
+                self.engine
+                    .builder
+                    .build_conditional_branch(cond_val, for_body, for_after)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                self.engine.builder.position_at_end(for_body);
+                self.loop_stack.push(LoopBlocks {
+                    continue_target: for_step,
+                    break_target: for_after,
+                });
+
+                for stmt in body {
+                    self.compile_statement(stmt)?;
+                }
+                self.loop_stack.pop();
+
+                if self
+                    .engine
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_terminator()
+                    .is_none()
+                {
+                    self.engine
+                        .builder
+                        .build_unconditional_branch(for_step)
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                }
+
+                self.engine.builder.position_at_end(for_step);
+                self.compile_statement(step)?;
+                self.engine
+                    .builder
+                    .build_unconditional_branch(for_cond)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                self.engine.builder.position_at_end(for_after);
+                self.symbol_table.pop_scope();
+            }
+            Statement::ForIn {
+                var_name,
+                iterable,
+                body,
+                ..
+            } => {
+                let iter_mat_ty = self
+                    .type_checker
+                    .synthesize_expr(iterable, &self.symbol_table)?;
+                let (elem_mat_ty, array_len) = match iter_mat_ty {
+                    Type::Array(ref elem, len) => (*elem.clone(), len),
+                    _ => {
+                        return Err(MatcError::CodegenError(
+                            "Expected array type in for-in".to_string(),
+                        ));
+                    }
+                };
+
+                let iter_val = self.compile_expression(iterable)?;
+                let array_llvm_ty = self.engine.llvm_type(&iter_mat_ty);
+                let elem_llvm_ty = self.engine.llvm_type(&elem_mat_ty);
+                let i64_ty = self.engine.context.i64_type();
+
+                let array_alloca = self
+                    .engine
+                    .builder
+                    .build_alloca(array_llvm_ty, "for_in_arr")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                self.engine
+                    .builder
+                    .build_store(array_alloca, iter_val)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                let idx_alloca = self
+                    .engine
+                    .builder
+                    .build_alloca(i64_ty, "for_in_idx")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                let zero_i64 = i64_ty.const_int(0, false);
+                self.engine
+                    .builder
+                    .build_store(idx_alloca, zero_i64)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                let for_in_cond = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "for_in_cond");
+                let for_in_body = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "for_in_body");
+                let for_in_step = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "for_in_step");
+                let for_in_after = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "for_in_after");
+
+                self.engine
+                    .builder
+                    .build_unconditional_branch(for_in_cond)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                self.engine.builder.position_at_end(for_in_cond);
+                let current_idx = self
+                    .engine
+                    .builder
+                    .build_load(i64_ty, idx_alloca, "curr_idx")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                    .into_int_value();
+                let len_val = i64_ty.const_int(array_len as u64, false);
+                let cond_val = self
+                    .engine
+                    .builder
+                    .build_int_compare(
+                        inkwell::IntPredicate::SLT,
+                        current_idx,
+                        len_val,
+                        "for_in_cmp",
+                    )
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                self.engine
+                    .builder
+                    .build_conditional_branch(cond_val, for_in_body, for_in_after)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                self.engine.builder.position_at_end(for_in_body);
+                self.symbol_table.push_scope();
+
+                let zero_i32 = self.engine.context.i32_type().const_int(0, false);
+                let elem_ptr = unsafe {
+                    self.engine
+                        .builder
+                        .build_gep(
+                            array_llvm_ty,
+                            array_alloca,
+                            &[zero_i32, current_idx],
+                            "for_in_elem_ptr",
+                        )
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                };
+                let elem_val = self
+                    .engine
+                    .builder
+                    .build_load(elem_llvm_ty, elem_ptr, var_name)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                let var_alloca = self
+                    .engine
+                    .builder
+                    .build_alloca(elem_llvm_ty, var_name)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                self.engine
+                    .builder
+                    .build_store(var_alloca, elem_val)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                self.local_vars
+                    .insert(var_name.clone(), (var_alloca, elem_mat_ty.clone()));
+                self.symbol_table
+                    .insert(var_name.clone(), elem_mat_ty, false);
+
+                self.loop_stack.push(LoopBlocks {
+                    continue_target: for_in_step,
+                    break_target: for_in_after,
+                });
+
+                for stmt in body {
+                    self.compile_statement(stmt)?;
+                }
+                self.loop_stack.pop();
+
+                if self
+                    .engine
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_terminator()
+                    .is_none()
+                {
+                    self.engine
+                        .builder
+                        .build_unconditional_branch(for_in_step)
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                }
+
+                self.symbol_table.pop_scope();
+
+                self.engine.builder.position_at_end(for_in_step);
+                let one_i64 = i64_ty.const_int(1, false);
+                let next_idx = self
+                    .engine
+                    .builder
+                    .build_int_add(current_idx, one_i64, "next_idx")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                self.engine
+                    .builder
+                    .build_store(idx_alloca, next_idx)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                self.engine
+                    .builder
+                    .build_unconditional_branch(for_in_cond)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                self.engine.builder.position_at_end(for_in_after);
+            }
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                let cond_val = self.compile_expression(condition)?.into_int_value();
+
+                let if_then = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "if_then");
+                let if_after = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "if_after");
+
+                let if_else = if else_branch.is_some() {
+                    Some(
+                        self.engine
+                            .context
+                            .append_basic_block(self.fn_value, "if_else"),
+                    )
+                } else {
+                    None
+                };
+
+                let false_target = if_else.unwrap_or(if_after);
+
+                self.engine
+                    .builder
+                    .build_conditional_branch(cond_val, if_then, false_target)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                self.engine.builder.position_at_end(if_then);
+                self.symbol_table.push_scope();
+                for stmt in then_branch {
+                    self.compile_statement(stmt)?;
+                }
+                self.symbol_table.pop_scope();
+
+                if self
+                    .engine
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_terminator()
+                    .is_none()
+                {
+                    self.engine
+                        .builder
+                        .build_unconditional_branch(if_after)
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                }
+
+                if let (Some(else_block), Some(else_stmts)) = (if_else, else_branch) {
+                    self.engine.builder.position_at_end(else_block);
+                    self.symbol_table.push_scope();
+                    for stmt in else_stmts {
+                        self.compile_statement(stmt)?;
+                    }
+                    self.symbol_table.pop_scope();
+
+                    if self
+                        .engine
+                        .builder
+                        .get_insert_block()
+                        .unwrap()
+                        .get_terminator()
+                        .is_none()
+                    {
+                        self.engine
+                            .builder
+                            .build_unconditional_branch(if_after)
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                    }
+                }
+
+                self.engine.builder.position_at_end(if_after);
+            }
+            Statement::Break(_) => {
+                let loop_blocks = self
+                    .loop_stack
+                    .last()
+                    .ok_or_else(|| MatcError::CodegenError("break outside of loop".to_string()))?;
+                let target = loop_blocks.break_target;
+                self.engine
+                    .builder
+                    .build_unconditional_branch(target)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                let dead_block = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "after_break");
+                self.engine.builder.position_at_end(dead_block);
+            }
+            Statement::Continue(_) => {
+                let loop_blocks = self.loop_stack.last().ok_or_else(|| {
+                    MatcError::CodegenError("continue outside of loop".to_string())
+                })?;
+                let target = loop_blocks.continue_target;
+                self.engine
+                    .builder
+                    .build_unconditional_branch(target)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                let dead_block = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "after_continue");
+                self.engine.builder.position_at_end(dead_block);
             }
             Statement::Expression(expr) => {
                 self.compile_expression(expr)?;

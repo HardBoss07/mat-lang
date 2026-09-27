@@ -51,80 +51,140 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                 if left_val.is_int_value() && right_val.is_int_value() {
                     let l_int = left_val.into_int_value();
                     let r_int = right_val.into_int_value();
-                    let res = match op {
+                    let res: BasicValueEnum<'ctx> = match op {
                         BinaryOp::Add => self
                             .engine
                             .builder
                             .build_int_add(l_int, r_int, "addtmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                         BinaryOp::Sub => self
                             .engine
                             .builder
                             .build_int_sub(l_int, r_int, "subtmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                         BinaryOp::Mul => self
                             .engine
                             .builder
                             .build_int_mul(l_int, r_int, "multmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                         BinaryOp::Div => self
                             .engine
                             .builder
                             .build_int_signed_div(l_int, r_int, "divtmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                         BinaryOp::Mod => self
                             .engine
                             .builder
                             .build_int_signed_rem(l_int, r_int, "modtmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                         BinaryOp::Shl => self
                             .engine
                             .builder
                             .build_left_shift(l_int, r_int, "shltmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                         BinaryOp::Shr => self
                             .engine
                             .builder
                             .build_right_shift(l_int, r_int, true, "shrtmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
+                        BinaryOp::Eq => self
+                            .engine
+                            .builder
+                            .build_int_compare(inkwell::IntPredicate::EQ, l_int, r_int, "eqtmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
+                        BinaryOp::Neq => self
+                            .engine
+                            .builder
+                            .build_int_compare(inkwell::IntPredicate::NE, l_int, r_int, "netmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
+                        BinaryOp::Lt => self
+                            .engine
+                            .builder
+                            .build_int_compare(inkwell::IntPredicate::SLT, l_int, r_int, "lttmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
+                        BinaryOp::Lte => self
+                            .engine
+                            .builder
+                            .build_int_compare(inkwell::IntPredicate::SLE, l_int, r_int, "ltetmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
+                        BinaryOp::Gt => self
+                            .engine
+                            .builder
+                            .build_int_compare(inkwell::IntPredicate::SGT, l_int, r_int, "gttmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
+                        BinaryOp::Gte => self
+                            .engine
+                            .builder
+                            .build_int_compare(inkwell::IntPredicate::SGE, l_int, r_int, "gtetmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
+                        BinaryOp::And => self
+                            .engine
+                            .builder
+                            .build_and(l_int, r_int, "andtmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
+                        BinaryOp::Or => self
+                            .engine
+                            .builder
+                            .build_or(l_int, r_int, "ortmp")
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                     };
-                    Ok(res.into())
+                    Ok(res)
                 } else if left_val.is_float_value() && right_val.is_float_value() {
                     let l_float = left_val.into_float_value();
                     let r_float = right_val.into_float_value();
-                    let res = match op {
+                    let res: BasicValueEnum<'ctx> = match op {
                         BinaryOp::Add => self
                             .engine
                             .builder
                             .build_float_add(l_float, r_float, "addtmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                         BinaryOp::Sub => self
                             .engine
                             .builder
                             .build_float_sub(l_float, r_float, "subtmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                         BinaryOp::Mul => self
                             .engine
                             .builder
                             .build_float_mul(l_float, r_float, "multmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                         BinaryOp::Div => self
                             .engine
                             .builder
                             .build_float_div(l_float, r_float, "divtmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                         BinaryOp::Mod => self
                             .engine
                             .builder
                             .build_float_rem(l_float, r_float, "modtmp")
-                            .map_err(|e| MatcError::CodegenError(e.to_string()))?,
+                            .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                            .into(),
                         _ => {
                             return Err(MatcError::CodegenError(
-                                "Shift operators not supported for float values".to_string(),
+                                "Unsupported operator for floats".to_string(),
                             ));
                         }
                     };
-                    Ok(res.into())
+                    Ok(res)
                 } else {
                     Err(MatcError::CodegenError(
                         "Mismatched or unsupported types in binary operation".to_string(),
