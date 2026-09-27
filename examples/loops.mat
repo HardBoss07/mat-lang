@@ -1,0 +1,34 @@
+fn main() {
+    let mut while_counter: int = 0;
+    while while_counter < 10 {
+        while_counter++;
+        if while_counter % 2 == 0 {
+            continue;
+        }
+        println("While Counter (odd): {while_counter}");
+    }
+
+    fori (let i: int = 0; i < 10; i++) {
+        if i == 2 {
+            continue;
+        }
+        if i == 7 {
+            break;
+        }
+        println("Fori Index: {i}");
+    }
+
+    let numbers: [int; 5] = [10, 20, 30, 40, 50];
+    for num in numbers {
+        println("For-in Value: {num}");
+    }
+
+    let mut loop_counter: int = 0;
+    loop {
+        println("Loop Iteration: {loop_counter}");
+        loop_counter++;
+        if loop_counter >= 3 {
+            break;
+        }
+    }
+}

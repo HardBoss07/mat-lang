@@ -36,4 +36,8 @@ fn main() {
     println("Mask after right shift: {mask:bin}");
     let shifted: int = mask << 2;
     println("Shifted Mask: {shifted:bin}");
+
+    let mut number: f64 = 100.0;
+    number = ((number * 0.5) * 2.0 + 10.0) / 2.0;
+    println("Complex Calculation: {number}");
 }

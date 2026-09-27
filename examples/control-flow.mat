@@ -1,0 +1,141 @@
+fn main() {
+    if tru {
+        println("Literal true condition passed");
+    }
+
+    if fal {
+        println("Literal false condition failed");
+    } else {
+        println("Literal false else branch executed");
+    }
+
+    let is_active: bool = tru;
+    let is_admin: bool = fal;
+
+    if is_active {
+        println("Variable boolean condition passed");
+    }
+
+    if is_admin {
+        println("Admin check passed");
+    } else if is_active {
+        println("Else-if branch executed: User is active but not admin");
+    } else {
+        println("Fallback else branch executed");
+    }
+
+    let val_a: int = 15;
+    let val_b: int = 20;
+
+    if val_a < val_b {
+        println("Relational (<) check passed: {val_a} < {val_b}");
+    }
+
+    if val_a >= 10 && val_b <= 25 {
+        println("Logical AND (&&) check passed");
+    }
+
+    if val_a == 100 || val_b == 20 {
+        println("Logical OR (||) check passed");
+    }
+
+    if val_a != val_b {
+        println("Equality (!=) check passed");
+    }
+
+    let mut while_i: int = 0;
+    while while_i < 5 {
+        while_i++;
+        if while_i == 2 {
+            continue;
+        }
+        println("While loop iteration: {while_i}");
+    }
+
+    let mut while_bool: bool = tru;
+    let mut while_count: int = 0;
+    while while_bool {
+        while_count++;
+        if while_count >= 2 {
+            while_bool = fal;
+        }
+        println("While variable condition count: {while_count}");
+    }
+
+    fori (let i: int = 0; i < 4; i++) {
+        if i % 2 == 0 {
+            println("Fori even index: {i}");
+        }
+    }
+
+    fori (let j: int = 10; j > 6; j--) {
+        println("Fori descending index: {j}");
+    }
+
+    fori (let k: int = 0; k < 100; k++) {
+        if k == 3 {
+            break;
+        }
+        println("Fori break check: {k}");
+    }
+
+    let numbers: [int; 4] = [100, 200, 300, 400];
+    for num in numbers {
+        if num > 200 {
+            println("For-in element > 200: {num}");
+        }
+    }
+
+    let flags: [bool; 3] = [tru, fal, tru];
+    for flag in flags {
+        if flag {
+            println("For-in bool flag: tru");
+        } else {
+            println("For-in bool flag: fal");
+        }
+    }
+
+    let mut loop_idx: int = 0;
+    loop {
+        loop_idx++;
+        if loop_idx == 1 {
+            continue;
+        }
+        println("Infinite loop iteration: {loop_idx}");
+        if loop_idx >= 3 {
+            break;
+        }
+    }
+
+    let mut outer: int = 0;
+    while outer < 2 {
+        outer++;
+        fori (let inner: int = 0; inner < 3; inner++) {
+            if inner == 1 {
+                continue;
+            }
+            println("Nested loop outer: {outer}, inner: {inner}");
+        }
+    }
+
+    let a: int = 10;
+    let b: int = 20;
+    let c: int = 30;
+    let d: int = 40;
+
+    let flag_a: bool = tru;
+    let flag_b: bool = fal;
+
+    if ((flag_a && (a < b)) || (flag_b || (c == 99))) && ((a <= b) && (b <= c) && (c < d)) {
+        println("Complex parenthesized boolean chain evaluated to tru");
+    }
+
+    if ((a != b && b != c) || (flag_b == tru)) && ((d > c) && (c > b) && (b > a)) {
+        println("Multi-variable relational chain passed");
+    }
+
+    if ((flag_a == fal) || (a > b)) || (((c < d) && (flag_b == fal)) && (a + b == 30)) {
+        println("Nested compound precedence condition passed");
+    }
+}
+
