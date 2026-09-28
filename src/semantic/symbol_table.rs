@@ -8,8 +8,17 @@ pub struct Symbol {
     pub is_mutable: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct FunctionSymbol {
+    pub name: String,
+    pub param_types: Vec<Type>,
+    pub return_type: Type,
+}
+
+#[derive(Clone)]
 pub struct SymbolTable {
     scopes: Vec<HashMap<String, Symbol>>,
+    functions: HashMap<String, FunctionSymbol>,
 }
 
 impl SymbolTable {
@@ -24,8 +33,19 @@ impl SymbolTable {
             },
         );
 
+        let mut functions = HashMap::new();
+        functions.insert(
+            "println".to_string(),
+            FunctionSymbol {
+                name: "println".to_string(),
+                param_types: vec![],
+                return_type: Type::Void,
+            },
+        );
+
         Self {
             scopes: vec![global_scope],
+            functions,
         }
     }
 
@@ -59,5 +79,20 @@ impl SymbolTable {
             }
         }
         None
+    }
+
+    pub fn insert_function(&mut self, name: String, param_types: Vec<Type>, return_type: Type) {
+        self.functions.insert(
+            name.clone(),
+            FunctionSymbol {
+                name,
+                param_types,
+                return_type,
+            },
+        );
+    }
+
+    pub fn lookup_function(&self, name: &str) -> Option<&FunctionSymbol> {
+        self.functions.get(name)
     }
 }

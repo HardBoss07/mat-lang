@@ -1,5 +1,5 @@
 use super::symbol_table::SymbolTable;
-use crate::ast::{BinaryOp, Expression, Item, Program, Statement, Type};
+use crate::ast::{BinaryOp, Expression, Item, MatchPattern, Program, Statement, Type};
 use crate::error::{MatcError, Result};
 
 pub struct TypeChecker;
@@ -13,17 +13,80 @@ impl TypeChecker {
         for item in &program.items {
             match item {
                 Item::Function(func) => {
-                    for stmt in &func.body {
-                        self.check_statement(stmt, symbols)?;
+                    let param_tys = func.params.iter().map(|p| p.ty.clone()).collect();
+                    symbols.insert_function(func.name.clone(), param_tys, func.return_type.clone());
+                }
+            }
+        }
+
+        for item in &program.items {
+            match item {
+                Item::Function(func) => {
+                    symbols.push_scope();
+                    for param in &func.params {
+                        symbols.insert(param.name.clone(), param.ty.clone(), false);
                     }
+                    for stmt in &func.body {
+                        self.check_statement(stmt, &func.return_type, symbols)?;
+                    }
+                    symbols.pop_scope();
                 }
             }
         }
         Ok(())
     }
 
-    fn check_statement(&self, stmt: &Statement, symbols: &mut SymbolTable) -> Result<()> {
+    fn check_statement(
+        &self,
+        stmt: &Statement,
+        current_return_type: &Type,
+        symbols: &mut SymbolTable,
+    ) -> Result<()> {
         match stmt {
+            Statement::Return(opt_expr, _) => match (opt_expr, current_return_type) {
+                (Some(expr), target_ty) => {
+                    self.check_expr(expr, target_ty, symbols)?;
+                }
+                (None, Type::Void) => {}
+                (None, expected) => {
+                    return Err(MatcError::TypeError {
+                        message: format!(
+                            "Empty return statement in function expecting return type {:?}",
+                            expected
+                        ),
+                    });
+                }
+            },
+            Statement::Match { expr, arms, .. } => {
+                let expr_ty = self.synthesize_expr(expr, symbols)?;
+                for arm in arms {
+                    symbols.push_scope();
+                    match (&arm.pattern, &expr_ty) {
+                        (MatchPattern::Ok(var_name), Type::Result(ok_ty, _)) => {
+                            symbols.insert(var_name.clone(), *ok_ty.clone(), false);
+                        }
+                        (MatchPattern::Err(var_name), Type::Result(_, err_ty)) => {
+                            symbols.insert(var_name.clone(), *err_ty.clone(), false);
+                        }
+                        (MatchPattern::Wildcard, _) => {}
+                        (MatchPattern::Literal(lit), target_ty) => {
+                            self.check_expr(lit, target_ty, symbols)?;
+                        }
+                        _ => {
+                            return Err(MatcError::TypeError {
+                                message: format!(
+                                    "Pattern {:?} mismatch for matched type {:?}",
+                                    arm.pattern, expr_ty
+                                ),
+                            });
+                        }
+                    }
+                    for stmt in &arm.body {
+                        self.check_statement(stmt, current_return_type, symbols)?;
+                    }
+                    symbols.pop_scope();
+                }
+            }
             Statement::Let {
                 name,
                 is_mutable,
@@ -66,7 +129,7 @@ impl TypeChecker {
             Statement::Loop { body, .. } => {
                 symbols.push_scope();
                 for inner_stmt in body {
-                    self.check_statement(inner_stmt, symbols)?;
+                    self.check_statement(inner_stmt, current_return_type, symbols)?;
                 }
                 symbols.pop_scope();
             }
@@ -81,7 +144,7 @@ impl TypeChecker {
                 }
                 symbols.push_scope();
                 for inner_stmt in body {
-                    self.check_statement(inner_stmt, symbols)?;
+                    self.check_statement(inner_stmt, current_return_type, symbols)?;
                 }
                 symbols.pop_scope();
             }
@@ -93,16 +156,16 @@ impl TypeChecker {
                 ..
             } => {
                 symbols.push_scope();
-                self.check_statement(init, symbols)?;
+                self.check_statement(init, current_return_type, symbols)?;
                 let cond_ty = self.synthesize_expr(condition, symbols)?;
                 if cond_ty != Type::Bool {
                     return Err(MatcError::TypeError {
                         message: format!("Fori condition must be bool, got {:?}", cond_ty),
                     });
                 }
-                self.check_statement(step, symbols)?;
+                self.check_statement(step, current_return_type, symbols)?;
                 for inner_stmt in body {
-                    self.check_statement(inner_stmt, symbols)?;
+                    self.check_statement(inner_stmt, current_return_type, symbols)?;
                 }
                 symbols.pop_scope();
             }
@@ -124,7 +187,7 @@ impl TypeChecker {
                 symbols.push_scope();
                 symbols.insert(var_name.clone(), elem_ty, false);
                 for inner_stmt in body {
-                    self.check_statement(inner_stmt, symbols)?;
+                    self.check_statement(inner_stmt, current_return_type, symbols)?;
                 }
                 symbols.pop_scope();
             }
@@ -142,14 +205,14 @@ impl TypeChecker {
                 }
                 symbols.push_scope();
                 for inner_stmt in then_branch {
-                    self.check_statement(inner_stmt, symbols)?;
+                    self.check_statement(inner_stmt, current_return_type, symbols)?;
                 }
                 symbols.pop_scope();
 
                 if let Some(else_stmts) = else_branch {
                     symbols.push_scope();
                     for inner_stmt in else_stmts {
-                        self.check_statement(inner_stmt, symbols)?;
+                        self.check_statement(inner_stmt, current_return_type, symbols)?;
                     }
                     symbols.pop_scope();
                 }
@@ -269,16 +332,38 @@ impl TypeChecker {
             Expression::Call {
                 callee, arguments, ..
             } => {
-                if symbols.lookup(callee).is_none() {
-                    return Err(MatcError::TypeError {
+                let fn_sym = symbols
+                    .lookup_function(callee)
+                    .ok_or_else(|| MatcError::TypeError {
                         message: format!("Undefined function: {}", callee),
+                    })?
+                    .clone();
+
+                if callee != "println" && arguments.len() != fn_sym.param_types.len() {
+                    return Err(MatcError::TypeError {
+                        message: format!(
+                            "Function '{}' expects {} arguments, got {}",
+                            callee,
+                            fn_sym.param_types.len(),
+                            arguments.len()
+                        ),
                     });
                 }
-                for arg in arguments {
-                    self.synthesize_expr(arg, symbols)?;
+
+                if callee != "println" {
+                    for (arg, param_ty) in arguments.iter().zip(fn_sym.param_types.iter()) {
+                        self.check_expr(arg, param_ty, symbols)?;
+                    }
+                } else {
+                    for arg in arguments {
+                        self.synthesize_expr(arg, symbols)?;
+                    }
                 }
-                Ok(Type::Void)
+                Ok(fn_sym.return_type)
             }
+            Expression::Ok(_, _) | Expression::Err(_, _) => Err(MatcError::TypeError {
+                message: "Ok(...) and Err(...) constructors require type context".to_string(),
+            }),
         }
     }
 
@@ -289,6 +374,14 @@ impl TypeChecker {
         symbols: &SymbolTable,
     ) -> Result<Type> {
         match (expr, target) {
+            (Expression::Ok(val, _), Type::Result(ok_ty, _)) => {
+                self.check_expr(val, ok_ty, symbols)?;
+                Ok(target.clone())
+            }
+            (Expression::Err(val, _), Type::Result(_, err_ty)) => {
+                self.check_expr(val, err_ty, symbols)?;
+                Ok(target.clone())
+            }
             (Expression::IntLiteral(val, _), target_ty) => match target_ty {
                 Type::Int => Ok(Type::Int),
                 Type::I32 => {
