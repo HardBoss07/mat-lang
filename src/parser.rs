@@ -2,6 +2,7 @@ pub mod expression;
 pub mod item;
 pub mod statement;
 pub mod types;
+pub mod utils;
 
 pub use expression::parse_expression;
 pub use item::parse_function;
