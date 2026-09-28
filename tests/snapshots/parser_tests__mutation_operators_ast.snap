@@ -1,0 +1,63 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: x
+            is_mutable: true
+            ty: Int
+            value:
+              IntLiteral:
+                - 10
+        - CompoundAssignment:
+            target: x
+            op: Add
+            value:
+              IntLiteral:
+                - 5
+        - CompoundAssignment:
+            target: x
+            op: Sub
+            value:
+              IntLiteral:
+                - 2
+        - CompoundAssignment:
+            target: x
+            op: Mul
+            value:
+              IntLiteral:
+                - 3
+        - CompoundAssignment:
+            target: x
+            op: Div
+            value:
+              IntLiteral:
+                - 2
+        - CompoundAssignment:
+            target: x
+            op: Mod
+            value:
+              IntLiteral:
+                - 3
+        - CompoundAssignment:
+            target: x
+            op: Shl
+            value:
+              IntLiteral:
+                - 1
+        - CompoundAssignment:
+            target: x
+            op: Shr
+            value:
+              IntLiteral:
+                - 2
+        - Increment:
+            target: x
+        - Decrement:
+            target: x

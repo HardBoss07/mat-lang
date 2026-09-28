@@ -1,0 +1,42 @@
+---
+source: tests/codegen_tests.rs
+expression: ir
+---
+
+declare void @_mat_rt_init()
+
+declare ptr @_mat_rt_fmt_string(ptr, ...)
+
+declare ptr @_mat_rt_fmt_bin(i64)
+
+declare ptr @_mat_rt_fmt_hex(i64)
+
+declare void @_mat_rt_println_str(ptr)
+
+declare void @_mat_rt_print_str(ptr)
+
+declare void @_mat_rt_println_int(i64)
+
+declare void @_mat_rt_println_float(double)
+
+declare void @_mat_rt_println_bool(i1)
+
+define i64 @_mat_double(i64 %0) {
+entry:
+  %n = alloca i64, align 8
+  store i64 %0, ptr %n, align 4
+  %n1 = load i64, ptr %n, align 4
+  %multmp = mul i64 %n1, 2
+  ret i64 %multmp
+
+after_return:                                     ; No predecessors!
+}
+
+define i32 @main() {
+entry:
+  call void @_mat_rt_init()
+  %calltmp = call i64 @_mat_double(i64 21)
+  %r = alloca i64, align 8
+  store i64 %calltmp, ptr %r, align 4
+  ret i32 0
+}

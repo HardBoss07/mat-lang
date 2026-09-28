@@ -1,0 +1,110 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      name: no_args
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: x
+            is_mutable: false
+            ty: Int
+            value:
+              IntLiteral:
+                - 1
+  - Function:
+      name: one_arg
+      params:
+        - name: n
+          ty: Int
+      return_type: Int
+      body:
+        - Return:
+            - Identifier:
+                - n
+  - Function:
+      name: multi_args
+      params:
+        - name: a
+          ty: Int
+        - name: b
+          ty: Bool
+        - name: c
+          ty: F64
+      return_type: F64
+      body:
+        - Return:
+            - Identifier:
+                - c
+  - Function:
+      name: factorial
+      params:
+        - name: n
+          ty: Int
+      return_type: Int
+      body:
+        - If:
+            condition:
+              Binary:
+                op: Lte
+                left:
+                  Identifier:
+                    - n
+                right:
+                  IntLiteral:
+                    - 1
+            then_branch:
+              - Return:
+                  - IntLiteral:
+                      - 1
+            else_branch: ~
+        - Return:
+            - Binary:
+                op: Mul
+                left:
+                  Identifier:
+                    - n
+                right:
+                  Call:
+                    callee: factorial
+                    arguments:
+                      - Binary:
+                          op: Sub
+                          left:
+                            Identifier:
+                              - n
+                          right:
+                            IntLiteral:
+                              - 1
+  - Function:
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Expression:
+            Call:
+              callee: no_args
+              arguments: []
+        - Let:
+            name: r
+            is_mutable: false
+            ty: Int
+            value:
+              Call:
+                callee: one_arg
+                arguments:
+                  - IntLiteral:
+                      - 42
+        - Let:
+            name: fact
+            is_mutable: false
+            ty: Int
+            value:
+              Call:
+                callee: factorial
+                arguments:
+                  - IntLiteral:
+                      - 5

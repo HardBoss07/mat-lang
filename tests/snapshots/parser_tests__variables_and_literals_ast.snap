@@ -1,0 +1,113 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: a
+            is_mutable: false
+            ty: Int
+            value:
+              IntLiteral:
+                - 42
+        - Let:
+            name: b
+            is_mutable: false
+            ty: Int
+            value:
+              IntLiteral:
+                - 1000000
+        - Let:
+            name: c
+            is_mutable: false
+            ty: Int
+            value:
+              IntLiteral:
+                - 164
+        - Let:
+            name: d
+            is_mutable: false
+            ty: Int
+            value:
+              IntLiteral:
+                - 65280
+        - Let:
+            name: e
+            is_mutable: false
+            ty: F64
+            value:
+              FloatLiteral:
+                - 3.14159
+        - Let:
+            name: f
+            is_mutable: false
+            ty: Bool
+            value:
+              BoolLiteral:
+                - true
+        - Let:
+            name: g
+            is_mutable: false
+            ty: Bool
+            value:
+              BoolLiteral:
+                - false
+        - Let:
+            name: h
+            is_mutable: false
+            ty: String
+            value:
+              StringLiteral:
+                - hello
+        - Let:
+            name: i
+            is_mutable: false
+            ty: I8
+            value:
+              IntLiteral:
+                - 127
+        - Let:
+            name: t
+            is_mutable: false
+            ty:
+              Tuple:
+                - Int
+                - Bool
+                - F64
+            value:
+              TupleLiteral:
+                - - IntLiteral:
+                      - 10
+                  - BoolLiteral:
+                      - true
+                  - FloatLiteral:
+                      - 2.5
+        - Let:
+            name: arr
+            is_mutable: false
+            ty:
+              Array:
+                - Int
+                - 4
+            value:
+              ArrayLiteral:
+                - - IntLiteral:
+                      - 1
+                  - IntLiteral:
+                      - 2
+                  - IntLiteral:
+                      - 3
+                  - IntLiteral:
+                      - 4
+        - Let:
+            name: m
+            is_mutable: true
+            ty: Int
+            value:
+              IntLiteral:
+                - 0

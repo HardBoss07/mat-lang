@@ -1,0 +1,117 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: i
+            is_mutable: true
+            ty: Int
+            value:
+              IntLiteral:
+                - 0
+        - While:
+            condition:
+              Binary:
+                op: Lt
+                left:
+                  Identifier:
+                    - i
+                right:
+                  IntLiteral:
+                    - 10
+            body:
+              - Increment:
+                  target: i
+              - If:
+                  condition:
+                    Binary:
+                      op: Eq
+                      left:
+                        Identifier:
+                          - i
+                      right:
+                        IntLiteral:
+                          - 5
+                  then_branch:
+                    - Continue
+                  else_branch: ~
+        - Loop:
+            body:
+              - Decrement:
+                  target: i
+              - If:
+                  condition:
+                    Binary:
+                      op: Eq
+                      left:
+                        Identifier:
+                          - i
+                      right:
+                        IntLiteral:
+                          - 0
+                  then_branch:
+                    - Break
+                  else_branch: ~
+        - ForI:
+            init:
+              Let:
+                name: j
+                is_mutable: false
+                ty: Int
+                value:
+                  IntLiteral:
+                    - 0
+            condition:
+              Binary:
+                op: Lt
+                left:
+                  Identifier:
+                    - j
+                right:
+                  IntLiteral:
+                    - 5
+            step:
+              Increment:
+                target: j
+            body:
+              - Let:
+                  name: tmp
+                  is_mutable: false
+                  ty: Int
+                  value:
+                    Identifier:
+                      - j
+        - Let:
+            name: nums
+            is_mutable: false
+            ty:
+              Array:
+                - Int
+                - 3
+            value:
+              ArrayLiteral:
+                - - IntLiteral:
+                      - 10
+                  - IntLiteral:
+                      - 20
+                  - IntLiteral:
+                      - 30
+        - ForIn:
+            var_name: n
+            iterable:
+              Identifier:
+                - nums
+            body:
+              - Let:
+                  name: v
+                  is_mutable: false
+                  ty: Int
+                  value:
+                    Identifier:
+                      - n

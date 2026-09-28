@@ -1,0 +1,165 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: a
+            is_mutable: false
+            ty: Int
+            value:
+              Binary:
+                op: Add
+                left:
+                  IntLiteral:
+                    - 2
+                right:
+                  Binary:
+                    op: Mul
+                    left:
+                      IntLiteral:
+                        - 3
+                    right:
+                      IntLiteral:
+                        - 4
+        - Let:
+            name: b
+            is_mutable: false
+            ty: Int
+            value:
+              Binary:
+                op: Sub
+                left:
+                  Binary:
+                    op: Div
+                    left:
+                      IntLiteral:
+                        - 10
+                    right:
+                      IntLiteral:
+                        - 2
+                right:
+                  IntLiteral:
+                    - 1
+        - Let:
+            name: c
+            is_mutable: false
+            ty: Int
+            value:
+              Binary:
+                op: Mod
+                left:
+                  IntLiteral:
+                    - 7
+                right:
+                  IntLiteral:
+                    - 3
+        - Let:
+            name: d
+            is_mutable: false
+            ty: Int
+            value:
+              Binary:
+                op: Shl
+                left:
+                  IntLiteral:
+                    - 1
+                right:
+                  IntLiteral:
+                    - 3
+        - Let:
+            name: e
+            is_mutable: false
+            ty: Int
+            value:
+              Binary:
+                op: Shr
+                left:
+                  IntLiteral:
+                    - 16
+                right:
+                  IntLiteral:
+                    - 2
+        - Let:
+            name: f
+            is_mutable: false
+            ty: Bool
+            value:
+              Binary:
+                op: Lt
+                left:
+                  IntLiteral:
+                    - 1
+                right:
+                  IntLiteral:
+                    - 2
+        - Let:
+            name: g
+            is_mutable: false
+            ty: Bool
+            value:
+              Binary:
+                op: Gte
+                left:
+                  IntLiteral:
+                    - 3
+                right:
+                  IntLiteral:
+                    - 3
+        - Let:
+            name: h
+            is_mutable: false
+            ty: Bool
+            value:
+              Binary:
+                op: Eq
+                left:
+                  IntLiteral:
+                    - 5
+                right:
+                  IntLiteral:
+                    - 5
+        - Let:
+            name: i
+            is_mutable: false
+            ty: Bool
+            value:
+              Binary:
+                op: Neq
+                left:
+                  IntLiteral:
+                    - 5
+                right:
+                  IntLiteral:
+                    - 6
+        - Let:
+            name: j
+            is_mutable: false
+            ty: Bool
+            value:
+              Binary:
+                op: And
+                left:
+                  BoolLiteral:
+                    - true
+                right:
+                  BoolLiteral:
+                    - false
+        - Let:
+            name: k
+            is_mutable: false
+            ty: Bool
+            value:
+              Binary:
+                op: Or
+                left:
+                  BoolLiteral:
+                    - false
+                right:
+                  BoolLiteral:
+                    - true

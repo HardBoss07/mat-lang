@@ -1,0 +1,47 @@
+---
+source: tests/codegen_tests.rs
+expression: ir
+---
+
+declare void @_mat_rt_init()
+
+declare ptr @_mat_rt_fmt_string(ptr, ...)
+
+declare ptr @_mat_rt_fmt_bin(i64)
+
+declare ptr @_mat_rt_fmt_hex(i64)
+
+declare void @_mat_rt_println_str(ptr)
+
+declare void @_mat_rt_print_str(ptr)
+
+declare void @_mat_rt_println_int(i64)
+
+declare void @_mat_rt_println_float(double)
+
+declare void @_mat_rt_println_bool(i1)
+
+define i32 @main() {
+entry:
+  call void @_mat_rt_init()
+  %a = alloca double, align 8
+  store double 3.140000e+00, ptr %a, align 8
+  %b = alloca double, align 8
+  store double 2.000000e+00, ptr %b, align 8
+  %a1 = load double, ptr %a, align 8
+  %b2 = load double, ptr %b, align 8
+  %addtmp = fadd double %a1, %b2
+  %add = alloca double, align 8
+  store double %addtmp, ptr %add, align 8
+  %a3 = load double, ptr %a, align 8
+  %b4 = load double, ptr %b, align 8
+  %multmp = fmul double %a3, %b4
+  %mul = alloca double, align 8
+  store double %multmp, ptr %mul, align 8
+  %a5 = load double, ptr %a, align 8
+  %b6 = load double, ptr %b, align 8
+  %divtmp = fdiv double %a5, %b6
+  %div = alloca double, align 8
+  store double %divtmp, ptr %div, align 8
+  ret i32 0
+}

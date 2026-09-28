@@ -1,0 +1,105 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: val
+            is_mutable: false
+            ty: Int
+            value:
+              IntLiteral:
+                - 8
+        - Let:
+            name: s1
+            is_mutable: false
+            ty: String
+            value:
+              StringLiteral:
+                - plain string
+        - Let:
+            name: s2
+            is_mutable: false
+            ty: String
+            value:
+              InterpolatedString:
+                - - - StringLiteral:
+                        - "value is "
+                    - None
+                  - - Identifier:
+                        - val
+                    - None
+        - Let:
+            name: s3
+            is_mutable: false
+            ty: String
+            value:
+              InterpolatedString:
+                - - - StringLiteral:
+                        - "binary: "
+                    - None
+                  - - Identifier:
+                        - val
+                    - Bin
+        - Let:
+            name: s4
+            is_mutable: false
+            ty: String
+            value:
+              InterpolatedString:
+                - - - StringLiteral:
+                        - "hex: "
+                    - None
+                  - - Identifier:
+                        - val
+                    - Hex
+        - Let:
+            name: s5
+            is_mutable: false
+            ty: String
+            value:
+              InterpolatedString:
+                - - - StringLiteral:
+                        - "short-b: "
+                    - None
+                  - - Identifier:
+                        - val
+                    - Bin
+        - Let:
+            name: s6
+            is_mutable: false
+            ty: String
+            value:
+              InterpolatedString:
+                - - - StringLiteral:
+                        - "short-x: "
+                    - None
+                  - - Identifier:
+                        - val
+                    - Hex
+        - Let:
+            name: s7
+            is_mutable: false
+            ty: String
+            value:
+              InterpolatedString:
+                - - - StringLiteral:
+                        - "mixed "
+                    - None
+                  - - Identifier:
+                        - val
+                    - None
+                  - - StringLiteral:
+                        - " text "
+                    - None
+                  - - Identifier:
+                        - val
+                    - Bin
+                  - - StringLiteral:
+                        - " end"
+                    - None

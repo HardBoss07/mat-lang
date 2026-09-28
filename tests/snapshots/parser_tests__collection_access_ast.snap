@@ -1,0 +1,95 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: t
+            is_mutable: false
+            ty:
+              Tuple:
+                - Int
+                - Bool
+                - F64
+            value:
+              TupleLiteral:
+                - - IntLiteral:
+                      - 5
+                  - BoolLiteral:
+                      - true
+                  - FloatLiteral:
+                      - 1.5
+        - Let:
+            name: t0
+            is_mutable: false
+            ty: Int
+            value:
+              TupleAccess:
+                expr:
+                  Identifier:
+                    - t
+                index: 0
+        - Let:
+            name: t1
+            is_mutable: false
+            ty: Bool
+            value:
+              TupleAccess:
+                expr:
+                  Identifier:
+                    - t
+                index: 1
+        - Let:
+            name: t2
+            is_mutable: false
+            ty: F64
+            value:
+              TupleAccess:
+                expr:
+                  Identifier:
+                    - t
+                index: 2
+        - Let:
+            name: arr
+            is_mutable: false
+            ty:
+              Array:
+                - Int
+                - 3
+            value:
+              ArrayLiteral:
+                - - IntLiteral:
+                      - 10
+                  - IntLiteral:
+                      - 20
+                  - IntLiteral:
+                      - 30
+        - Let:
+            name: elem
+            is_mutable: false
+            ty: Int
+            value:
+              ArrayAccess:
+                expr:
+                  Identifier:
+                    - arr
+                index:
+                  IntLiteral:
+                    - 0
+        - Let:
+            name: elem2
+            is_mutable: false
+            ty: Int
+            value:
+              ArrayAccess:
+                expr:
+                  Identifier:
+                    - arr
+                index:
+                  IntLiteral:
+                    - 2

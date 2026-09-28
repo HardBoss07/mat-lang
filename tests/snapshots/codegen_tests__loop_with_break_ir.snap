@@ -1,0 +1,50 @@
+---
+source: tests/codegen_tests.rs
+expression: ir
+---
+
+declare void @_mat_rt_init()
+
+declare ptr @_mat_rt_fmt_string(ptr, ...)
+
+declare ptr @_mat_rt_fmt_bin(i64)
+
+declare ptr @_mat_rt_fmt_hex(i64)
+
+declare void @_mat_rt_println_str(ptr)
+
+declare void @_mat_rt_print_str(ptr)
+
+declare void @_mat_rt_println_int(i64)
+
+declare void @_mat_rt_println_float(double)
+
+declare void @_mat_rt_println_bool(i1)
+
+define i32 @main() {
+entry:
+  call void @_mat_rt_init()
+  %k = alloca i64, align 8
+  store i64 0, ptr %k, align 4
+  br label %loop_body
+
+loop_body:                                        ; preds = %if_after, %entry
+  %k1 = load i64, ptr %k, align 4
+  %inc = add i64 %k1, 1
+  store i64 %inc, ptr %k, align 4
+  %k2 = load i64, ptr %k, align 4
+  %gttmp = icmp sgt i64 %k2, 10
+  br i1 %gttmp, label %if_then, label %if_after
+
+loop_after:                                       ; preds = %if_then
+  ret i32 0
+
+if_then:                                          ; preds = %loop_body
+  br label %loop_after
+
+if_after:                                         ; preds = %after_break, %loop_body
+  br label %loop_body
+
+after_break:                                      ; No predecessors!
+  br label %if_after
+}

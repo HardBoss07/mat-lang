@@ -1,0 +1,66 @@
+---
+source: tests/codegen_tests.rs
+expression: ir
+---
+
+declare void @_mat_rt_init()
+
+declare ptr @_mat_rt_fmt_string(ptr, ...)
+
+declare ptr @_mat_rt_fmt_bin(i64)
+
+declare ptr @_mat_rt_fmt_hex(i64)
+
+declare void @_mat_rt_println_str(ptr)
+
+declare void @_mat_rt_print_str(ptr)
+
+declare void @_mat_rt_println_int(i64)
+
+declare void @_mat_rt_println_float(double)
+
+declare void @_mat_rt_println_bool(i1)
+
+define i32 @main() {
+entry:
+  call void @_mat_rt_init()
+  %arr_tmp = alloca [3 x i64], align 8
+  %arr_gep = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 0
+  store i64 10, ptr %arr_gep, align 4
+  %arr_gep1 = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 1
+  store i64 20, ptr %arr_gep1, align 4
+  %arr_gep2 = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 2
+  store i64 30, ptr %arr_gep2, align 4
+  %arr_val = load [3 x i64], ptr %arr_tmp, align 4
+  %nums = alloca [3 x i64], align 8
+  store [3 x i64] %arr_val, ptr %nums, align 4
+  %nums3 = load [3 x i64], ptr %nums, align 4
+  %for_in_arr = alloca [3 x i64], align 8
+  store [3 x i64] %nums3, ptr %for_in_arr, align 4
+  %for_in_idx = alloca i64, align 8
+  store i64 0, ptr %for_in_idx, align 4
+  br label %for_in_cond
+
+for_in_cond:                                      ; preds = %for_in_step, %entry
+  %curr_idx = load i64, ptr %for_in_idx, align 4
+  %for_in_cmp = icmp slt i64 %curr_idx, 3
+  br i1 %for_in_cmp, label %for_in_body, label %for_in_after
+
+for_in_body:                                      ; preds = %for_in_cond
+  %for_in_elem_ptr = getelementptr [3 x i64], ptr %for_in_arr, i32 0, i64 %curr_idx
+  %n = load i64, ptr %for_in_elem_ptr, align 4
+  %n4 = alloca i64, align 8
+  store i64 %n, ptr %n4, align 4
+  %n5 = load i64, ptr %n4, align 4
+  %v = alloca i64, align 8
+  store i64 %n5, ptr %v, align 4
+  br label %for_in_step
+
+for_in_step:                                      ; preds = %for_in_body
+  %next_idx = add i64 %curr_idx, 1
+  store i64 %next_idx, ptr %for_in_idx, align 4
+  br label %for_in_cond
+
+for_in_after:                                     ; preds = %for_in_cond
+  ret i32 0
+}

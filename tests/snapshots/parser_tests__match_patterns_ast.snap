@@ -1,0 +1,107 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      name: check
+      params:
+        - name: code
+          ty: Int
+      return_type:
+        Result:
+          - Int
+          - String
+      body:
+        - Return:
+            - Ok:
+                - Identifier:
+                    - code
+  - Function:
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: res
+            is_mutable: false
+            ty:
+              Result:
+                - Int
+                - String
+            value:
+              Call:
+                callee: check
+                arguments:
+                  - IntLiteral:
+                      - 200
+        - Match:
+            expr:
+              Identifier:
+                - res
+            arms:
+              - pattern:
+                  Ok: v
+                body:
+                  - Let:
+                      name: ok_val
+                      is_mutable: false
+                      ty: Int
+                      value:
+                        Identifier:
+                          - v
+              - pattern:
+                  Err: e
+                body:
+                  - Let:
+                      name: err_val
+                      is_mutable: false
+                      ty: String
+                      value:
+                        Identifier:
+                          - e
+        - Let:
+            name: code
+            is_mutable: false
+            ty: Int
+            value:
+              IntLiteral:
+                - 404
+        - Match:
+            expr:
+              Identifier:
+                - code
+            arms:
+              - pattern:
+                  Literal:
+                    IntLiteral:
+                      - 200
+                body:
+                  - Let:
+                      name: a
+                      is_mutable: false
+                      ty: Int
+                      value:
+                        IntLiteral:
+                          - 1
+              - pattern:
+                  Literal:
+                    IntLiteral:
+                      - 404
+                body:
+                  - Let:
+                      name: b
+                      is_mutable: false
+                      ty: Int
+                      value:
+                        IntLiteral:
+                          - 2
+              - pattern: Wildcard
+                body:
+                  - Let:
+                      name: c
+                      is_mutable: false
+                      ty: Int
+                      value:
+                        IntLiteral:
+                          - 3

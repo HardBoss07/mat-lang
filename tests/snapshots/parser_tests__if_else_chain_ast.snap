@@ -1,0 +1,75 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: x
+            is_mutable: false
+            ty: Int
+            value:
+              IntLiteral:
+                - 5
+        - If:
+            condition:
+              Binary:
+                op: Gt
+                left:
+                  Identifier:
+                    - x
+                right:
+                  IntLiteral:
+                    - 10
+            then_branch:
+              - Let:
+                  name: a
+                  is_mutable: false
+                  ty: Int
+                  value:
+                    IntLiteral:
+                      - 1
+            else_branch:
+              - If:
+                  condition:
+                    Binary:
+                      op: Gt
+                      left:
+                        Identifier:
+                          - x
+                      right:
+                        IntLiteral:
+                          - 3
+                  then_branch:
+                    - Let:
+                        name: b
+                        is_mutable: false
+                        ty: Int
+                        value:
+                          IntLiteral:
+                            - 2
+                  else_branch:
+                    - Let:
+                        name: c
+                        is_mutable: false
+                        ty: Int
+                        value:
+                          IntLiteral:
+                            - 3
+        - If:
+            condition:
+              BoolLiteral:
+                - true
+            then_branch:
+              - Let:
+                  name: d
+                  is_mutable: false
+                  ty: Bool
+                  value:
+                    BoolLiteral:
+                      - false
+            else_branch: ~

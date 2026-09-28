@@ -1,0 +1,40 @@
+---
+source: tests/codegen_tests.rs
+expression: ir
+---
+
+declare void @_mat_rt_init()
+
+declare ptr @_mat_rt_fmt_string(ptr, ...)
+
+declare ptr @_mat_rt_fmt_bin(i64)
+
+declare ptr @_mat_rt_fmt_hex(i64)
+
+declare void @_mat_rt_println_str(ptr)
+
+declare void @_mat_rt_print_str(ptr)
+
+declare void @_mat_rt_println_int(i64)
+
+declare void @_mat_rt_println_float(double)
+
+declare void @_mat_rt_println_bool(i1)
+
+define i32 @main() {
+entry:
+  call void @_mat_rt_init()
+  %mask = alloca i64, align 8
+  store i64 1, ptr %mask, align 4
+  %mask1 = load i64, ptr %mask, align 4
+  %shltmp = shl i64 %mask1, 3
+  store i64 %shltmp, ptr %mask, align 4
+  %mask2 = load i64, ptr %mask, align 4
+  %shrtmp = ashr i64 %mask2, 1
+  store i64 %shrtmp, ptr %mask, align 4
+  %mask3 = load i64, ptr %mask, align 4
+  %shltmp4 = shl i64 %mask3, 2
+  %shifted = alloca i64, align 8
+  store i64 %shltmp4, ptr %shifted, align 4
+  ret i32 0
+}

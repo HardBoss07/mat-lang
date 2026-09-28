@@ -1,0 +1,57 @@
+---
+source: tests/codegen_tests.rs
+expression: ir
+---
+
+declare void @_mat_rt_init()
+
+declare ptr @_mat_rt_fmt_string(ptr, ...)
+
+declare ptr @_mat_rt_fmt_bin(i64)
+
+declare ptr @_mat_rt_fmt_hex(i64)
+
+declare void @_mat_rt_println_str(ptr)
+
+declare void @_mat_rt_print_str(ptr)
+
+declare void @_mat_rt_println_int(i64)
+
+declare void @_mat_rt_println_float(double)
+
+declare void @_mat_rt_println_bool(i1)
+
+define i32 @main() {
+entry:
+  call void @_mat_rt_init()
+  %tuple_tmp = alloca { i64, i1 }, align 8
+  %tuple_gep = getelementptr inbounds { i64, i1 }, ptr %tuple_tmp, i32 0, i32 0
+  store i64 42, ptr %tuple_gep, align 4
+  %tuple_gep1 = getelementptr inbounds { i64, i1 }, ptr %tuple_tmp, i32 0, i32 1
+  store i1 true, ptr %tuple_gep1, align 1
+  %tuple_val = load { i64, i1 }, ptr %tuple_tmp, align 4
+  %t = alloca { i64, i1 }, align 8
+  store { i64, i1 } %tuple_val, ptr %t, align 4
+  %t2 = load { i64, i1 }, ptr %t, align 4
+  %tuple_extract = extractvalue { i64, i1 } %t2, 0
+  %x = alloca i64, align 8
+  store i64 %tuple_extract, ptr %x, align 4
+  %arr_tmp = alloca [3 x i64], align 8
+  %arr_gep = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 0
+  store i64 1, ptr %arr_gep, align 4
+  %arr_gep3 = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 1
+  store i64 2, ptr %arr_gep3, align 4
+  %arr_gep4 = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 2
+  store i64 3, ptr %arr_gep4, align 4
+  %arr_val = load [3 x i64], ptr %arr_tmp, align 4
+  %arr = alloca [3 x i64], align 8
+  store [3 x i64] %arr_val, ptr %arr, align 4
+  %arr5 = load [3 x i64], ptr %arr, align 4
+  %arr_access_tmp = alloca [3 x i64], align 8
+  store [3 x i64] %arr5, ptr %arr_access_tmp, align 4
+  %arr_elem_gep = getelementptr [3 x i64], ptr %arr_access_tmp, i32 0, i64 1
+  %arr_elem_val = load i64, ptr %arr_elem_gep, align 4
+  %elem = alloca i64, align 8
+  store i64 %arr_elem_val, ptr %elem, align 4
+  ret i32 0
+}

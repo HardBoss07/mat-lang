@@ -1,0 +1,98 @@
+---
+source: tests/codegen_tests.rs
+expression: ir
+---
+
+@str = private unnamed_addr constant [5 x i8] c"zero\00", align 1
+
+declare void @_mat_rt_init()
+
+declare ptr @_mat_rt_fmt_string(ptr, ...)
+
+declare ptr @_mat_rt_fmt_bin(i64)
+
+declare ptr @_mat_rt_fmt_hex(i64)
+
+declare void @_mat_rt_println_str(ptr)
+
+declare void @_mat_rt_print_str(ptr)
+
+declare void @_mat_rt_println_int(i64)
+
+declare void @_mat_rt_println_float(double)
+
+declare void @_mat_rt_println_bool(i1)
+
+define { i1, i64, ptr } @_mat_safe_div(i64 %0, i64 %1) {
+entry:
+  %a = alloca i64, align 8
+  store i64 %0, ptr %a, align 4
+  %b = alloca i64, align 8
+  store i64 %1, ptr %b, align 4
+  %b1 = load i64, ptr %b, align 4
+  %eqtmp = icmp eq i64 %b1, 0
+  br i1 %eqtmp, label %if_then, label %if_after
+
+if_then:                                          ; preds = %entry
+  %err_tmp = alloca { i1, i64, ptr }, align 8
+  %tag_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %err_tmp, i32 0, i32 0
+  store i1 false, ptr %tag_ptr, align 1
+  %err_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %err_tmp, i32 0, i32 2
+  store ptr @str, ptr %err_ptr, align 8
+  %err_struct = load { i1, i64, ptr }, ptr %err_tmp, align 8
+  ret { i1, i64, ptr } %err_struct
+
+if_after:                                         ; preds = %after_return, %entry
+  %a2 = load i64, ptr %a, align 4
+  %b3 = load i64, ptr %b, align 4
+  %divtmp = sdiv i64 %a2, %b3
+  %ok_tmp = alloca { i1, i64, ptr }, align 8
+  %tag_ptr4 = getelementptr inbounds { i1, i64, ptr }, ptr %ok_tmp, i32 0, i32 0
+  store i1 true, ptr %tag_ptr4, align 1
+  %val_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %ok_tmp, i32 0, i32 1
+  store i64 %divtmp, ptr %val_ptr, align 4
+  %ok_struct = load { i1, i64, ptr }, ptr %ok_tmp, align 8
+  ret { i1, i64, ptr } %ok_struct
+
+after_return:                                     ; No predecessors!
+  br label %if_after
+
+after_return5:                                    ; No predecessors!
+}
+
+define i32 @main() {
+entry:
+  call void @_mat_rt_init()
+  %calltmp = call { i1, i64, ptr } @_mat_safe_div(i64 10, i64 2)
+  %res = alloca { i1, i64, ptr }, align 8
+  store { i1, i64, ptr } %calltmp, ptr %res, align 8
+  %res1 = load { i1, i64, ptr }, ptr %res, align 8
+  %match_result_tmp = alloca { i1, i64, ptr }, align 8
+  store { i1, i64, ptr } %res1, ptr %match_result_tmp, align 8
+  %tag_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %match_result_tmp, i32 0, i32 0
+  %tag_val = load i1, ptr %tag_ptr, align 1
+  br i1 %tag_val, label %match_ok, label %match_err
+
+match_after:                                      ; preds = %match_err, %match_ok
+  ret i32 0
+
+match_ok:                                         ; preds = %entry
+  %ok_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %match_result_tmp, i32 0, i32 1
+  %v = load i64, ptr %ok_ptr, align 4
+  %v2 = alloca i64, align 8
+  store i64 %v, ptr %v2, align 4
+  %v3 = load i64, ptr %v2, align 4
+  %x = alloca i64, align 8
+  store i64 %v3, ptr %x, align 4
+  br label %match_after
+
+match_err:                                        ; preds = %entry
+  %err_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %match_result_tmp, i32 0, i32 2
+  %e = load ptr, ptr %err_ptr, align 8
+  %e4 = alloca ptr, align 8
+  store ptr %e, ptr %e4, align 8
+  %e5 = load ptr, ptr %e4, align 8
+  %s = alloca ptr, align 8
+  store ptr %e5, ptr %s, align 8
+  br label %match_after
+}
