@@ -1,6 +1,7 @@
+use serde::Serialize;
 use std::ops::Range;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub struct Span {
     pub start: usize,
     pub end: usize,

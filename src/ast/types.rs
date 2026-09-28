@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+use serde::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub enum Type {
     Void,
     Int, // 64-bit signed integer (default)

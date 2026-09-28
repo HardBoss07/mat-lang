@@ -177,18 +177,23 @@ impl TypeChecker {
             },
             (Expression::FloatLiteral(_, _), Type::F32) => Ok(Type::F32),
             (Expression::FloatLiteral(_, _), Type::F64) => Ok(Type::F64),
-            (Expression::Binary { left, right, .. }, target_ty) => {
-                let left_ty = self.check_expr(left, target_ty, symbols)?;
-                let right_ty = self.check_expr(right, target_ty, symbols)?;
-                if left_ty != *target_ty || right_ty != *target_ty {
-                    return Err(MatcError::TypeError {
+            (
+                Expression::Binary {
+                    op, left, right, ..
+                },
+                target_ty,
+            ) => {
+                let synthesized_ty = self.synthesize_binary_expr(op, left, right, symbols)?;
+                if synthesized_ty == *target_ty {
+                    Ok(synthesized_ty)
+                } else {
+                    Err(MatcError::TypeError {
                         message: format!(
-                            "Type mismatch in binary expression: expected {:?}",
-                            target_ty
+                            "Type mismatch in binary expression: expected {:?}, got {:?}",
+                            target_ty, synthesized_ty
                         ),
-                    });
+                    })
                 }
-                Ok(target_ty.clone())
             }
             (Expression::TupleLiteral(elements, _), Type::Tuple(target_types)) => {
                 if elements.len() != target_types.len() {
