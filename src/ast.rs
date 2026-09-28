@@ -31,6 +31,27 @@ pub enum FormatSpecifier {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Param {
+    pub name: String,
+    pub ty: Type,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MatchPattern {
+    Ok(String),
+    Err(String),
+    Literal(Expression),
+    Wildcard,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatchArm {
+    pub pattern: MatchPattern,
+    pub body: Vec<Statement>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Identifier(String, Span),
     IntLiteral(i64, Span),
@@ -40,6 +61,8 @@ pub enum Expression {
     InterpolatedString(Vec<(Expression, FormatSpecifier)>, Span),
     TupleLiteral(Vec<Expression>, Span),
     ArrayLiteral(Vec<Expression>, Span),
+    Ok(Box<Expression>, Span),
+    Err(Box<Expression>, Span),
     Binary {
         op: BinaryOp,
         left: Box<Expression>,
@@ -119,6 +142,12 @@ pub enum Statement {
         else_branch: Option<Vec<Statement>>,
         span: Span,
     },
+    Match {
+        expr: Expression,
+        arms: Vec<MatchArm>,
+        span: Span,
+    },
+    Return(Option<Expression>, Span),
     Break(Span),
     Continue(Span),
     Expression(Expression),
@@ -127,6 +156,7 @@ pub enum Statement {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDeclaration {
     pub name: String,
+    pub params: Vec<Param>,
     pub return_type: Type,
     pub body: Vec<Statement>,
     pub span: Span,
