@@ -93,6 +93,27 @@ pub enum Expression {
     },
 }
 
+impl Expression {
+    pub fn span(&self) -> Span {
+        match self {
+            Expression::Identifier(_, span)
+            | Expression::IntLiteral(_, span)
+            | Expression::FloatLiteral(_, span)
+            | Expression::BoolLiteral(_, span)
+            | Expression::StringLiteral(_, span)
+            | Expression::InterpolatedString(_, span)
+            | Expression::TupleLiteral(_, span)
+            | Expression::ArrayLiteral(_, span)
+            | Expression::Ok(_, span)
+            | Expression::Err(_, span)
+            | Expression::Binary { span, .. }
+            | Expression::TupleAccess { span, .. }
+            | Expression::ArrayAccess { span, .. }
+            | Expression::Call { span, .. } => *span,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Statement {
     Let {
@@ -169,6 +190,28 @@ pub enum Statement {
     Break(#[serde(skip)] Span),
     Continue(#[serde(skip)] Span),
     Expression(Expression),
+}
+
+impl Statement {
+    pub fn span(&self) -> Span {
+        match self {
+            Statement::Let { span, .. }
+            | Statement::Assignment { span, .. }
+            | Statement::CompoundAssignment { span, .. }
+            | Statement::Increment { span, .. }
+            | Statement::Decrement { span, .. }
+            | Statement::Loop { span, .. }
+            | Statement::While { span, .. }
+            | Statement::ForI { span, .. }
+            | Statement::ForIn { span, .. }
+            | Statement::If { span, .. }
+            | Statement::Match { span, .. }
+            | Statement::Return(_, span)
+            | Statement::Break(span)
+            | Statement::Continue(span) => *span,
+            Statement::Expression(expr) => expr.span(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

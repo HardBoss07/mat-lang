@@ -17,12 +17,16 @@ use crate::ast::{Item, Program};
 use crate::error::{MatcError, Result};
 
 pub struct Parser<'a> {
+    file_name: String,
     source: &'a str,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(source: &'a str) -> Self {
-        Self { source }
+    pub fn new(file_name: &str, source: &'a str) -> Self {
+        Self {
+            file_name: file_name.to_string(),
+            source,
+        }
     }
 
     pub fn parse_program(&mut self) -> Result<Program> {
@@ -34,13 +38,9 @@ impl<'a> Parser<'a> {
             if input.trim().is_empty() {
                 break;
             }
-            let func =
-                parse_function
-                    .parse_next(&mut input)
-                    .map_err(|e| MatcError::SyntaxError {
-                        message: e.to_string(),
-                        span: (0, 0),
-                    })?;
+            let func = parse_function.parse_next(&mut input).map_err(|e| {
+                MatcError::syntax_error(&self.file_name, self.source, e.to_string(), (0, 0))
+            })?;
             items.push(Item::Function(func));
         }
 

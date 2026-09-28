@@ -1,14 +1,14 @@
 use super::super::symbol_table::SymbolTable;
 use super::TypeChecker;
 use crate::ast::{Expression, Type};
-use crate::error::{MatcError, Result};
+use crate::error::Result;
 
 impl TypeChecker {
     pub fn synthesize_expr(&self, expr: &Expression, symbols: &SymbolTable) -> Result<Type> {
         match expr {
-            Expression::Identifier(name, _) => {
-                let sym = symbols.lookup(name).ok_or_else(|| MatcError::TypeError {
-                    message: format!("Undefined variable: {}", name),
+            Expression::Identifier(name, span) => {
+                let sym = symbols.lookup(name).ok_or_else(|| {
+                    self.type_error(format!("Undefined variable: {}", name), *span)
                 })?;
                 Ok(sym.ty.clone())
             }
@@ -32,82 +32,86 @@ impl TypeChecker {
                 }
                 Ok(Type::Tuple(types))
             }
-            Expression::ArrayLiteral(elements, _) => {
+            Expression::ArrayLiteral(elements, span) => {
                 if elements.is_empty() {
-                    return Err(MatcError::TypeError {
-                        message:
-                            "Cannot infer type of empty array literal without explicit annotation"
-                                .to_string(),
-                    });
+                    return Err(self.type_error(
+                        "Cannot infer type of empty array literal without explicit annotation",
+                        *span,
+                    ));
                 }
                 let first_ty = self.synthesize_expr(&elements[0], symbols)?;
                 for elem in &elements[1..] {
                     let elem_ty = self.synthesize_expr(elem, symbols)?;
                     if elem_ty != first_ty {
-                        return Err(MatcError::TypeError {
-                            message: format!(
+                        return Err(self.type_error(
+                            format!(
                                 "Mismatched types in array literal: expected {:?}, got {:?}",
                                 first_ty, elem_ty
                             ),
-                        });
+                            elem.span(),
+                        ));
                     }
                 }
                 Ok(Type::Array(Box::new(first_ty), elements.len()))
             }
-            Expression::TupleAccess { expr, index, .. } => {
+            Expression::TupleAccess { expr, index, span } => {
                 let expr_ty = self.synthesize_expr(expr, symbols)?;
                 match expr_ty {
-                    Type::Tuple(types) => {
-                        types
-                            .get(*index)
-                            .cloned()
-                            .ok_or_else(|| MatcError::TypeError {
-                                message: format!(
-                                    "Tuple index {} out of bounds for tuple length {}",
-                                    index,
-                                    types.len()
-                                ),
-                            })
-                    }
-                    other => Err(MatcError::TypeError {
-                        message: format!("Cannot access tuple index on non-tuple type {:?}", other),
+                    Type::Tuple(types) => types.get(*index).cloned().ok_or_else(|| {
+                        self.type_error(
+                            format!(
+                                "Tuple index {} out of bounds for tuple length {}",
+                                index,
+                                types.len()
+                            ),
+                            *span,
+                        )
                     }),
+                    other => Err(self.type_error(
+                        format!("Cannot access tuple index on non-tuple type {:?}", other),
+                        expr.span(),
+                    )),
                 }
             }
-            Expression::ArrayAccess { expr, index, .. } => {
+            Expression::ArrayAccess { expr, index, span } => {
                 let expr_ty = self.synthesize_expr(expr, symbols)?;
                 let index_ty = self.synthesize_expr(index, symbols)?;
                 if index_ty != Type::Int && index_ty != Type::I32 {
-                    return Err(MatcError::TypeError {
-                        message: format!("Array index must be an integer, got {:?}", index_ty),
-                    });
+                    return Err(self.type_error(
+                        format!("Array index must be an integer, got {:?}", index_ty),
+                        index.span(),
+                    ));
                 }
                 match expr_ty {
                     Type::Array(elem_ty, _) => Ok(*elem_ty),
-                    other => Err(MatcError::TypeError {
-                        message: format!("Cannot index non-array type {:?}", other),
-                    }),
+                    other => {
+                        Err(self
+                            .type_error(format!("Cannot index non-array type {:?}", other), *span))
+                    }
                 }
             }
             Expression::Call {
-                callee, arguments, ..
+                callee,
+                arguments,
+                span,
             } => {
                 let fn_sym = symbols
                     .lookup_function(callee)
-                    .ok_or_else(|| MatcError::TypeError {
-                        message: format!("Undefined function: {}", callee),
+                    .ok_or_else(|| {
+                        self.type_error(format!("Undefined function: {}", callee), *span)
                     })?
                     .clone();
 
                 if callee != "println" && arguments.len() != fn_sym.param_types.len() {
-                    return Err(MatcError::TypeError {
-                        message: format!(
+                    return Err(self.type_error(
+                        format!(
                             "Function '{}' expects {} arguments, got {}",
                             callee,
                             fn_sym.param_types.len(),
                             arguments.len()
                         ),
-                    });
+                        *span,
+                    ));
                 }
 
                 if callee != "println" {
@@ -121,9 +125,10 @@ impl TypeChecker {
                 }
                 Ok(fn_sym.return_type)
             }
-            Expression::Ok(_, _) | Expression::Err(_, _) => Err(MatcError::TypeError {
-                message: "Ok(...) and Err(...) constructors require type context".to_string(),
-            }),
+            Expression::Ok(_, span) | Expression::Err(_, span) => Err(self.type_error(
+                "Ok(...) and Err(...) constructors require type context",
+                *span,
+            )),
         }
     }
 
@@ -142,38 +147,42 @@ impl TypeChecker {
                 self.check_expr(val, err_ty, symbols)?;
                 Ok(target.clone())
             }
-            (Expression::IntLiteral(val, _), target_ty) => match target_ty {
+            (Expression::IntLiteral(val, span), target_ty) => match target_ty {
                 Type::Int => Ok(Type::Int),
                 Type::I32 => {
                     if *val >= i32::MIN as i64 && *val <= i32::MAX as i64 {
                         Ok(Type::I32)
                     } else {
-                        Err(MatcError::TypeError {
-                            message: format!("Integer literal {} exceeds bounds for i32", val),
-                        })
+                        Err(self.type_error(
+                            format!("Integer literal {} exceeds bounds for i32", val),
+                            *span,
+                        ))
                     }
                 }
                 Type::I16 => {
                     if *val >= i16::MIN as i64 && *val <= i16::MAX as i64 {
                         Ok(Type::I16)
                     } else {
-                        Err(MatcError::TypeError {
-                            message: format!("Integer literal {} exceeds bounds for i16", val),
-                        })
+                        Err(self.type_error(
+                            format!("Integer literal {} exceeds bounds for i16", val),
+                            *span,
+                        ))
                     }
                 }
                 Type::I8 => {
                     if *val >= i8::MIN as i64 && *val <= i8::MAX as i64 {
                         Ok(Type::I8)
                     } else {
-                        Err(MatcError::TypeError {
-                            message: format!("Integer literal {} exceeds bounds for i8", val),
-                        })
+                        Err(self.type_error(
+                            format!("Integer literal {} exceeds bounds for i8", val),
+                            *span,
+                        ))
                     }
                 }
-                other => Err(MatcError::TypeError {
-                    message: format!("Cannot check integer literal against type {:?}", other),
-                }),
+                other => Err(self.type_error(
+                    format!("Cannot check integer literal against type {:?}", other),
+                    *span,
+                )),
             },
             (Expression::FloatLiteral(_, _), Type::F32) => Ok(Type::F32),
             (Expression::FloatLiteral(_, _), Type::F64) => Ok(Type::F64),
@@ -187,23 +196,25 @@ impl TypeChecker {
                 if synthesized_ty == *target_ty {
                     Ok(synthesized_ty)
                 } else {
-                    Err(MatcError::TypeError {
-                        message: format!(
+                    Err(self.type_error(
+                        format!(
                             "Type mismatch in binary expression: expected {:?}, got {:?}",
                             target_ty, synthesized_ty
                         ),
-                    })
+                        expr.span(),
+                    ))
                 }
             }
-            (Expression::TupleLiteral(elements, _), Type::Tuple(target_types)) => {
+            (Expression::TupleLiteral(elements, span), Type::Tuple(target_types)) => {
                 if elements.len() != target_types.len() {
-                    return Err(MatcError::TypeError {
-                        message: format!(
+                    return Err(self.type_error(
+                        format!(
                             "Tuple length mismatch: expected {}, got {}",
                             target_types.len(),
                             elements.len()
                         ),
-                    });
+                        *span,
+                    ));
                 }
                 let mut checked_types = Vec::new();
                 for (elem, target_elem_ty) in elements.iter().zip(target_types.iter()) {
@@ -211,15 +222,19 @@ impl TypeChecker {
                 }
                 Ok(Type::Tuple(checked_types))
             }
-            (Expression::ArrayLiteral(elements, _), Type::Array(target_elem_ty, expected_len)) => {
+            (
+                Expression::ArrayLiteral(elements, span),
+                Type::Array(target_elem_ty, expected_len),
+            ) => {
                 if elements.len() != *expected_len {
-                    return Err(MatcError::TypeError {
-                        message: format!(
+                    return Err(self.type_error(
+                        format!(
                             "Array length mismatch: expected {}, got {}",
                             expected_len,
                             elements.len()
                         ),
-                    });
+                        *span,
+                    ));
                 }
                 for elem in elements {
                     self.check_expr(elem, target_elem_ty, symbols)?;
@@ -231,12 +246,13 @@ impl TypeChecker {
                 if synthesized == *target_ty {
                     Ok(synthesized)
                 } else {
-                    Err(MatcError::TypeError {
-                        message: format!(
+                    Err(self.type_error(
+                        format!(
                             "Type mismatch: expected {:?}, got {:?}",
                             target_ty, synthesized
                         ),
-                    })
+                        other_expr.span(),
+                    ))
                 }
             }
         }

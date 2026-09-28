@@ -257,7 +257,7 @@ fn main() {
 #[test]
 fn test_parser_error_missing_fn_parens() {
     let src = "fn main {\n    let x: int = 1;\n}\n";
-    let result = Parser::new(src).parse_program();
+    let result = Parser::new("test.mat", src).parse_program();
     assert!(
         result.is_err(),
         "expected a parse error for missing parentheses, got Ok"
@@ -267,7 +267,7 @@ fn test_parser_error_missing_fn_parens() {
 #[test]
 fn test_parser_error_missing_semicolon() {
     let src = "fn main() {\n    let x: int = 1\n}\n";
-    let result = Parser::new(src).parse_program();
+    let result = Parser::new("test.mat", src).parse_program();
     assert!(
         result.is_err(),
         "expected a parse error for missing semicolon, got Ok"
@@ -277,7 +277,7 @@ fn test_parser_error_missing_semicolon() {
 #[test]
 fn test_parser_error_unclosed_block() {
     let src = "fn main() {\n    let x: int = 1;\n";
-    let result = Parser::new(src).parse_program();
+    let result = Parser::new("test.mat", src).parse_program();
     assert!(
         result.is_err(),
         "expected a parse error for unclosed block, got Ok"
@@ -288,7 +288,7 @@ fn test_parser_error_unclosed_block() {
 fn test_parser_error_bad_type_annotation() {
     // `!!bool` is not a valid type
     let src = "fn main() {\n    let x: !!bool = tru;\n}\n";
-    let result = Parser::new(src).parse_program();
+    let result = Parser::new("test.mat", src).parse_program();
     assert!(
         result.is_err(),
         "expected a parse error for invalid type annotation, got Ok"
@@ -299,7 +299,7 @@ fn test_parser_error_bad_type_annotation() {
 fn test_parser_error_bad_token_in_expression() {
     // `@` is not a valid token in mat-lang
     let src = "fn main() {\n    let x: int = @5;\n}\n";
-    let result = Parser::new(src).parse_program();
+    let result = Parser::new("test.mat", src).parse_program();
     assert!(
         result.is_err(),
         "expected a parse error for invalid token, got Ok"

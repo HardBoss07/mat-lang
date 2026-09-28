@@ -3,14 +3,28 @@ mod expr_checker;
 mod stmt_checker;
 
 use super::symbol_table::SymbolTable;
-use crate::ast::{Item, Program};
-use crate::error::Result;
+use crate::ast::{Item, Program, Span};
+use crate::error::{MatcError, Result};
+use miette::SourceSpan;
 
-pub struct TypeChecker;
+pub struct TypeChecker {
+    pub file_name: String,
+    pub source: String,
+}
 
 impl TypeChecker {
-    pub fn new() -> Self {
-        Self
+    pub fn new(file_name: &str, source: &str) -> Self {
+        Self {
+            file_name: file_name.to_string(),
+            source: source.to_string(),
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            file_name: "<unknown>".to_string(),
+            source: String::new(),
+        }
     }
 
     pub fn check_program(&self, program: &Program, symbols: &mut SymbolTable) -> Result<()> {
@@ -38,5 +52,20 @@ impl TypeChecker {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn type_error(&self, message: impl Into<String>, span: Span) -> MatcError {
+        MatcError::type_error(
+            &self.file_name,
+            &self.source,
+            message,
+            SourceSpan::from(span),
+        )
+    }
+}
+
+impl Default for TypeChecker {
+    fn default() -> Self {
+        Self::empty()
     }
 }

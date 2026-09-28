@@ -1,7 +1,7 @@
 use super::super::symbol_table::SymbolTable;
 use super::TypeChecker;
 use crate::ast::{BinaryOp, Expression, Type};
-use crate::error::{MatcError, Result};
+use crate::error::Result;
 
 impl TypeChecker {
     pub(crate) fn synthesize_binary_expr(
@@ -14,12 +14,13 @@ impl TypeChecker {
         let left_ty = self.synthesize_expr(left, symbols)?;
         let right_ty = self.synthesize_expr(right, symbols)?;
         if left_ty != right_ty {
-            return Err(MatcError::TypeError {
-                message: format!(
+            return Err(self.type_error(
+                format!(
                     "Binary operator type mismatch: expected {:?}, got {:?}",
                     left_ty, right_ty
                 ),
-            });
+                left.span(),
+            ));
         }
         match op {
             BinaryOp::Eq

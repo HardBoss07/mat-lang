@@ -1,3 +1,4 @@
+use miette::SourceSpan;
 use serde::Serialize;
 use std::ops::Range;
 
@@ -19,5 +20,11 @@ impl From<Range<usize>> for Span {
             start: range.start,
             end: range.end,
         }
+    }
+}
+
+impl From<Span> for SourceSpan {
+    fn from(span: Span) -> Self {
+        SourceSpan::new(span.start.into(), span.end.saturating_sub(span.start))
     }
 }

@@ -17,7 +17,7 @@ use matc::semantic::SemanticAnalyzer;
 
 /// Parse `src` into a Program. Panics with a clear message on parse failure.
 pub fn parse(src: &str) -> Program {
-    Parser::new(src)
+    Parser::new("test.mat", src)
         .parse_program()
         .expect("parse() called in test should not fail")
 }
@@ -25,10 +25,10 @@ pub fn parse(src: &str) -> Program {
 /// Parse `src` and run semantic analysis. Returns the Result so negative tests
 /// can inspect the error variant and message.
 pub fn check(src: &str) -> MatResult<()> {
-    let program = Parser::new(src)
+    let program = Parser::new("test.mat", src)
         .parse_program()
         .expect("source in check() should parse cleanly");
-    let mut analyzer = SemanticAnalyzer::new();
+    let mut analyzer = SemanticAnalyzer::new("test.mat", src);
     analyzer.analyze(&program)
 }
 

@@ -34,7 +34,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             return_type,
             local_vars: HashMap::new(),
             symbol_table,
-            type_checker: TypeChecker::new(),
+            type_checker: TypeChecker::empty(),
             loop_stack: Vec::new(),
         }
     }

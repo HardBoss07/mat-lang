@@ -120,11 +120,14 @@ impl Cli {
         emit_obj: bool,
     ) -> Result<()> {
         let source_code = fs::read_to_string(source)?;
+        let file_name = source.to_string_lossy();
 
-        let mut parser = Parser::new(&source_code);
+        // Pass file_name and source_code to Parser so errors carry SourceSpan + NamedSource
+        let mut parser = Parser::new(&file_name, &source_code);
         let ast = parser.parse_program()?;
 
-        let mut analyzer = SemanticAnalyzer::new();
+        // Pass file_name and source_code to SemanticAnalyzer
+        let mut analyzer = SemanticAnalyzer::new(&file_name, &source_code);
         analyzer.analyze(&ast)?;
 
         let context = Context::create();

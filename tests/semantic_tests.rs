@@ -21,7 +21,7 @@ fn assert_ok(src: &str) {
 // ---------------------------------------------------------------------------
 fn assert_type_err_contains(src: &str, substring: &str) {
     match check(src) {
-        Err(MatcError::TypeError { message }) => {
+        Err(MatcError::TypeError { message, .. }) => {
             assert!(
                 message.contains(substring),
                 "expected error message to contain {:?}, got:\n  {}",
