@@ -2,7 +2,7 @@ use winnow::ModalResult;
 use winnow::Parser;
 use winnow::ascii::{alpha1, digit1, multispace0};
 use winnow::combinator::{alt, delimited, separated};
-use winnow::token::take_while;
+use winnow::token::{literal, take_while};
 
 use super::literals::{
     parse_bool_literal, parse_float_literal, parse_int_literal, parse_string_or_interpolated,
@@ -118,6 +118,83 @@ pub fn parse_array_literal(input: &mut &str) -> ModalResult<Expression> {
     ))
 }
 
+pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
+    let checkpoint = *input;
+    let _ = multispace0.parse_next(input)?;
+
+    let is_ok = if input.starts_with("Ok") {
+        let after = &input[2..];
+        if after
+            .chars()
+            .next()
+            .map_or(false, |c| c.is_alphanumeric() || c == '_')
+        {
+            *input = checkpoint;
+            return Err(winnow::error::ErrMode::Backtrack(
+                winnow::error::ContextError::default(),
+            ));
+        }
+        true
+    } else if input.starts_with("Err") {
+        let after = &input[3..];
+        if after
+            .chars()
+            .next()
+            .map_or(false, |c| c.is_alphanumeric() || c == '_')
+        {
+            *input = checkpoint;
+            return Err(winnow::error::ErrMode::Backtrack(
+                winnow::error::ContextError::default(),
+            ));
+        }
+        false
+    } else {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    };
+
+    if is_ok {
+        let _ = literal("Ok").parse_next(input)?;
+    } else {
+        let _ = literal("Err").parse_next(input)?;
+    }
+
+    let _ = multispace0.parse_next(input)?;
+    if !input.starts_with('(') {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[1..];
+    let _ = multispace0.parse_next(input)?;
+
+    let inner_expr = match parse_expression.parse_next(input) {
+        Ok(e) => e,
+        Err(e) => {
+            *input = checkpoint;
+            return Err(e);
+        }
+    };
+    let _ = multispace0.parse_next(input)?;
+
+    if !input.starts_with(')') {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[1..];
+
+    if is_ok {
+        Ok(Expression::Ok(Box::new(inner_expr), Span::new(0, 0)))
+    } else {
+        Ok(Expression::Err(Box::new(inner_expr), Span::new(0, 0)))
+    }
+}
+
 pub fn parse_primary_expression(input: &mut &str) -> ModalResult<Expression> {
     let _ = multispace0.parse_next(input)?;
     alt((
@@ -125,6 +202,7 @@ pub fn parse_primary_expression(input: &mut &str) -> ModalResult<Expression> {
         parse_bool_literal,
         parse_float_literal,
         parse_int_literal,
+        parse_ok_or_err_expression,
         parse_tuple_or_parenthesized,
         parse_array_literal,
         parse_identifier,

@@ -1,7 +1,8 @@
 use winnow::ModalResult;
 use winnow::Parser;
 use winnow::ascii::{digit1, multispace0};
-use winnow::combinator::{delimited, separated};
+use winnow::combinator::delimited;
+use winnow::combinator::separated;
 
 use crate::ast::Type;
 use crate::parser::expression::primary::parse_identifier_str;
@@ -59,6 +60,39 @@ pub fn parse_type(input: &mut &str) -> ModalResult<Type> {
             "f32" => return Ok(Type::F32),
             "bool" => return Ok(Type::Bool),
             "String" => return Ok(Type::String),
+            "void" => return Ok(Type::Void),
+            "Result" => {
+                let _ = multispace0.parse_next(input)?;
+                if input.starts_with('<') {
+                    *input = &input[1..];
+                    let _ = multispace0.parse_next(input)?;
+                    let ok_ty = parse_type.parse_next(input)?;
+                    let _ = multispace0.parse_next(input)?;
+                    if !input.starts_with(',') {
+                        *input = checkpoint;
+                        return Err(winnow::error::ErrMode::Backtrack(
+                            winnow::error::ContextError::default(),
+                        ));
+                    }
+                    *input = &input[1..];
+                    let _ = multispace0.parse_next(input)?;
+                    let err_ty = parse_type.parse_next(input)?;
+                    let _ = multispace0.parse_next(input)?;
+                    if !input.starts_with('>') {
+                        *input = checkpoint;
+                        return Err(winnow::error::ErrMode::Backtrack(
+                            winnow::error::ContextError::default(),
+                        ));
+                    }
+                    *input = &input[1..];
+                    return Ok(Type::Result(Box::new(ok_ty), Box::new(err_ty)));
+                } else {
+                    *input = checkpoint;
+                    return Err(winnow::error::ErrMode::Backtrack(
+                        winnow::error::ContextError::default(),
+                    ));
+                }
+            }
             other => return Ok(Type::Custom(other.to_string())),
         }
     }

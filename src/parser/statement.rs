@@ -4,7 +4,7 @@ use winnow::ascii::multispace0;
 use winnow::combinator::{alt, opt};
 use winnow::token::literal;
 
-use crate::ast::{BinaryOp, Span, Statement};
+use crate::ast::{BinaryOp, MatchArm, MatchPattern, Span, Statement};
 use crate::parser::expression::parse_expression;
 use crate::parser::expression::primary::parse_identifier_str;
 use crate::parser::types::parse_type;
@@ -45,6 +45,167 @@ pub fn parse_block(input: &mut &str) -> ModalResult<Vec<Statement>> {
     let _ = literal('}').parse_next(input)?;
 
     Ok(statements)
+}
+
+pub fn parse_match_arm(input: &mut &str) -> ModalResult<MatchArm> {
+    let checkpoint = *input;
+    let _ = multispace0.parse_next(input)?;
+
+    let pattern = if input.starts_with("Ok") {
+        *input = &input[2..];
+        let _ = multispace0.parse_next(input)?;
+        let _ = literal('(').parse_next(input)?;
+        let _ = multispace0.parse_next(input)?;
+        let var_name = parse_identifier_str.parse_next(input)?.to_string();
+        let _ = multispace0.parse_next(input)?;
+        let _ = literal(')').parse_next(input)?;
+        MatchPattern::Ok(var_name)
+    } else if input.starts_with("Err") {
+        *input = &input[3..];
+        let _ = multispace0.parse_next(input)?;
+        let _ = literal('(').parse_next(input)?;
+        let _ = multispace0.parse_next(input)?;
+        let var_name = parse_identifier_str.parse_next(input)?.to_string();
+        let _ = multispace0.parse_next(input)?;
+        let _ = literal(')').parse_next(input)?;
+        MatchPattern::Err(var_name)
+    } else if input.starts_with('_') {
+        *input = &input[1..];
+        MatchPattern::Wildcard
+    } else {
+        let expr = parse_expression.parse_next(input)?;
+        MatchPattern::Literal(expr)
+    };
+
+    let _ = multispace0.parse_next(input)?;
+    if !input.starts_with("=>") {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    let _ = literal("=>").parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+
+    let body = if input.starts_with('{') {
+        parse_block(input)?
+    } else {
+        let stmt = parse_statement.parse_next(input)?;
+        vec![stmt]
+    };
+
+    Ok(MatchArm { pattern, body })
+}
+
+pub fn parse_match_statement(input: &mut &str) -> ModalResult<Statement> {
+    let checkpoint = *input;
+    let _ = multispace0.parse_next(input)?;
+
+    if !input.starts_with("match") {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+
+    let after = &input[5..];
+    if after
+        .chars()
+        .next()
+        .map_or(false, |c| c.is_alphanumeric() || c == '_')
+    {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+
+    let _ = literal("match").parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+
+    let expr = parse_expression.parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+
+    if !input.starts_with('{') {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    let _ = literal('{').parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+
+    let mut arms = Vec::new();
+    while !input.starts_with('}') && !input.is_empty() {
+        let arm = parse_match_arm.parse_next(input)?;
+        arms.push(arm);
+        let _ = multispace0.parse_next(input)?;
+    }
+
+    if !input.starts_with('}') {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    let _ = literal('}').parse_next(input)?;
+
+    Ok(Statement::Match {
+        expr,
+        arms,
+        span: Span::new(0, 0),
+    })
+}
+
+pub fn parse_return_statement(input: &mut &str) -> ModalResult<Statement> {
+    let checkpoint = *input;
+    let _ = multispace0.parse_next(input)?;
+
+    if !input.starts_with("return") {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+
+    let after = &input[6..];
+    if after
+        .chars()
+        .next()
+        .map_or(false, |c| c.is_alphanumeric() || c == '_')
+    {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+
+    let _ = literal("return").parse_next(input)?;
+    let _ = multispace0.parse_next(input)?;
+
+    if input.starts_with(';') {
+        let _ = literal(';').parse_next(input)?;
+        return Ok(Statement::Return(None, Span::new(0, 0)));
+    }
+
+    let expr = match parse_expression.parse_next(input) {
+        Ok(e) => e,
+        Err(e) => {
+            *input = checkpoint;
+            return Err(e);
+        }
+    };
+    let _ = multispace0.parse_next(input)?;
+
+    if !input.starts_with(';') {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    let _ = literal(';').parse_next(input)?;
+
+    Ok(Statement::Return(Some(expr), Span::new(0, 0)))
 }
 
 pub fn parse_let_statement(input: &mut &str) -> ModalResult<Statement> {
@@ -656,7 +817,9 @@ pub fn parse_expression_statement(input: &mut &str) -> ModalResult<Statement> {
 pub fn parse_statement(input: &mut &str) -> ModalResult<Statement> {
     alt((
         parse_let_statement,
+        parse_return_statement,
         parse_if_statement,
+        parse_match_statement,
         parse_loop_statement,
         parse_while_statement,
         parse_fori_statement,
