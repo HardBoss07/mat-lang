@@ -1,8 +1,9 @@
 use super::function::FunctionCompiler;
 use crate::ast::{BinaryOp, Expression, FormatSpecifier, Type};
+use crate::codegen::mangling::mangle_symbol;
 use crate::error::{MatcError, Result};
 use inkwell::types::BasicType;
-use inkwell::values::{AsValueRef, BasicValueEnum};
+use inkwell::values::{AsValueRef, BasicMetadataValueEnum, BasicValueEnum};
 
 impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
     pub fn compile_expression(&mut self, expr: &Expression) -> Result<BasicValueEnum<'ctx>> {
@@ -476,6 +477,92 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                 let res_ptr = unsafe { BasicValueEnum::new(call_fmt.as_value_ref()) };
                 Ok(res_ptr)
             }
+            Expression::Ok(val_expr, _) => {
+                let inner_val = self.compile_expression(val_expr)?;
+                let ok_ty = self
+                    .type_checker
+                    .synthesize_expr(val_expr, &self.symbol_table)
+                    .unwrap_or(Type::Int);
+                let result_mat_ty = Type::Result(Box::new(ok_ty), Box::new(Type::String));
+                let result_llvm_ty = self.engine.llvm_type(&result_mat_ty);
+
+                let alloca = self
+                    .engine
+                    .builder
+                    .build_alloca(result_llvm_ty, "ok_tmp")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                let tag_ptr = self
+                    .engine
+                    .builder
+                    .build_struct_gep(result_llvm_ty.into_struct_type(), alloca, 0, "tag_ptr")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                let tru_val = self.engine.context.bool_type().const_int(1, false);
+                self.engine
+                    .builder
+                    .build_store(tag_ptr, tru_val)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                let val_ptr = self
+                    .engine
+                    .builder
+                    .build_struct_gep(result_llvm_ty.into_struct_type(), alloca, 1, "val_ptr")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                self.engine
+                    .builder
+                    .build_store(val_ptr, inner_val)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                let loaded = self
+                    .engine
+                    .builder
+                    .build_load(result_llvm_ty, alloca, "ok_struct")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                Ok(loaded)
+            }
+            Expression::Err(err_expr, _) => {
+                let inner_err = self.compile_expression(err_expr)?;
+                let err_ty = self
+                    .type_checker
+                    .synthesize_expr(err_expr, &self.symbol_table)
+                    .unwrap_or(Type::String);
+                let result_mat_ty = Type::Result(Box::new(Type::Int), Box::new(err_ty));
+                let result_llvm_ty = self.engine.llvm_type(&result_mat_ty);
+
+                let alloca = self
+                    .engine
+                    .builder
+                    .build_alloca(result_llvm_ty, "err_tmp")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                let tag_ptr = self
+                    .engine
+                    .builder
+                    .build_struct_gep(result_llvm_ty.into_struct_type(), alloca, 0, "tag_ptr")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                let fal_val = self.engine.context.bool_type().const_int(0, false);
+                self.engine
+                    .builder
+                    .build_store(tag_ptr, fal_val)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                let err_ptr = self
+                    .engine
+                    .builder
+                    .build_struct_gep(result_llvm_ty.into_struct_type(), alloca, 2, "err_ptr")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                self.engine
+                    .builder
+                    .build_store(err_ptr, inner_err)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                let loaded = self
+                    .engine
+                    .builder
+                    .build_load(result_llvm_ty, alloca, "err_struct")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                Ok(loaded)
+            }
             Expression::Call {
                 callee, arguments, ..
             } => {
@@ -549,8 +636,30 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                                 .map_err(|e| MatcError::CodegenError(e.to_string()))?;
                         }
                     }
+                    return Ok(self.engine.context.i32_type().const_int(0, false).into());
                 }
-                Ok(self.engine.context.i32_type().const_int(0, false).into())
+
+                let mangled = mangle_symbol(callee);
+                let target_fn = self.engine.module.get_function(&mangled).ok_or_else(|| {
+                    MatcError::CodegenError(format!("Function not found: {}", callee))
+                })?;
+
+                let mut compiled_args: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
+                for arg in arguments {
+                    compiled_args.push(self.compile_expression(arg)?.into());
+                }
+
+                let call_site = self
+                    .engine
+                    .builder
+                    .build_call(target_fn, &compiled_args, "calltmp")
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                if target_fn.get_type().get_return_type().is_some() {
+                    Ok(unsafe { BasicValueEnum::new(call_site.as_value_ref()) })
+                } else {
+                    Ok(self.engine.context.i32_type().const_int(0, false).into())
+                }
             }
         }
     }

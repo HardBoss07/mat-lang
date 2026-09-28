@@ -5,13 +5,15 @@ use inkwell::module::Module;
 use inkwell::targets::{
     CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine,
 };
+use inkwell::types::BasicType;
 use std::path::Path;
 
 use super::function::FunctionCompiler;
-use crate::ast::{FunctionDeclaration, Item, Program};
+use crate::ast::{FunctionDeclaration, Item, Program, Type};
 use crate::codegen::mangling::mangle_symbol;
 use crate::codegen::runtime::declare_runtime_symbols;
 use crate::error::{MatcError, Result};
+use crate::semantic::SymbolTable;
 
 pub struct CodegenEngine<'ctx> {
     pub context: &'ctx Context,
@@ -34,18 +36,52 @@ impl<'ctx> CodegenEngine<'ctx> {
     }
 
     pub fn compile_program(&self, program: &Program) -> Result<()> {
+        let mut global_symbols = SymbolTable::new();
         for item in &program.items {
             match item {
-                Item::Function(func) => self.compile_function(func)?,
+                Item::Function(func) => {
+                    let param_tys = func.params.iter().map(|p| p.ty.clone()).collect();
+                    global_symbols.insert_function(
+                        func.name.clone(),
+                        param_tys,
+                        func.return_type.clone(),
+                    );
+                }
+            }
+        }
+
+        for item in &program.items {
+            match item {
+                Item::Function(func) => self.compile_function(func, &global_symbols)?,
             }
         }
         Ok(())
     }
 
-    fn compile_function(&self, func: &FunctionDeclaration) -> Result<()> {
+    fn compile_function(
+        &self,
+        func: &FunctionDeclaration,
+        global_symbols: &SymbolTable,
+    ) -> Result<()> {
         let symbol_name = mangle_symbol(&func.name);
-        let i32_type = self.context.i32_type();
-        let fn_type = i32_type.fn_type(&[], false);
+
+        let param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = func
+            .params
+            .iter()
+            .map(|p| self.llvm_type(&p.ty).into())
+            .collect();
+
+        let fn_type = if func.return_type == Type::Void {
+            if symbol_name == "main" {
+                self.context.i32_type().fn_type(&param_types, false)
+            } else {
+                self.context.void_type().fn_type(&param_types, false)
+            }
+        } else {
+            let ret_llvm = self.llvm_type(&func.return_type);
+            ret_llvm.fn_type(&param_types, false)
+        };
+
         let fn_value = self.module.add_function(&symbol_name, fn_type, None);
 
         let entry_block = self.context.append_basic_block(fn_value, "entry");
@@ -60,15 +96,55 @@ impl<'ctx> CodegenEngine<'ctx> {
                 .map_err(|e| MatcError::CodegenError(e.to_string()))?;
         }
 
-        let mut compiler = FunctionCompiler::new(self, fn_value);
+        let mut compiler = FunctionCompiler::new(
+            self,
+            fn_value,
+            func.return_type.clone(),
+            global_symbols.clone(),
+        );
+
+        for (idx, param) in fn_value.get_param_iter().enumerate() {
+            let param_ast = &func.params[idx];
+            let llvm_ty = self.llvm_type(&param_ast.ty);
+            let alloca = self
+                .builder
+                .build_alloca(llvm_ty, &param_ast.name)
+                .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+            self.builder
+                .build_store(alloca, param)
+                .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+            compiler
+                .local_vars
+                .insert(param_ast.name.clone(), (alloca, param_ast.ty.clone()));
+            compiler
+                .symbol_table
+                .insert(param_ast.name.clone(), param_ast.ty.clone(), false);
+        }
 
         for stmt in &func.body {
             compiler.compile_statement(stmt)?;
         }
 
-        self.builder
-            .build_return(Some(&i32_type.const_int(0, false)))
-            .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+        if self
+            .builder
+            .get_insert_block()
+            .unwrap()
+            .get_terminator()
+            .is_none()
+        {
+            if func.return_type == Type::Void {
+                if symbol_name == "main" {
+                    self.builder
+                        .build_return(Some(&self.context.i32_type().const_int(0, false)))
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                } else {
+                    self.builder
+                        .build_return(None)
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                }
+            }
+        }
 
         Ok(())
     }

@@ -1,5 +1,5 @@
 use super::function::{FunctionCompiler, LoopBlocks};
-use crate::ast::{BinaryOp, Statement, Type};
+use crate::ast::{BinaryOp, MatchPattern, Statement, Type};
 use crate::error::{MatcError, Result};
 use inkwell::values::BasicValueEnum;
 
@@ -37,6 +37,193 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
 
     pub fn compile_statement(&mut self, stmt: &Statement) -> Result<()> {
         match stmt {
+            Statement::Return(opt_expr, _) => {
+                if let Some(expr) = opt_expr {
+                    let raw_val = self.compile_expression(expr)?;
+                    let val = self.coerce_val_to_type(raw_val, &self.return_type)?;
+                    self.engine
+                        .builder
+                        .build_return(Some(&val))
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                } else {
+                    self.engine
+                        .builder
+                        .build_return(None)
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                }
+
+                let dead_block = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "after_return");
+                self.engine.builder.position_at_end(dead_block);
+            }
+            Statement::Match { expr, arms, .. } => {
+                let expr_mat_ty = self
+                    .type_checker
+                    .synthesize_expr(expr, &self.symbol_table)?;
+                let compiled_expr = self.compile_expression(expr)?;
+
+                let match_after = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "match_after");
+
+                if let Type::Result(ref ok_mat_ty, ref err_mat_ty) = expr_mat_ty {
+                    let result_llvm_ty = self.engine.llvm_type(&expr_mat_ty);
+                    let struct_ty = result_llvm_ty.into_struct_type();
+
+                    let alloca = self
+                        .engine
+                        .builder
+                        .build_alloca(struct_ty, "match_result_tmp")
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                    self.engine
+                        .builder
+                        .build_store(alloca, compiled_expr)
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                    let tag_ptr = self
+                        .engine
+                        .builder
+                        .build_struct_gep(struct_ty, alloca, 0, "tag_ptr")
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                    let tag_val = self
+                        .engine
+                        .builder
+                        .build_load(self.engine.context.bool_type(), tag_ptr, "tag_val")
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?
+                        .into_int_value();
+
+                    let block_ok = self
+                        .engine
+                        .context
+                        .append_basic_block(self.fn_value, "match_ok");
+                    let block_err = self
+                        .engine
+                        .context
+                        .append_basic_block(self.fn_value, "match_err");
+
+                    self.engine
+                        .builder
+                        .build_conditional_branch(tag_val, block_ok, block_err)
+                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                    for arm in arms {
+                        match &arm.pattern {
+                            MatchPattern::Ok(var_name) => {
+                                self.engine.builder.position_at_end(block_ok);
+                                self.symbol_table.push_scope();
+
+                                let ok_llvm_ty = self.engine.llvm_type(ok_mat_ty);
+                                let ok_ptr = self
+                                    .engine
+                                    .builder
+                                    .build_struct_gep(struct_ty, alloca, 1, "ok_ptr")
+                                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                                let ok_val = self
+                                    .engine
+                                    .builder
+                                    .build_load(ok_llvm_ty, ok_ptr, var_name)
+                                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                                let var_alloca = self
+                                    .engine
+                                    .builder
+                                    .build_alloca(ok_llvm_ty, var_name)
+                                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                                self.engine
+                                    .builder
+                                    .build_store(var_alloca, ok_val)
+                                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                                self.local_vars
+                                    .insert(var_name.clone(), (var_alloca, (**ok_mat_ty).clone()));
+                                self.symbol_table.insert(
+                                    var_name.clone(),
+                                    (**ok_mat_ty).clone(),
+                                    false,
+                                );
+
+                                for stmt in &arm.body {
+                                    self.compile_statement(stmt)?;
+                                }
+                                self.symbol_table.pop_scope();
+
+                                if self
+                                    .engine
+                                    .builder
+                                    .get_insert_block()
+                                    .unwrap()
+                                    .get_terminator()
+                                    .is_none()
+                                {
+                                    self.engine
+                                        .builder
+                                        .build_unconditional_branch(match_after)
+                                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                                }
+                            }
+                            MatchPattern::Err(var_name) => {
+                                self.engine.builder.position_at_end(block_err);
+                                self.symbol_table.push_scope();
+
+                                let err_llvm_ty = self.engine.llvm_type(err_mat_ty);
+                                let err_ptr = self
+                                    .engine
+                                    .builder
+                                    .build_struct_gep(struct_ty, alloca, 2, "err_ptr")
+                                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                                let err_val = self
+                                    .engine
+                                    .builder
+                                    .build_load(err_llvm_ty, err_ptr, var_name)
+                                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                                let var_alloca = self
+                                    .engine
+                                    .builder
+                                    .build_alloca(err_llvm_ty, var_name)
+                                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                                self.engine
+                                    .builder
+                                    .build_store(var_alloca, err_val)
+                                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+
+                                self.local_vars
+                                    .insert(var_name.clone(), (var_alloca, (**err_mat_ty).clone()));
+                                self.symbol_table.insert(
+                                    var_name.clone(),
+                                    (**err_mat_ty).clone(),
+                                    false,
+                                );
+
+                                for stmt in &arm.body {
+                                    self.compile_statement(stmt)?;
+                                }
+                                self.symbol_table.pop_scope();
+
+                                if self
+                                    .engine
+                                    .builder
+                                    .get_insert_block()
+                                    .unwrap()
+                                    .get_terminator()
+                                    .is_none()
+                                {
+                                    self.engine
+                                        .builder
+                                        .build_unconditional_branch(match_after)
+                                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    self.engine.builder.position_at_end(match_after);
+                }
+            }
             Statement::Let {
                 name, ty, value, ..
             } => {
