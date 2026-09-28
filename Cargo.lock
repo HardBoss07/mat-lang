@@ -451,6 +451,7 @@ dependencies = [
  "inkwell",
  "insta",
  "miette",
+ "serde",
  "smallvec",
  "tempfile",
  "thiserror 1.0.69",
