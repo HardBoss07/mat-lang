@@ -1,6 +1,5 @@
 use winnow::ModalResult;
 use winnow::Parser;
-use winnow::ascii::multispace0;
 use winnow::token::literal;
 
 use crate::ast::{MatchArm, MatchPattern, Span, Statement};
@@ -8,10 +7,10 @@ use crate::parser::expression::parse_expression;
 use crate::parser::expression::primary::parse_identifier_str;
 use crate::parser::statement::parse_block;
 use crate::parser::statement::parse_statement;
-use crate::parser::utils::{keyword, symbol};
+use crate::parser::utils::{keyword, skip_ws_and_comments, symbol};
 
 pub fn parse_match_arm(input: &mut &str) -> ModalResult<MatchArm> {
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let pattern = if input.starts_with("Ok") {
         let _ = literal("Ok").parse_next(input)?;
@@ -34,7 +33,7 @@ pub fn parse_match_arm(input: &mut &str) -> ModalResult<MatchArm> {
     };
 
     let _ = symbol("=>").parse_next(input)?;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let body = if input.starts_with('{') {
         parse_block(input)?
@@ -48,17 +47,17 @@ pub fn parse_match_arm(input: &mut &str) -> ModalResult<MatchArm> {
 
 pub fn parse_match_statement(input: &mut &str) -> ModalResult<Statement> {
     let _ = keyword("match").parse_next(input)?;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let expr = parse_expression.parse_next(input)?;
     let _ = symbol("{").parse_next(input)?;
 
     let mut arms = Vec::new();
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
     while !input.starts_with('}') && !input.is_empty() {
         let arm = parse_match_arm.parse_next(input)?;
         arms.push(arm);
-        let _ = multispace0.parse_next(input)?;
+        let _ = skip_ws_and_comments(input)?;
     }
 
     let _ = symbol("}").parse_next(input)?;
@@ -72,13 +71,13 @@ pub fn parse_match_statement(input: &mut &str) -> ModalResult<Statement> {
 
 pub fn parse_if_statement(input: &mut &str) -> ModalResult<Statement> {
     let _ = keyword("if").parse_next(input)?;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let condition = parse_expression.parse_next(input)?;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let then_branch = parse_block(input)?;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let else_branch = if input.starts_with("else") {
         let after_else = &input[4..];
@@ -88,7 +87,7 @@ pub fn parse_if_statement(input: &mut &str) -> ModalResult<Statement> {
             .map_or(false, |c| c.is_alphanumeric() || c == '_')
         {
             let _ = literal("else").parse_next(input)?;
-            let _ = multispace0.parse_next(input)?;
+            let _ = skip_ws_and_comments(input)?;
             if input.starts_with("if") {
                 let stmt = parse_if_statement(input)?;
                 Some(vec![stmt])

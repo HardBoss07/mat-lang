@@ -1,15 +1,16 @@
 use winnow::ModalResult;
 use winnow::Parser;
-use winnow::ascii::{digit1, multispace0};
+use winnow::ascii::digit1;
 use winnow::combinator::alt;
 use winnow::token::literal;
 
 use super::primary::parse_expression;
 use crate::ast::{Expression, FormatSpecifier, Span};
+use crate::parser::utils::skip_ws_and_comments;
 
 pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let remaining = *input;
     if remaining.starts_with("0b") || remaining.starts_with("0B") {
@@ -102,7 +103,7 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
 
 pub fn parse_float_literal(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
     let float_res: ModalResult<&str> = (digit1, '.', digit1).take().parse_next(input);
     if let Ok(float_str) = float_res {
         if let Ok(val) = float_str.parse::<f64>() {
@@ -117,7 +118,7 @@ pub fn parse_float_literal(input: &mut &str) -> ModalResult<Expression> {
 
 pub fn parse_bool_literal(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
     let bool_res: ModalResult<bool> =
         alt((literal("tru").map(|_| true), literal("fal").map(|_| false))).parse_next(input);
     if let Ok(val) = bool_res {
@@ -131,7 +132,7 @@ pub fn parse_bool_literal(input: &mut &str) -> ModalResult<Expression> {
 
 pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     if !input.starts_with('"') {
         *input = checkpoint;

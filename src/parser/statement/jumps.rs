@@ -1,14 +1,13 @@
 use winnow::ModalResult;
 use winnow::Parser;
-use winnow::ascii::multispace0;
 
 use crate::ast::{Span, Statement};
 use crate::parser::expression::parse_expression;
-use crate::parser::utils::{keyword, symbol};
+use crate::parser::utils::{keyword, skip_ws_and_comments, symbol};
 
 pub fn parse_return_statement(input: &mut &str) -> ModalResult<Statement> {
     let _ = keyword("return").parse_next(input)?;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     if input.starts_with(';') {
         let _ = symbol(";").parse_next(input)?;

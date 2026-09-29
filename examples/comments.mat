@@ -1,0 +1,7 @@
+/*
+This is a comment block that can be used to describe the purpose of the code, provide author information, or any other relevant details. Comments are ignored by the compiler and are meant for developers to understand the code better.
+*/
+fn main() {
+    let x = 5; // This is a single-line comment explaining that x is initialized to 5
+    println("x = {x}");
+}

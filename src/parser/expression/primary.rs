@@ -6,7 +6,7 @@ pub use postfix::parse_postfix_expression;
 
 use winnow::ModalResult;
 use winnow::Parser;
-use winnow::ascii::{alpha1, multispace0};
+use winnow::ascii::alpha1;
 use winnow::combinator::alt;
 use winnow::token::{literal, take_while};
 
@@ -14,9 +14,10 @@ use super::literals::{
     parse_bool_literal, parse_float_literal, parse_int_literal, parse_string_or_interpolated,
 };
 use crate::ast::{BinaryOp, Expression, Span};
+use crate::parser::utils::skip_ws_and_comments;
 
 pub fn parse_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
     (
         alpha1,
         take_while(0.., |c: char| c.is_alphanumeric() || c == '_'),
@@ -41,7 +42,7 @@ pub fn parse_identifier(input: &mut &str) -> ModalResult<Expression> {
 
 pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let is_ok = if input.starts_with("Ok") {
         let after = &input[2..];
@@ -82,7 +83,7 @@ pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
         let _ = literal("Err").parse_next(input)?;
     }
 
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
     if !input.starts_with('(') {
         *input = checkpoint;
         return Err(winnow::error::ErrMode::Backtrack(
@@ -90,7 +91,7 @@ pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
         ));
     }
     *input = &input[1..];
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let inner_expr = match parse_expression.parse_next(input) {
         Ok(e) => e,
@@ -99,7 +100,7 @@ pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
             return Err(e);
         }
     };
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     if !input.starts_with(')') {
         *input = checkpoint;
@@ -117,7 +118,7 @@ pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
 }
 
 pub fn parse_primary_expression(input: &mut &str) -> ModalResult<Expression> {
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
     alt((
         parse_string_or_interpolated,
         parse_bool_literal,
@@ -135,7 +136,7 @@ pub fn parse_multiplicative_expression(input: &mut &str) -> ModalResult<Expressi
     let mut left = parse_postfix_expression.parse_next(input)?;
 
     loop {
-        let _ = multispace0.parse_next(input)?;
+        let _ = skip_ws_and_comments(input)?;
         if input.starts_with("*=") || input.starts_with("/=") || input.starts_with("%=") {
             break;
         }
@@ -168,7 +169,7 @@ pub fn parse_additive_expression(input: &mut &str) -> ModalResult<Expression> {
     let mut left = parse_multiplicative_expression.parse_next(input)?;
 
     loop {
-        let _ = multispace0.parse_next(input)?;
+        let _ = skip_ws_and_comments(input)?;
         if input.starts_with("+=")
             || input.starts_with("-=")
             || input.starts_with("++")
@@ -203,7 +204,7 @@ pub fn parse_shift_expression(input: &mut &str) -> ModalResult<Expression> {
     let mut left = parse_additive_expression.parse_next(input)?;
 
     loop {
-        let _ = multispace0.parse_next(input)?;
+        let _ = skip_ws_and_comments(input)?;
         if input.starts_with("<<=") || input.starts_with(">>=") {
             break;
         }
@@ -234,7 +235,7 @@ pub fn parse_relational_expression(input: &mut &str) -> ModalResult<Expression> 
     let mut left = parse_shift_expression.parse_next(input)?;
 
     loop {
-        let _ = multispace0.parse_next(input)?;
+        let _ = skip_ws_and_comments(input)?;
         if input.starts_with("<<") || input.starts_with(">>") {
             break;
         }
@@ -272,7 +273,7 @@ pub fn parse_equality_expression(input: &mut &str) -> ModalResult<Expression> {
     let mut left = parse_relational_expression.parse_next(input)?;
 
     loop {
-        let _ = multispace0.parse_next(input)?;
+        let _ = skip_ws_and_comments(input)?;
 
         let op = if input.starts_with("==") {
             BinaryOp::Eq
@@ -300,7 +301,7 @@ pub fn parse_logical_and_expression(input: &mut &str) -> ModalResult<Expression>
     let mut left = parse_equality_expression.parse_next(input)?;
 
     loop {
-        let _ = multispace0.parse_next(input)?;
+        let _ = skip_ws_and_comments(input)?;
 
         if input.starts_with("&&") {
             *input = &input[2..];
@@ -323,7 +324,7 @@ pub fn parse_logical_or_expression(input: &mut &str) -> ModalResult<Expression> 
     let mut left = parse_logical_and_expression.parse_next(input)?;
 
     loop {
-        let _ = multispace0.parse_next(input)?;
+        let _ = skip_ws_and_comments(input)?;
 
         if input.starts_with("||") {
             *input = &input[2..];

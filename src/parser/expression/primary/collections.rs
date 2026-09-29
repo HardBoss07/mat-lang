@@ -1,14 +1,14 @@
 use winnow::ModalResult;
 use winnow::Parser;
-use winnow::ascii::multispace0;
 use winnow::combinator::{delimited, separated};
 
 use super::super::parse_expression;
 use crate::ast::{Expression, Span};
+use crate::parser::utils::skip_ws_and_comments;
 
 pub fn parse_tuple_or_parenthesized(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
     if !input.starts_with('(') {
         *input = checkpoint;
         return Err(winnow::error::ErrMode::Backtrack(
@@ -16,7 +16,7 @@ pub fn parse_tuple_or_parenthesized(input: &mut &str) -> ModalResult<Expression>
         ));
     }
     *input = &input[1..];
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     if input.starts_with(')') {
         *input = &input[1..];
@@ -30,13 +30,13 @@ pub fn parse_tuple_or_parenthesized(input: &mut &str) -> ModalResult<Expression>
             return Err(e);
         }
     };
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     if input.starts_with(',') {
         let mut elements = vec![first];
         while input.starts_with(',') {
             *input = &input[1..];
-            let _ = multispace0.parse_next(input)?;
+            let _ = skip_ws_and_comments(input)?;
             if input.starts_with(')') {
                 break;
             }
@@ -47,7 +47,7 @@ pub fn parse_tuple_or_parenthesized(input: &mut &str) -> ModalResult<Expression>
                     return Err(e);
                 }
             }
-            let _ = multispace0.parse_next(input)?;
+            let _ = skip_ws_and_comments(input)?;
         }
         if input.starts_with(')') {
             *input = &input[1..];
@@ -71,7 +71,7 @@ pub fn parse_tuple_or_parenthesized(input: &mut &str) -> ModalResult<Expression>
 
 pub fn parse_array_literal(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
     if !input.starts_with('[') {
         *input = checkpoint;
         return Err(winnow::error::ErrMode::Backtrack(

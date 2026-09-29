@@ -1,15 +1,14 @@
 use winnow::ModalResult;
 use winnow::Parser;
-use winnow::ascii::multispace0;
 
 use crate::ast::{BinaryOp, Span, Statement};
 use crate::parser::expression::parse_expression;
 use crate::parser::expression::primary::parse_identifier_str;
-use crate::parser::utils::symbol;
+use crate::parser::utils::{skip_ws_and_comments, symbol};
 
 pub fn parse_compound_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
     let checkpoint = *input;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let target = match parse_identifier_str.parse_next(input) {
         Ok(t) => t,
@@ -18,7 +17,7 @@ pub fn parse_compound_assignment_statement(input: &mut &str) -> ModalResult<Stat
             return Err(e);
         }
     };
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let op = if input.starts_with("+=") {
         *input = &input[2..];

@@ -1,16 +1,17 @@
 use winnow::ModalResult;
 use winnow::Parser;
-use winnow::ascii::{multispace0, multispace1};
+use winnow::ascii::multispace1;
 use winnow::token::literal;
 
 use crate::ast::{FunctionDeclaration, Param, Span, Type};
 use crate::parser::expression::primary::parse_identifier_str;
 use crate::parser::statement::parse_block;
 use crate::parser::types::parse_type;
+use crate::parser::utils::skip_ws_and_comments;
 
 pub fn parse_param(input: &mut &str) -> ModalResult<Param> {
     let checkpoint = *input;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let name = match parse_identifier_str.parse_next(input) {
         Ok(n) => n.to_string(),
@@ -19,7 +20,7 @@ pub fn parse_param(input: &mut &str) -> ModalResult<Param> {
             return Err(e);
         }
     };
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     if !input.starts_with(':') {
         *input = checkpoint;
@@ -28,7 +29,7 @@ pub fn parse_param(input: &mut &str) -> ModalResult<Param> {
         ));
     }
     *input = &input[1..];
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let ty = parse_type.parse_next(input)?;
 
@@ -41,7 +42,7 @@ pub fn parse_param(input: &mut &str) -> ModalResult<Param> {
 
 pub fn parse_function(input: &mut &str) -> ModalResult<FunctionDeclaration> {
     let checkpoint = *input;
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     if !input.starts_with("fn") {
         *input = checkpoint;
@@ -51,9 +52,10 @@ pub fn parse_function(input: &mut &str) -> ModalResult<FunctionDeclaration> {
     }
     let _ = literal("fn").parse_next(input)?;
     let _ = multispace1.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let name = parse_identifier_str.parse_next(input)?.to_string();
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     if !input.starts_with('(') {
         *input = checkpoint;
@@ -62,17 +64,17 @@ pub fn parse_function(input: &mut &str) -> ModalResult<FunctionDeclaration> {
         ));
     }
     *input = &input[1..];
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let mut params = Vec::new();
     if !input.starts_with(')') {
         while !input.is_empty() {
             let param = parse_param.parse_next(input)?;
             params.push(param);
-            let _ = multispace0.parse_next(input)?;
+            let _ = skip_ws_and_comments(input)?;
             if input.starts_with(',') {
                 *input = &input[1..];
-                let _ = multispace0.parse_next(input)?;
+                let _ = skip_ws_and_comments(input)?;
                 if input.starts_with(')') {
                     break;
                 }
@@ -89,17 +91,17 @@ pub fn parse_function(input: &mut &str) -> ModalResult<FunctionDeclaration> {
         ));
     }
     *input = &input[1..];
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
 
     let return_type = if input.starts_with("->") {
         *input = &input[2..];
-        let _ = multispace0.parse_next(input)?;
+        let _ = skip_ws_and_comments(input)?;
         parse_type.parse_next(input)?
     } else {
         Type::Void
     };
 
-    let _ = multispace0.parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
     let body = parse_block(input)?;
 
     Ok(FunctionDeclaration {

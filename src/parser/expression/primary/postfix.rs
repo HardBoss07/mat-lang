@@ -1,17 +1,18 @@
 use winnow::ModalResult;
 use winnow::Parser;
-use winnow::ascii::{digit1, multispace0};
+use winnow::ascii::digit1;
 use winnow::combinator::{delimited, separated};
 
 use super::super::parse_expression;
 use super::parse_primary_expression;
 use crate::ast::{Expression, Span};
+use crate::parser::utils::skip_ws_and_comments;
 
 pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
     let mut expr = parse_primary_expression.parse_next(input)?;
 
     loop {
-        let _ = multispace0.parse_next(input)?;
+        let _ = skip_ws_and_comments(input)?;
         if input.starts_with('(') {
             let callee_name = match &expr {
                 Expression::Identifier(name, _) => name.clone(),
@@ -47,7 +48,7 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
             let mut checkpoint = *input;
             checkpoint = &checkpoint[1..];
             if let Ok(index) = parse_expression.parse_next(&mut checkpoint) {
-                let _ = multispace0.parse_next(&mut checkpoint)?;
+                let _ = skip_ws_and_comments(&mut checkpoint)?;
                 if checkpoint.starts_with(']') {
                     checkpoint = &checkpoint[1..];
                     *input = checkpoint;

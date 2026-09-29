@@ -9,12 +9,11 @@ pub use item::parse_function;
 pub use statement::parse_statement;
 pub use types::parse_type;
 
-use winnow::ModalResult;
 use winnow::Parser as WinnowParser;
-use winnow::ascii::multispace0;
 
 use crate::ast::{Item, Program};
 use crate::error::{MatcError, Result};
+use crate::parser::utils::skip_ws_and_comments;
 
 pub struct Parser<'a> {
     file_name: String,
@@ -34,7 +33,7 @@ impl<'a> Parser<'a> {
         let mut items = Vec::new();
 
         while !input.trim().is_empty() {
-            let _: ModalResult<&str> = multispace0.parse_next(&mut input);
+            let _ = skip_ws_and_comments(&mut input);
             if input.trim().is_empty() {
                 break;
             }
