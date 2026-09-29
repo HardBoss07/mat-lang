@@ -251,7 +251,7 @@ fn main() {
 }
 
 // ---------------------------------------------------------------------------
-// 10. Negative syntax error tests — parser must fail gracefully
+// 10. Negative syntax error tests - parser must fail gracefully
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -304,4 +304,51 @@ fn test_parser_error_bad_token_in_expression() {
         result.is_err(),
         "expected a parse error for invalid token, got Ok"
     );
+}
+
+// ---------------------------------------------------------------------------
+// 11. Comments: single-line and multi-line block comments
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_parser_skips_comments() {
+    let src_with_comments = r#"
+/*
+This is a comment block that can be used to describe the purpose of the code, provide author information, or any other relevant details. Comments are ignored by the compiler and are meant for developers to understand the code better.
+*/
+fn main() {
+    let x: int = 5; // This is a single-line comment explaining that x is initialized to 5
+    println("x = {x}");
+}
+"#;
+
+    let src_without_comments = r#"
+fn main() {
+    let x: int = 5;
+    println("x = {x}");
+}
+"#;
+
+    let prog_with_comments = parse(src_with_comments);
+    let prog_clean = parse(src_without_comments);
+
+    assert_eq!(
+        prog_with_comments, prog_clean,
+        "AST generated from commented code must match clean code AST"
+    );
+}
+
+#[test]
+fn test_parser_comments_ast() {
+    let src = r#"
+/*
+This is a comment block that can be used to describe the purpose of the code, provide author information, or any other relevant details. Comments are ignored by the compiler and are meant for developers to understand the code better.
+*/
+fn main() {
+    let x: int = 5; // This is a single-line comment explaining that x is initialized to 5
+    println("x = {x}");
+}
+"#;
+    let prog = parse(src);
+    insta::assert_yaml_snapshot!("comments_ast", prog);
 }

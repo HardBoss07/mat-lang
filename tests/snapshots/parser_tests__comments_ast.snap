@@ -1,0 +1,28 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: x
+            is_mutable: false
+            ty: Int
+            value:
+              IntLiteral:
+                - 5
+        - Expression:
+            Call:
+              callee: println
+              arguments:
+                - InterpolatedString:
+                    - - - StringLiteral:
+                            - "x = "
+                        - None
+                      - - Identifier:
+                            - x
+                        - None
