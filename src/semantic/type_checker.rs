@@ -62,6 +62,14 @@ impl TypeChecker {
             SourceSpan::from(span),
         )
     }
+
+    pub(crate) fn undefined_variable(&self, name: impl Into<String>, span: Span) -> MatcError {
+        MatcError::undefined_variable(&self.file_name, &self.source, name, SourceSpan::from(span))
+    }
+
+    pub(crate) fn undefined_function(&self, name: impl Into<String>, span: Span) -> MatcError {
+        MatcError::undefined_function(&self.file_name, &self.source, name, SourceSpan::from(span))
+    }
 }
 
 impl Default for TypeChecker {

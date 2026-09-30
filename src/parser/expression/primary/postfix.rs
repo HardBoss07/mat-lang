@@ -5,8 +5,8 @@ use winnow::combinator::{delimited, separated};
 
 use super::super::parse_expression;
 use super::parse_primary_expression;
-use crate::ast::{Expression, Span};
-use crate::parser::utils::skip_ws_and_comments;
+use crate::ast::Expression;
+use crate::parser::utils::{get_span_between_ptrs, skip_ws_and_comments};
 
 pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
     let mut expr = parse_primary_expression.parse_next(input)?;
@@ -18,18 +18,20 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
                 Expression::Identifier(name, _) => name.clone(),
                 _ => break,
             };
+            let start_offset = expr.span().start;
             let args_res: ModalResult<Vec<Expression>> =
                 delimited('(', separated(0.., parse_expression, ','), ')').parse_next(input);
             if let Ok(args) = args_res {
                 expr = Expression::Call {
                     callee: callee_name,
                     arguments: args,
-                    span: Span::new(0, 0),
+                    span: get_span_between_ptrs(start_offset, *input),
                 };
                 continue;
             }
             break;
         } else if input.starts_with('.') {
+            let start_offset = expr.span().start;
             let mut checkpoint = *input;
             checkpoint = &checkpoint[1..];
             let idx_res: ModalResult<&str> = digit1.parse_next(&mut checkpoint);
@@ -39,12 +41,13 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
                 expr = Expression::TupleAccess {
                     expr: Box::new(expr),
                     index,
-                    span: Span::new(0, 0),
+                    span: get_span_between_ptrs(start_offset, *input),
                 };
                 continue;
             }
             break;
         } else if input.starts_with('[') {
+            let start_offset = expr.span().start;
             let mut checkpoint = *input;
             checkpoint = &checkpoint[1..];
             if let Ok(index) = parse_expression.parse_next(&mut checkpoint) {
@@ -55,7 +58,7 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
                     expr = Expression::ArrayAccess {
                         expr: Box::new(expr),
                         index: Box::new(index),
-                        span: Span::new(0, 0),
+                        span: get_span_between_ptrs(start_offset, *input),
                     };
                     continue;
                 }

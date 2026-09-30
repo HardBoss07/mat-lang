@@ -77,9 +77,7 @@ impl TypeChecker {
             } => {
                 let sym = symbols
                     .lookup(target)
-                    .ok_or_else(|| {
-                        self.type_error(format!("Undefined variable: {}", target), *span)
-                    })?
+                    .ok_or_else(|| self.undefined_variable(target, *span))?
                     .clone();
                 self.check_expr(value, &sym.ty, symbols)?;
             }
@@ -91,16 +89,14 @@ impl TypeChecker {
             } => {
                 let sym = symbols
                     .lookup(target)
-                    .ok_or_else(|| {
-                        self.type_error(format!("Undefined variable: {}", target), *span)
-                    })?
+                    .ok_or_else(|| self.undefined_variable(target, *span))?
                     .clone();
                 self.check_expr(value, &sym.ty, symbols)?;
             }
             Statement::Increment { target, span } | Statement::Decrement { target, span } => {
-                let _ = symbols.lookup(target).ok_or_else(|| {
-                    self.type_error(format!("Undefined variable: {}", target), *span)
-                })?;
+                let _ = symbols
+                    .lookup(target)
+                    .ok_or_else(|| self.undefined_variable(target, *span))?;
             }
             Statement::Expression(expr) => {
                 self.synthesize_expr(expr, symbols)?;

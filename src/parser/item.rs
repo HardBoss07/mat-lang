@@ -3,27 +3,27 @@ use winnow::Parser;
 use winnow::ascii::multispace1;
 use winnow::token::literal;
 
-use crate::ast::{FunctionDeclaration, Param, Span, Type};
+use crate::ast::{FunctionDeclaration, Param, Type};
 use crate::parser::expression::primary::parse_identifier_str;
 use crate::parser::statement::parse_block;
 use crate::parser::types::parse_type;
-use crate::parser::utils::skip_ws_and_comments;
+use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 
 pub fn parse_param(input: &mut &str) -> ModalResult<Param> {
-    let checkpoint = *input;
+    let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
 
     let name = match parse_identifier_str.parse_next(input) {
         Ok(n) => n.to_string(),
         Err(e) => {
-            *input = checkpoint;
+            *input = start_input;
             return Err(e);
         }
     };
     let _ = skip_ws_and_comments(input)?;
 
     if !input.starts_with(':') {
-        *input = checkpoint;
+        *input = start_input;
         return Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::default(),
         ));
@@ -32,20 +32,21 @@ pub fn parse_param(input: &mut &str) -> ModalResult<Param> {
     let _ = skip_ws_and_comments(input)?;
 
     let ty = parse_type.parse_next(input)?;
+    let end_input = *input;
 
     Ok(Param {
         name,
         ty,
-        span: Span::new(0, 0),
+        span: get_span_between(start_input, end_input),
     })
 }
 
 pub fn parse_function(input: &mut &str) -> ModalResult<FunctionDeclaration> {
-    let checkpoint = *input;
+    let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
 
     if !input.starts_with("fn") {
-        *input = checkpoint;
+        *input = start_input;
         return Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::default(),
         ));
@@ -58,7 +59,7 @@ pub fn parse_function(input: &mut &str) -> ModalResult<FunctionDeclaration> {
     let _ = skip_ws_and_comments(input)?;
 
     if !input.starts_with('(') {
-        *input = checkpoint;
+        *input = start_input;
         return Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::default(),
         ));
@@ -85,7 +86,7 @@ pub fn parse_function(input: &mut &str) -> ModalResult<FunctionDeclaration> {
     }
 
     if !input.starts_with(')') {
-        *input = checkpoint;
+        *input = start_input;
         return Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::default(),
         ));
@@ -103,12 +104,13 @@ pub fn parse_function(input: &mut &str) -> ModalResult<FunctionDeclaration> {
 
     let _ = skip_ws_and_comments(input)?;
     let body = parse_block(input)?;
+    let end_input = *input;
 
     Ok(FunctionDeclaration {
         name,
         params,
         return_type,
         body,
-        span: Span::new(0, 0),
+        span: get_span_between(start_input, end_input),
     })
 }

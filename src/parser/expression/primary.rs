@@ -14,7 +14,7 @@ use super::literals::{
     parse_bool_literal, parse_float_literal, parse_int_literal, parse_string_or_interpolated,
 };
 use crate::ast::{BinaryOp, Expression, Span};
-use crate::parser::utils::skip_ws_and_comments;
+use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 
 pub fn parse_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
     let _ = skip_ws_and_comments(input)?;
@@ -28,10 +28,12 @@ pub fn parse_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
 
 pub fn parse_identifier(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
+    let _ = skip_ws_and_comments(input)?;
+    let tok_start = *input;
     match parse_identifier_str.parse_next(input) {
         Ok(name) => Ok(Expression::Identifier(
             name.to_string(),
-            Span::new(0, name.len()),
+            get_span_between(tok_start, *input),
         )),
         Err(e) => {
             *input = checkpoint;
@@ -43,6 +45,7 @@ pub fn parse_identifier(input: &mut &str) -> ModalResult<Expression> {
 pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
     let _ = skip_ws_and_comments(input)?;
+    let tok_start = *input;
 
     let is_ok = if input.starts_with("Ok") {
         let after = &input[2..];
@@ -109,11 +112,18 @@ pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
         ));
     }
     *input = &input[1..];
+    let tok_end = *input;
 
     if is_ok {
-        Ok(Expression::Ok(Box::new(inner_expr), Span::new(0, 0)))
+        Ok(Expression::Ok(
+            Box::new(inner_expr),
+            get_span_between(tok_start, tok_end),
+        ))
     } else {
-        Ok(Expression::Err(Box::new(inner_expr), Span::new(0, 0)))
+        Ok(Expression::Err(
+            Box::new(inner_expr),
+            get_span_between(tok_start, tok_end),
+        ))
     }
 }
 
@@ -154,11 +164,13 @@ pub fn parse_multiplicative_expression(input: &mut &str) -> ModalResult<Expressi
         *input = &input[1..];
 
         let right = parse_postfix_expression.parse_next(input)?;
+        let start = left.span().start;
+        let end = right.span().end;
         left = Expression::Binary {
             op,
             left: Box::new(left),
             right: Box::new(right),
-            span: Span::new(0, 0),
+            span: Span::new(start, end),
         };
     }
 
@@ -189,11 +201,13 @@ pub fn parse_additive_expression(input: &mut &str) -> ModalResult<Expression> {
         *input = &input[1..];
 
         let right = parse_multiplicative_expression.parse_next(input)?;
+        let start = left.span().start;
+        let end = right.span().end;
         left = Expression::Binary {
             op,
             left: Box::new(left),
             right: Box::new(right),
-            span: Span::new(0, 0),
+            span: Span::new(start, end),
         };
     }
 
@@ -220,11 +234,13 @@ pub fn parse_shift_expression(input: &mut &str) -> ModalResult<Expression> {
         *input = &input[2..];
 
         let right = parse_additive_expression.parse_next(input)?;
+        let start = left.span().start;
+        let end = right.span().end;
         left = Expression::Binary {
             op,
             left: Box::new(left),
             right: Box::new(right),
-            span: Span::new(0, 0),
+            span: Span::new(start, end),
         };
     }
 
@@ -258,11 +274,13 @@ pub fn parse_relational_expression(input: &mut &str) -> ModalResult<Expression> 
         }
 
         let right = parse_shift_expression.parse_next(input)?;
+        let start = left.span().start;
+        let end = right.span().end;
         left = Expression::Binary {
             op,
             left: Box::new(left),
             right: Box::new(right),
-            span: Span::new(0, 0),
+            span: Span::new(start, end),
         };
     }
 
@@ -286,11 +304,13 @@ pub fn parse_equality_expression(input: &mut &str) -> ModalResult<Expression> {
         *input = &input[2..];
 
         let right = parse_relational_expression.parse_next(input)?;
+        let start = left.span().start;
+        let end = right.span().end;
         left = Expression::Binary {
             op,
             left: Box::new(left),
             right: Box::new(right),
-            span: Span::new(0, 0),
+            span: Span::new(start, end),
         };
     }
 
@@ -306,11 +326,13 @@ pub fn parse_logical_and_expression(input: &mut &str) -> ModalResult<Expression>
         if input.starts_with("&&") {
             *input = &input[2..];
             let right = parse_equality_expression.parse_next(input)?;
+            let start = left.span().start;
+            let end = right.span().end;
             left = Expression::Binary {
                 op: BinaryOp::And,
                 left: Box::new(left),
                 right: Box::new(right),
-                span: Span::new(0, 0),
+                span: Span::new(start, end),
             };
         } else {
             break;
@@ -329,11 +351,13 @@ pub fn parse_logical_or_expression(input: &mut &str) -> ModalResult<Expression> 
         if input.starts_with("||") {
             *input = &input[2..];
             let right = parse_logical_and_expression.parse_next(input)?;
+            let start = left.span().start;
+            let end = right.span().end;
             left = Expression::Binary {
                 op: BinaryOp::Or,
                 left: Box::new(left),
                 right: Box::new(right),
-                span: Span::new(0, 0),
+                span: Span::new(start, end),
             };
         } else {
             break;

@@ -35,6 +35,36 @@ pub enum MatcError {
         span: SourceSpan,
     },
 
+    #[error("Type Error: Undefined variable: {name}")]
+    #[diagnostic(
+        code(matc::undefined_variable),
+        help("ensure the variable is declared in the current scope before using it")
+    )]
+    UndefinedVariable {
+        #[source_code]
+        src: NamedSource<String>,
+
+        name: String,
+
+        #[label("undefined variable here")]
+        span: SourceSpan,
+    },
+
+    #[error("Type Error: Undefined function: {name}")]
+    #[diagnostic(
+        code(matc::undefined_function),
+        help("ensure the function is defined or imported before calling it")
+    )]
+    UndefinedFunction {
+        #[source_code]
+        src: NamedSource<String>,
+
+        name: String,
+
+        #[label("undefined function here")]
+        span: SourceSpan,
+    },
+
     #[error("LLVM Codegen Error: {0}")]
     CodegenError(String),
 }
@@ -62,6 +92,32 @@ impl MatcError {
         MatcError::TypeError {
             src: NamedSource::new(file_name.into(), source.into()),
             message: message.into(),
+            span: span.into(),
+        }
+    }
+
+    pub fn undefined_variable(
+        file_name: impl Into<String>,
+        source: impl Into<String>,
+        name: impl Into<String>,
+        span: impl Into<SourceSpan>,
+    ) -> Self {
+        MatcError::UndefinedVariable {
+            src: NamedSource::new(file_name.into(), source.into()),
+            name: name.into(),
+            span: span.into(),
+        }
+    }
+
+    pub fn undefined_function(
+        file_name: impl Into<String>,
+        source: impl Into<String>,
+        name: impl Into<String>,
+        span: impl Into<SourceSpan>,
+    ) -> Self {
+        MatcError::UndefinedFunction {
+            src: NamedSource::new(file_name.into(), source.into()),
+            name: name.into(),
             span: span.into(),
         }
     }

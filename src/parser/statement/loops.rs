@@ -2,7 +2,7 @@ use winnow::ModalResult;
 use winnow::Parser;
 use winnow::combinator::alt;
 
-use crate::ast::{Span, Statement};
+use crate::ast::Statement;
 use crate::parser::expression::parse_expression;
 use crate::parser::expression::primary::parse_identifier_str;
 use crate::parser::statement::assignment::{
@@ -10,7 +10,7 @@ use crate::parser::statement::assignment::{
 };
 use crate::parser::statement::declaration::parse_let_statement;
 use crate::parser::statement::parse_block;
-use crate::parser::utils::{keyword, skip_ws_and_comments, symbol};
+use crate::parser::utils::{get_span_between, keyword, skip_ws_and_comments, symbol};
 
 fn parse_step_statement(input: &mut &str) -> ModalResult<Statement> {
     let checkpoint = *input;
@@ -21,15 +21,17 @@ fn parse_step_statement(input: &mut &str) -> ModalResult<Statement> {
 
     if input.starts_with("++") {
         *input = &input[2..];
+        let end_input = *input;
         Ok(Statement::Increment {
             target,
-            span: Span::new(0, 0),
+            span: get_span_between(checkpoint, end_input),
         })
     } else if input.starts_with("--") {
         *input = &input[2..];
+        let end_input = *input;
         Ok(Statement::Decrement {
             target,
-            span: Span::new(0, 0),
+            span: get_span_between(checkpoint, end_input),
         })
     } else if input.starts_with("+=")
         || input.starts_with("-=")
@@ -38,18 +40,10 @@ fn parse_step_statement(input: &mut &str) -> ModalResult<Statement> {
         || input.starts_with("%=")
     {
         *input = checkpoint;
-        let mut compound = parse_compound_assignment_statement(input)?;
-        if let Statement::CompoundAssignment { ref mut span, .. } = compound {
-            *span = Span::new(0, 0);
-        }
-        Ok(compound)
+        parse_compound_assignment_statement(input)
     } else if input.starts_with('=') {
         *input = checkpoint;
-        let mut assign = parse_assignment_statement(input)?;
-        if let Statement::Assignment { ref mut span, .. } = assign {
-            *span = Span::new(0, 0);
-        }
-        Ok(assign)
+        parse_assignment_statement(input)
     } else {
         *input = checkpoint;
         Err(winnow::error::ErrMode::Backtrack(
@@ -59,28 +53,35 @@ fn parse_step_statement(input: &mut &str) -> ModalResult<Statement> {
 }
 
 pub fn parse_loop_statement(input: &mut &str) -> ModalResult<Statement> {
+    let start_input = *input;
     let _ = keyword("loop").parse_next(input)?;
     let body = parse_block(input)?;
+    let end_input = *input;
+
     Ok(Statement::Loop {
         body,
-        span: Span::new(0, 0),
+        span: get_span_between(start_input, end_input),
     })
 }
 
 pub fn parse_while_statement(input: &mut &str) -> ModalResult<Statement> {
+    let start_input = *input;
     let _ = keyword("while").parse_next(input)?;
     let _ = skip_ws_and_comments(input)?;
 
     let condition = parse_expression.parse_next(input)?;
     let body = parse_block(input)?;
+    let end_input = *input;
+
     Ok(Statement::While {
         condition,
         body,
-        span: Span::new(0, 0),
+        span: get_span_between(start_input, end_input),
     })
 }
 
 pub fn parse_fori_statement(input: &mut &str) -> ModalResult<Statement> {
+    let start_input = *input;
     let _ = keyword("fori").parse_next(input)?;
     let _ = symbol("(").parse_next(input)?;
 
@@ -99,21 +100,23 @@ pub fn parse_fori_statement(input: &mut &str) -> ModalResult<Statement> {
     let _ = symbol(")").parse_next(input)?;
 
     let body = parse_block(input)?;
+    let end_input = *input;
+
     Ok(Statement::ForI {
         init: Box::new(init),
         condition,
         step: Box::new(step),
         body,
-        span: Span::new(0, 0),
+        span: get_span_between(start_input, end_input),
     })
 }
 
 pub fn parse_for_in_statement(input: &mut &str) -> ModalResult<Statement> {
-    let checkpoint = *input;
+    let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
 
     if !input.starts_with("for") || input.starts_with("fori") {
-        *input = checkpoint;
+        *input = start_input;
         return Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::default(),
         ));
@@ -127,10 +130,12 @@ pub fn parse_for_in_statement(input: &mut &str) -> ModalResult<Statement> {
 
     let iterable = parse_expression.parse_next(input)?;
     let body = parse_block(input)?;
+    let end_input = *input;
+
     Ok(Statement::ForIn {
         var_name,
         iterable,
         body,
-        span: Span::new(0, 0),
+        span: get_span_between(start_input, end_input),
     })
 }

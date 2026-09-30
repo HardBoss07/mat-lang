@@ -13,7 +13,7 @@ use winnow::Parser as WinnowParser;
 
 use crate::ast::{Item, Program};
 use crate::error::{MatcError, Result};
-use crate::parser::utils::skip_ws_and_comments;
+use crate::parser::utils::{set_root_source, skip_ws_and_comments};
 
 pub struct Parser<'a> {
     file_name: String,
@@ -29,6 +29,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_program(&mut self) -> Result<Program> {
+        set_root_source(self.source);
         let mut input = self.source;
         let mut items = Vec::new();
 

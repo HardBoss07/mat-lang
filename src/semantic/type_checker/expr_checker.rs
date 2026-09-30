@@ -7,9 +7,9 @@ impl TypeChecker {
     pub fn synthesize_expr(&self, expr: &Expression, symbols: &SymbolTable) -> Result<Type> {
         match expr {
             Expression::Identifier(name, span) => {
-                let sym = symbols.lookup(name).ok_or_else(|| {
-                    self.type_error(format!("Undefined variable: {}", name), *span)
-                })?;
+                let sym = symbols
+                    .lookup(name)
+                    .ok_or_else(|| self.undefined_variable(name, *span))?;
                 Ok(sym.ty.clone())
             }
             Expression::IntLiteral(_, _) => Ok(Type::Int),
@@ -97,9 +97,7 @@ impl TypeChecker {
             } => {
                 let fn_sym = symbols
                     .lookup_function(callee)
-                    .ok_or_else(|| {
-                        self.type_error(format!("Undefined function: {}", callee), *span)
-                    })?
+                    .ok_or_else(|| self.undefined_function(callee, *span))?
                     .clone();
 
                 if callee != "println" && arguments.len() != fn_sym.param_types.len() {

@@ -1,7 +1,56 @@
+use std::cell::Cell;
 use winnow::ModalResult;
 use winnow::Parser;
 use winnow::ascii::multispace0;
 use winnow::token::literal;
+
+use crate::ast::Span;
+
+thread_local! {
+    static ROOT_PTR: Cell<usize> = const { Cell::new(0) };
+}
+
+pub fn set_root_source(source: &str) {
+    ROOT_PTR.with(|p| p.set(source.as_ptr() as usize));
+}
+
+pub fn get_span(slice: &str) -> Span {
+    ROOT_PTR.with(|p| {
+        let root = p.get();
+        if root == 0 || (slice.as_ptr() as usize) < root {
+            Span::new(0, slice.len())
+        } else {
+            let start = slice.as_ptr() as usize - root;
+            Span::new(start, start + slice.len())
+        }
+    })
+}
+
+pub fn get_span_between(start_slice: &str, end_slice: &str) -> Span {
+    ROOT_PTR.with(|p| {
+        let root = p.get();
+        if root == 0 || (start_slice.as_ptr() as usize) < root {
+            let len = start_slice.len().saturating_sub(end_slice.len());
+            Span::new(0, len)
+        } else {
+            let start = start_slice.as_ptr() as usize - root;
+            let end = end_slice.as_ptr() as usize - root;
+            Span::new(start, end)
+        }
+    })
+}
+
+pub fn get_span_between_ptrs(start_offset: usize, end_slice: &str) -> Span {
+    ROOT_PTR.with(|p| {
+        let root = p.get();
+        if root == 0 || (end_slice.as_ptr() as usize) < root {
+            Span::new(start_offset, start_offset)
+        } else {
+            let end = end_slice.as_ptr() as usize - root;
+            Span::new(start_offset, end)
+        }
+    })
+}
 
 pub fn skip_ws_and_comments(input: &mut &str) -> ModalResult<()> {
     loop {
@@ -29,7 +78,6 @@ pub fn skip_ws_and_comments(input: &mut &str) -> ModalResult<()> {
                 }
             }
 
-            // Unterminated block comment
             if depth > 0 {
                 return Err(winnow::error::ErrMode::Backtrack(
                     winnow::error::ContextError::default(),

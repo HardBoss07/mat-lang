@@ -2,12 +2,12 @@ use winnow::ModalResult;
 use winnow::Parser;
 use winnow::token::literal;
 
-use crate::ast::{MatchArm, MatchPattern, Span, Statement};
+use crate::ast::{MatchArm, MatchPattern, Statement};
 use crate::parser::expression::parse_expression;
 use crate::parser::expression::primary::parse_identifier_str;
 use crate::parser::statement::parse_block;
 use crate::parser::statement::parse_statement;
-use crate::parser::utils::{keyword, skip_ws_and_comments, symbol};
+use crate::parser::utils::{get_span_between, keyword, skip_ws_and_comments, symbol};
 
 pub fn parse_match_arm(input: &mut &str) -> ModalResult<MatchArm> {
     let _ = skip_ws_and_comments(input)?;
@@ -46,6 +46,7 @@ pub fn parse_match_arm(input: &mut &str) -> ModalResult<MatchArm> {
 }
 
 pub fn parse_match_statement(input: &mut &str) -> ModalResult<Statement> {
+    let start_input = *input;
     let _ = keyword("match").parse_next(input)?;
     let _ = skip_ws_and_comments(input)?;
 
@@ -61,15 +62,17 @@ pub fn parse_match_statement(input: &mut &str) -> ModalResult<Statement> {
     }
 
     let _ = symbol("}").parse_next(input)?;
+    let end_input = *input;
 
     Ok(Statement::Match {
         expr,
         arms,
-        span: Span::new(0, 0),
+        span: get_span_between(start_input, end_input),
     })
 }
 
 pub fn parse_if_statement(input: &mut &str) -> ModalResult<Statement> {
+    let start_input = *input;
     let _ = keyword("if").parse_next(input)?;
     let _ = skip_ws_and_comments(input)?;
 
@@ -101,11 +104,12 @@ pub fn parse_if_statement(input: &mut &str) -> ModalResult<Statement> {
     } else {
         None
     };
+    let end_input = *input;
 
     Ok(Statement::If {
         condition,
         then_branch,
         else_branch,
-        span: Span::new(0, 0),
+        span: get_span_between(start_input, end_input),
     })
 }

@@ -5,15 +5,16 @@ use winnow::combinator::alt;
 use winnow::token::literal;
 
 use super::primary::parse_expression;
-use crate::ast::{Expression, FormatSpecifier, Span};
-use crate::parser::utils::skip_ws_and_comments;
+use crate::ast::{Expression, FormatSpecifier};
+use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 
 pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
-    let checkpoint = *input;
+    let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
 
     let remaining = *input;
     if remaining.starts_with("0b") || remaining.starts_with("0B") {
+        let tok_start = *input;
         *input = &remaining[2..];
         let mut bin_str = String::new();
         while !input.is_empty() {
@@ -31,18 +32,19 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
             if let Ok(value) = i64::from_str_radix(&bin_str, 2) {
                 return Ok(Expression::IntLiteral(
                     value,
-                    Span::new(0, remaining.len() - input.len()),
+                    get_span_between(tok_start, *input),
                 ));
             }
         }
 
-        *input = checkpoint;
+        *input = start_input;
         return Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::default(),
         ));
     }
 
     if remaining.starts_with("0x") || remaining.starts_with("0X") {
+        let tok_start = *input;
         *input = &remaining[2..];
         let mut hex_str = String::new();
         while !input.is_empty() {
@@ -60,18 +62,18 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
             if let Ok(value) = i64::from_str_radix(&hex_str, 16) {
                 return Ok(Expression::IntLiteral(
                     value,
-                    Span::new(0, remaining.len() - input.len()),
+                    get_span_between(tok_start, *input),
                 ));
             }
         }
 
-        *input = checkpoint;
+        *input = start_input;
         return Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::default(),
         ));
     }
 
-    let start_len = input.len();
+    let tok_start = *input;
     let mut dec_str = String::new();
     let mut count = 0;
     while !input.is_empty() {
@@ -90,52 +92,61 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
         if let Ok(val) = dec_str.parse::<i64>() {
             return Ok(Expression::IntLiteral(
                 val,
-                Span::new(0, start_len - input.len()),
+                get_span_between(tok_start, *input),
             ));
         }
     }
 
-    *input = checkpoint;
+    *input = start_input;
     Err(winnow::error::ErrMode::Backtrack(
         winnow::error::ContextError::default(),
     ))
 }
 
 pub fn parse_float_literal(input: &mut &str) -> ModalResult<Expression> {
-    let checkpoint = *input;
+    let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
+    let tok_start = *input;
     let float_res: ModalResult<&str> = (digit1, '.', digit1).take().parse_next(input);
     if let Ok(float_str) = float_res {
         if let Ok(val) = float_str.parse::<f64>() {
-            return Ok(Expression::FloatLiteral(val, Span::new(0, float_str.len())));
+            return Ok(Expression::FloatLiteral(
+                val,
+                get_span_between(tok_start, *input),
+            ));
         }
     }
-    *input = checkpoint;
+    *input = start_input;
     Err(winnow::error::ErrMode::Backtrack(
         winnow::error::ContextError::default(),
     ))
 }
 
 pub fn parse_bool_literal(input: &mut &str) -> ModalResult<Expression> {
-    let checkpoint = *input;
+    let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
+    let tok_start = *input;
     let bool_res: ModalResult<bool> =
         alt((literal("tru").map(|_| true), literal("fal").map(|_| false))).parse_next(input);
     if let Ok(val) = bool_res {
-        return Ok(Expression::BoolLiteral(val, Span::new(0, 3)));
+        return Ok(Expression::BoolLiteral(
+            val,
+            get_span_between(tok_start, *input),
+        ));
     }
-    *input = checkpoint;
+    *input = start_input;
     Err(winnow::error::ErrMode::Backtrack(
         winnow::error::ContextError::default(),
     ))
 }
 
 pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression> {
-    let checkpoint = *input;
+    let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
+    let tok_start = *input;
 
     if !input.starts_with('"') {
-        *input = checkpoint;
+        *input = start_input;
         return Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::default(),
         ));
@@ -171,7 +182,10 @@ pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression>
         } else if c == '{' {
             if !current_text.is_empty() {
                 parts.push((
-                    Expression::StringLiteral(current_text.clone(), Span::new(0, 0)),
+                    Expression::StringLiteral(
+                        current_text.clone(),
+                        get_span_between(tok_start, *input),
+                    ),
                     FormatSpecifier::None,
                 ));
                 current_text.clear();
@@ -219,18 +233,22 @@ pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression>
         }
     }
 
+    let tok_end = *input;
+
     if !current_text.is_empty() {
         parts.push((
-            Expression::StringLiteral(current_text, Span::new(0, 0)),
+            Expression::StringLiteral(current_text, get_span_between(tok_start, tok_end)),
             FormatSpecifier::None,
         ));
     }
 
+    let full_span = get_span_between(tok_start, tok_end);
+
     if parts.len() == 1 {
-        if let (Expression::StringLiteral(s, span), FormatSpecifier::None) = &parts[0] {
-            return Ok(Expression::StringLiteral(s.clone(), *span));
+        if let (Expression::StringLiteral(s, _), FormatSpecifier::None) = &parts[0] {
+            return Ok(Expression::StringLiteral(s.clone(), full_span));
         }
     }
 
-    Ok(Expression::InterpolatedString(parts, Span::new(0, 0)))
+    Ok(Expression::InterpolatedString(parts, full_span))
 }
