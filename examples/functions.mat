@@ -1,3 +1,27 @@
+fn main() {
+    print_separator();
+    greet_user(18, tru);
+
+    print_separator();
+    let sum: int = add(15, 27);
+    let even: bool = is_even(sum);
+    println("Sum: {sum}, Is Even: {even}");
+
+    print_separator();
+    let valid_res: Result<int, String> = divide(100, 5);
+    let error_res: Result<int, String> = divide(42, 0);
+
+    match (valid_res) {
+        Ok(value) => println("Result: {value}");
+        Err(err)  => println("Error: {err}");
+    }
+
+    match (error_res) {
+        Ok(value) => println("Result: {value}");
+        Err(err)  => println("Error: {err}");
+    }
+}
+
 fn print_separator() {
     println("========================================");
 }
@@ -26,28 +50,4 @@ fn divide(numerator: int, denominator: int) -> Result<int, String> {
         return Err("Division by zero error");
     }
     return Ok(numerator / denominator);
-}
-
-fn main() {
-    print_separator();
-    greet_user(18, tru);
-
-    print_separator();
-    let sum: int = add(15, 27);
-    let even: bool = is_even(sum);
-    println("Sum: {sum}, Is Even: {even}");
-
-    print_separator();
-    let valid_res: Result<int, String> = divide(100, 5);
-    let error_res: Result<int, String> = divide(42, 0);
-
-    match (valid_res) {
-        Ok(value) => println("Result: {value}");
-        Err(err)  => println("Error: {err}");
-    }
-
-    match (error_res) {
-        Ok(value) => println("Result: {value}");
-        Err(err)  => println("Error: {err}");
-    }
 }

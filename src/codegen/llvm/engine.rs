@@ -37,6 +37,8 @@ impl<'ctx> CodegenEngine<'ctx> {
 
     pub fn compile_program(&self, program: &Program) -> Result<()> {
         let mut global_symbols = SymbolTable::new();
+
+        // Pass 1: Declare all function prototypes in the LLVM module first
         for item in &program.items {
             match item {
                 Item::Function(func) => {
@@ -46,23 +48,24 @@ impl<'ctx> CodegenEngine<'ctx> {
                         param_tys,
                         func.return_type.clone(),
                     );
+                    self.declare_function_prototype(func);
                 }
             }
         }
 
+        // Pass 2: Compile function bodies
         for item in &program.items {
             match item {
-                Item::Function(func) => self.compile_function(func, &global_symbols)?,
+                Item::Function(func) => self.compile_function_body(func, &global_symbols)?,
             }
         }
         Ok(())
     }
 
-    fn compile_function(
+    fn declare_function_prototype(
         &self,
         func: &FunctionDeclaration,
-        global_symbols: &SymbolTable,
-    ) -> Result<()> {
+    ) -> inkwell::values::FunctionValue<'ctx> {
         let symbol_name = mangle_symbol(&func.name);
 
         let param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = func
@@ -82,7 +85,22 @@ impl<'ctx> CodegenEngine<'ctx> {
             ret_llvm.fn_type(&param_types, false)
         };
 
-        let fn_value = self.module.add_function(&symbol_name, fn_type, None);
+        if let Some(existing) = self.module.get_function(&symbol_name) {
+            existing
+        } else {
+            self.module.add_function(&symbol_name, fn_type, None)
+        }
+    }
+
+    fn compile_function_body(
+        &self,
+        func: &FunctionDeclaration,
+        global_symbols: &SymbolTable,
+    ) -> Result<()> {
+        let symbol_name = mangle_symbol(&func.name);
+        let fn_value = self.module.get_function(&symbol_name).ok_or_else(|| {
+            MatcError::CodegenError(format!("Function prototype '{}' not found", symbol_name))
+        })?;
 
         let entry_block = self.context.append_basic_block(fn_value, "entry");
         self.builder.position_at_end(entry_block);
