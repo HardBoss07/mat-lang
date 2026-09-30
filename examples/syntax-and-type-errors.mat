@@ -1,0 +1,9 @@
+fn main() {
+    // let a: int = "String";
+    // let b: String = tru;
+
+    let actual_string = "This is a real string";
+    println("bin is {actual_string:bin}, hex is {actual_string:hex}");
+
+    let value = this_variable_doesnt_exist * 5;
+}

@@ -2,7 +2,7 @@
 //
 // Semantic analysis / type checker integration tests.
 // Positive tests verify valid programs pass; negative tests verify that
-// specific error conditions produce `Err(MatcError::TypeError { .. })`.
+// specific error conditions produce semantic error variants.
 
 mod common;
 use common::check;
@@ -29,8 +29,26 @@ fn assert_type_err_contains(src: &str, substring: &str) {
                 message
             );
         }
-        Err(other) => panic!("expected TypeError, got: {:?}", other),
-        Ok(()) => panic!("expected TypeError but program passed type-checking"),
+        Err(MatcError::UndefinedVariable { name, .. }) => {
+            let msg = format!("Undefined variable: {}", name);
+            assert!(
+                msg.contains(substring) || name.contains(substring),
+                "expected error message to contain {:?}, got:\n  {}",
+                substring,
+                msg
+            );
+        }
+        Err(MatcError::UndefinedFunction { name, .. }) => {
+            let msg = format!("Undefined function: {}", name);
+            assert!(
+                msg.contains(substring) || name.contains(substring),
+                "expected error message to contain {:?}, got:\n  {}",
+                substring,
+                msg
+            );
+        }
+        Err(other) => panic!("expected semantic error, got: {:?}", other),
+        Ok(()) => panic!("expected semantic error but program passed type-checking"),
     }
 }
 

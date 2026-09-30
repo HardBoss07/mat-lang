@@ -7,18 +7,7 @@
 mod common;
 
 use common::parse;
-use matc::ast::Item;
-use matc::ast::Statement;
 use matc::parser::Parser;
-
-// ---------------------------------------------------------------------------
-// Helper
-// ---------------------------------------------------------------------------
-fn body_of(src: &str) -> Vec<Statement> {
-    match parse(src).items.into_iter().next().unwrap() {
-        Item::Function(f) => f.body,
-    }
-}
 
 // ---------------------------------------------------------------------------
 // 1. Variables, literals, and basic types
@@ -332,9 +321,12 @@ fn main() {
     let prog_with_comments = parse(src_with_comments);
     let prog_clean = parse(src_without_comments);
 
+    let json_with_comments = serde_json::to_value(&prog_with_comments).unwrap();
+    let json_clean = serde_json::to_value(&prog_clean).unwrap();
+
     assert_eq!(
-        prog_with_comments, prog_clean,
-        "AST generated from commented code must match clean code AST"
+        json_with_comments, json_clean,
+        "AST generated from commented code must match clean code AST (ignoring spans)"
     );
 }
 
