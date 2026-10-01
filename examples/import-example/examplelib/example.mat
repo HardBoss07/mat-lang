@@ -1,0 +1,10 @@
+import samelevel;
+
+pub fn greet(name: String) -> String {
+    return "Hello, {name}!";
+}
+
+pub fn double_separator() {
+    samelevel::separator();
+    samelevel::separator();
+}

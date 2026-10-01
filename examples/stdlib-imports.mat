@@ -1,0 +1,38 @@
+import std::fs;
+import std::io;
+
+fn main() {
+    let file_path: String = "examples/output.txt";
+    let text_to_write: String = "Hello from mat-lang standard library I/O!";
+
+    // Demonstrating std::io functions
+    io::print_str("Writing content to file: ");
+    io::println_str(file_path);
+
+    // Demonstrating std::fs::write_string
+    let write_res: Result<bool, String> = fs::write_string(file_path, text_to_write);
+
+    match (write_res) {
+        Ok(success) => {
+            io::println_str("Successfully wrote text to disk.");
+        }
+        Err(err) => {
+            io::println_str("Failed to write to file: {err}");
+        }
+    }
+
+    io::println_str("\nReading content back from disk...");
+
+    // Demonstrating std::fs::read_to_string
+    let read_res = fs::read_to_string(file_path);
+
+    match (read_res) {
+        Ok(content) => {
+            io::print_str("File Content:\n");
+            io::println_str(content);
+        }
+        Err(err) => {
+            io::println_str("Failed to read file: {err}");
+        }
+    }
+}

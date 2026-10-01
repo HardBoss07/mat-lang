@@ -1,0 +1,11 @@
+import examplelib::example;
+import samelevel;
+
+fn main() {
+    let name: String = "Mat-lang User";
+    let greeting: String = example::greet(name);
+
+    samelevel::separator();
+    println(greeting);
+    example::double_separator();
+}
