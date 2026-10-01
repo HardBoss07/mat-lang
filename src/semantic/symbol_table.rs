@@ -32,6 +32,14 @@ impl SymbolTable {
                 is_mutable: false,
             },
         );
+        global_scope.insert(
+            "print".to_string(),
+            Symbol {
+                name: "print".to_string(),
+                ty: Type::Void,
+                is_mutable: false,
+            },
+        );
 
         let mut functions = HashMap::new();
         functions.insert(
@@ -39,6 +47,40 @@ impl SymbolTable {
             FunctionSymbol {
                 name: "println".to_string(),
                 param_types: vec![],
+                return_type: Type::Void,
+            },
+        );
+        functions.insert(
+            "print".to_string(),
+            FunctionSymbol {
+                name: "print".to_string(),
+                param_types: vec![],
+                return_type: Type::Void,
+            },
+        );
+
+        // System C runtime helper bindings
+        functions.insert(
+            "_mat_rt_read_file".to_string(),
+            FunctionSymbol {
+                name: "_mat_rt_read_file".to_string(),
+                param_types: vec![Type::String],
+                return_type: Type::String,
+            },
+        );
+        functions.insert(
+            "_mat_rt_write_file".to_string(),
+            FunctionSymbol {
+                name: "_mat_rt_write_file".to_string(),
+                param_types: vec![Type::String, Type::String],
+                return_type: Type::Bool,
+            },
+        );
+        functions.insert(
+            "_mat_rt_print_str".to_string(),
+            FunctionSymbol {
+                name: "_mat_rt_print_str".to_string(),
+                param_types: vec![Type::String],
                 return_type: Type::Void,
             },
         );

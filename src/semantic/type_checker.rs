@@ -34,6 +34,7 @@ impl TypeChecker {
                     let param_tys = func.params.iter().map(|p| p.ty.clone()).collect();
                     symbols.insert_function(func.name.clone(), param_tys, func.return_type.clone());
                 }
+                Item::Import(_) => {}
             }
         }
 
@@ -49,6 +50,7 @@ impl TypeChecker {
                     }
                     symbols.pop_scope();
                 }
+                Item::Import(_) => {}
             }
         }
         Ok(())
