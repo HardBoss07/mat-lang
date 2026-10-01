@@ -50,6 +50,7 @@ impl<'ctx> CodegenEngine<'ctx> {
                     );
                     self.declare_function_prototype(func);
                 }
+                Item::Import(_) => {}
             }
         }
 
@@ -57,6 +58,7 @@ impl<'ctx> CodegenEngine<'ctx> {
         for item in &program.items {
             match item {
                 Item::Function(func) => self.compile_function_body(func, &global_symbols)?,
+                Item::Import(_) => {}
             }
         }
         Ok(())
