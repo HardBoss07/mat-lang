@@ -52,4 +52,14 @@ pub fn declare_runtime_symbols<'a>(context: &'a Context, module: &Module<'a>) {
         let fn_type = void_type.fn_type(&[bool_type.into()], false);
         module.add_function("_mat_rt_println_bool", fn_type, None);
     }
+
+    if module.get_function("_mat_rt_read_file").is_none() {
+        let fn_type = ptr_type.fn_type(&[ptr_type.into()], false);
+        module.add_function("_mat_rt_read_file", fn_type, None);
+    }
+
+    if module.get_function("_mat_rt_write_file").is_none() {
+        let fn_type = bool_type.fn_type(&[ptr_type.into(), ptr_type.into()], false);
+        module.add_function("_mat_rt_write_file", fn_type, None);
+    }
 }

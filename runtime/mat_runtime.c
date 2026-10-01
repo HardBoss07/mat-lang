@@ -144,3 +144,53 @@ void _mat_rt_println_bool(bool val)
 {
     puts(val ? "tru" : "fal");
 }
+
+// System I/O Runtime Helpers
+char *_mat_rt_read_file(const char *path)
+{
+    if (!path)
+        return NULL;
+
+    FILE *file = fopen(path, "rb");
+    if (!file)
+        return NULL;
+
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    rewind(file);
+
+    if (size < 0)
+    {
+        fclose(file);
+        return NULL;
+    }
+
+    char *buffer = (char *)MAT_MALLOC((size_t)size + 1);
+    if (!buffer)
+    {
+        fclose(file);
+        return NULL;
+    }
+
+    size_t bytes_read = fread(buffer, 1, (size_t)size, file);
+    buffer[bytes_read] = '\0';
+
+    fclose(file);
+    return buffer;
+}
+
+bool _mat_rt_write_file(const char *path, const char *content)
+{
+    if (!path || !content)
+        return false;
+
+    FILE *file = fopen(path, "wb");
+    if (!file)
+        return false;
+
+    size_t len = strlen(content);
+    size_t written = fwrite(content, 1, len, file);
+    fclose(file);
+
+    return written == len;
+}
