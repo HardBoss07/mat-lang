@@ -6,7 +6,6 @@ pub use postfix::parse_postfix_expression;
 
 use winnow::ModalResult;
 use winnow::Parser;
-use winnow::ascii::alpha1;
 use winnow::combinator::alt;
 use winnow::token::{literal, take_while};
 
@@ -16,14 +15,43 @@ use super::literals::{
 use crate::ast::{BinaryOp, Expression, Span};
 use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 
+pub fn parse_single_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
+    let _ = skip_ws_and_comments(input)?;
+    let checkpoint = *input;
+
+    if input.is_empty() {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+
+    let first_char = input.chars().next().unwrap();
+    if !first_char.is_alphabetic() && first_char != '_' {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+
+    take_while(1.., |c: char| c.is_alphanumeric() || c == '_').parse_next(input)
+}
+
 pub fn parse_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
     let _ = skip_ws_and_comments(input)?;
-    (
-        alpha1,
-        take_while(0.., |c: char| c.is_alphanumeric() || c == '_'),
-    )
-        .take()
-        .parse_next(input)
+    let start = *input;
+    let _ = parse_single_identifier_str(input)?;
+
+    while input.starts_with("::") {
+        let checkpoint = *input;
+        *input = &input[2..];
+        if parse_single_identifier_str(input).is_err() {
+            *input = checkpoint;
+            break;
+        }
+    }
+
+    let len = start.len() - input.len();
+    Ok(&start[..len])
 }
 
 pub fn parse_identifier(input: &mut &str) -> ModalResult<Expression> {

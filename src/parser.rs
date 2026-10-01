@@ -5,11 +5,12 @@ pub mod types;
 pub mod utils;
 
 pub use expression::parse_expression;
-pub use item::parse_function;
+pub use item::{parse_function, parse_import};
 pub use statement::parse_statement;
 pub use types::parse_type;
 
 use winnow::Parser as WinnowParser;
+use winnow::combinator::alt;
 
 use crate::ast::{Item, Program};
 use crate::error::{MatcError, Result};
@@ -38,10 +39,15 @@ impl<'a> Parser<'a> {
             if input.trim().is_empty() {
                 break;
             }
-            let func = parse_function.parse_next(&mut input).map_err(|e| {
+            let item = alt((
+                parse_import.map(Item::Import),
+                parse_function.map(Item::Function),
+            ))
+            .parse_next(&mut input)
+            .map_err(|e| {
                 MatcError::syntax_error(&self.file_name, self.source, e.to_string(), (0, 0))
             })?;
-            items.push(Item::Function(func));
+            items.push(item);
         }
 
         Ok(Program { items })

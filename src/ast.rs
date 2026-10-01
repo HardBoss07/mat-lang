@@ -216,6 +216,7 @@ impl Statement {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct FunctionDeclaration {
+    pub is_pub: bool,
     pub name: String,
     pub params: Vec<Param>,
     pub return_type: Type,
@@ -225,8 +226,17 @@ pub struct FunctionDeclaration {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ImportDeclaration {
+    pub is_std: bool,
+    pub path: Vec<String>,
+    #[serde(skip)]
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Item {
     Function(FunctionDeclaration),
+    Import(ImportDeclaration),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
