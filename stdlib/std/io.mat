@@ -1,0 +1,7 @@
+pub fn print_str(msg: String) {
+    _mat_rt_print_str(msg);
+}
+
+pub fn println_str(msg: String) {
+    println(msg);
+}

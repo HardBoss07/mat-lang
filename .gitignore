@@ -31,3 +31,6 @@ Thumbs.db
 output
 output.exe
 /out/
+
+# Example Output Files
+examples/output.txt

@@ -1,0 +1,13 @@
+pub fn read_to_string(path: String) -> Result<String, String> {
+    let content: String = _mat_rt_read_file(path);
+    return Ok(content);
+}
+
+pub fn write_string(path: String, content: String) -> Result<bool, String> {
+    let success: bool = _mat_rt_write_file(path, content);
+    if (success == tru) {
+        return Ok(tru);
+    } else {
+        return Err("Failed to write to file");
+    }
+}

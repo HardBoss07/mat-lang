@@ -1,10 +1,11 @@
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=runtime/mat_runtime.c");
+    println!("cargo:rerun-if-changed=stdlib");
     println!("cargo:rerun-if-changed=vendor/bdwgc");
     println!("cargo:rerun-if-env-changed=LLVM_SYS_181_PREFIX");
     println!("cargo:rerun-if-env-changed=MATC_FORCE_LLVM_OPT");
@@ -12,7 +13,28 @@ fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
-    // Build GC and mat_runtime together into one static library
+    // 1. Traverse disk files in stdlib/ and compile embedded_stdlib.rs lookup map
+    let stdlib_dir = PathBuf::from("stdlib");
+    let mut match_arms = Vec::new();
+    if stdlib_dir.exists() {
+        collect_std_files(&stdlib_dir, &stdlib_dir, &mut match_arms);
+    }
+
+    let embedded_rs_path = out_dir.join("embedded_stdlib.rs");
+    let mut embedded_code = String::from(
+        "pub fn get_embedded_std_file(key: &str) -> Option<&'static str> {\n    match key {\n",
+    );
+    for (key, file_path) in match_arms {
+        let escaped_path = file_path.to_string_lossy().replace('\\', "/");
+        embedded_code.push_str(&format!(
+            "        {:?} => Some(include_str!(r{:?})),\n",
+            key, escaped_path
+        ));
+    }
+    embedded_code.push_str("        _ => None,\n    }\n}\n");
+    fs::write(&embedded_rs_path, embedded_code).expect("Failed to write embedded_stdlib.rs");
+
+    // 2. Build GC and mat_runtime together into one static library
     let mut build = cc::Build::new();
     build
         .file("vendor/bdwgc/extra/gc.c")
@@ -54,7 +76,7 @@ fn main() {
             .expect("Failed to copy combined runtime library for embedding");
     }
 
-    // Compiler Profile Settings
+    // 3. Compiler Profile Settings
     let profile = env::var("PROFILE").unwrap_or_else(|_| "debug".to_string());
     let opt_level = env::var("OPT_LEVEL").unwrap_or_else(|_| "0".to_string());
 
@@ -76,6 +98,29 @@ fn main() {
         let lib_dir = PathBuf::from(&llvm_path).join("lib");
         if lib_dir.exists() {
             println!("cargo:rustc-link-search=native={}", lib_dir.display());
+        }
+    }
+}
+
+fn collect_std_files(base_dir: &Path, current_dir: &Path, acc: &mut Vec<(String, PathBuf)>) {
+    if let Ok(entries) = fs::read_dir(current_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                collect_std_files(base_dir, &path, acc);
+            } else if path.extension().and_then(|s| s.to_str()) == Some("mat") {
+                if let Ok(rel) = path.strip_prefix(base_dir) {
+                    let mut components: Vec<_> = rel
+                        .components()
+                        .map(|c| c.as_os_str().to_string_lossy().to_string())
+                        .collect();
+                    if let Some(last) = components.last_mut() {
+                        *last = last.trim_end_matches(".mat").to_string();
+                    }
+                    let key = components.join("::");
+                    acc.push((key, path.canonicalize().unwrap_or(path)));
+                }
+            }
         }
     }
 }
