@@ -23,6 +23,10 @@ declare void @_mat_rt_println_float(double)
 
 declare void @_mat_rt_println_bool(i1)
 
+declare ptr @_mat_rt_read_file(ptr)
+
+declare i1 @_mat_rt_write_file(ptr, ptr)
+
 define { i1, i64, ptr } @_mat_safe_div(i64 %0, i64 %1) {
 entry:
   %a = alloca i64, align 8

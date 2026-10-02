@@ -4,6 +4,7 @@ expression: prog
 ---
 items:
   - Function:
+      is_pub: false
       name: main
       params: []
       return_type: Void

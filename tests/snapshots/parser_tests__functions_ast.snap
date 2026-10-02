@@ -4,6 +4,7 @@ expression: prog
 ---
 items:
   - Function:
+      is_pub: false
       name: no_args
       params: []
       return_type: Void
@@ -16,6 +17,7 @@ items:
               IntLiteral:
                 - 1
   - Function:
+      is_pub: false
       name: one_arg
       params:
         - name: n
@@ -26,6 +28,7 @@ items:
             - Identifier:
                 - n
   - Function:
+      is_pub: false
       name: multi_args
       params:
         - name: a
@@ -40,6 +43,7 @@ items:
             - Identifier:
                 - c
   - Function:
+      is_pub: false
       name: factorial
       params:
         - name: n
@@ -80,6 +84,7 @@ items:
                             IntLiteral:
                               - 1
   - Function:
+      is_pub: false
       name: main
       params: []
       return_type: Void
