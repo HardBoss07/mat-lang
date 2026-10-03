@@ -1,0 +1,13 @@
+fn main() {
+    let mut counter: int = 0;
+
+    fori (let i: int = 0; i < 1000; i++) {
+        fori (let j: int = 0; j < 1000; j++) {
+            fori (let k: int = 0; k < 1000; k++) {
+                counter++;
+            }
+        }
+    }
+
+    println("Final Counter Value: {counter}");
+}
