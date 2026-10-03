@@ -23,11 +23,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             let result_llvm_ty = self.engine.llvm_type(&expr_mat_ty);
             let struct_ty = result_llvm_ty.into_struct_type();
 
-            let alloca = llvm_err(
-                self.engine
-                    .builder
-                    .build_alloca(struct_ty, "match_result_tmp"),
-            )?;
+            let alloca = self.create_entry_block_alloca(struct_ty.into(), "match_result_tmp")?;
             llvm_err(self.engine.builder.build_store(alloca, compiled_expr))?;
 
             let tag_ptr = llvm_err(
@@ -72,8 +68,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                         let ok_val =
                             llvm_err(self.engine.builder.build_load(ok_llvm_ty, ok_ptr, var_name))?;
 
-                        let var_alloca =
-                            llvm_err(self.engine.builder.build_alloca(ok_llvm_ty, var_name))?;
+                        let var_alloca = self.create_entry_block_alloca(ok_llvm_ty, var_name)?;
                         llvm_err(self.engine.builder.build_store(var_alloca, ok_val))?;
 
                         self.local_vars
@@ -103,8 +98,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                             var_name,
                         ))?;
 
-                        let var_alloca =
-                            llvm_err(self.engine.builder.build_alloca(err_llvm_ty, var_name))?;
+                        let var_alloca = self.create_entry_block_alloca(err_llvm_ty, var_name)?;
                         llvm_err(self.engine.builder.build_store(var_alloca, err_val))?;
 
                         self.local_vars

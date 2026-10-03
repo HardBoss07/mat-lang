@@ -44,11 +44,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         let array_val = self.compile_expression(expr)?;
         let index_val = self.compile_expression(index)?.into_int_value();
 
-        let alloca = llvm_err(
-            self.engine
-                .builder
-                .build_alloca(array_llvm_ty, "arr_access_tmp"),
-        )?;
+        let alloca = self.create_entry_block_alloca(array_llvm_ty, "arr_access_tmp")?;
         llvm_err(self.engine.builder.build_store(alloca, array_val))?;
 
         let zero = self.engine.context.i32_type().const_int(0, false);

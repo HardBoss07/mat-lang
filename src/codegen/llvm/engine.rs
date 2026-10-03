@@ -126,10 +126,7 @@ impl<'ctx> CodegenEngine<'ctx> {
         for (idx, param) in fn_value.get_param_iter().enumerate() {
             let param_ast = &func.params[idx];
             let llvm_ty = self.llvm_type(&param_ast.ty);
-            let alloca = self
-                .builder
-                .build_alloca(llvm_ty, &param_ast.name)
-                .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+            let alloca = compiler.create_entry_block_alloca(llvm_ty, &param_ast.name)?;
             self.builder
                 .build_store(alloca, param)
                 .map_err(|e| MatcError::CodegenError(e.to_string()))?;

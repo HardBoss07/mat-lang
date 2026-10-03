@@ -157,7 +157,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         let result_mat_ty = Type::Result(Box::new(ok_ty), Box::new(Type::String));
         let result_llvm_ty = self.engine.llvm_type(&result_mat_ty);
 
-        let alloca = llvm_err(self.engine.builder.build_alloca(result_llvm_ty, "ok_tmp"))?;
+        let alloca = self.create_entry_block_alloca(result_llvm_ty, "ok_tmp")?;
 
         let tag_ptr = llvm_err(self.engine.builder.build_struct_gep(
             result_llvm_ty.into_struct_type(),
@@ -196,7 +196,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         let result_mat_ty = Type::Result(Box::new(Type::Int), Box::new(err_ty));
         let result_llvm_ty = self.engine.llvm_type(&result_mat_ty);
 
-        let alloca = llvm_err(self.engine.builder.build_alloca(result_llvm_ty, "err_tmp"))?;
+        let alloca = self.create_entry_block_alloca(result_llvm_ty, "err_tmp")?;
 
         let tag_ptr = llvm_err(self.engine.builder.build_struct_gep(
             result_llvm_ty.into_struct_type(),

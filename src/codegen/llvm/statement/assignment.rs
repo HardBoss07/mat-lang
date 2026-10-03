@@ -28,7 +28,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         let val = coerce_val_to_type(self.engine, raw_val, &mat_ty)?;
         let llvm_ty = self.engine.llvm_type(&mat_ty);
 
-        let alloca = llvm_err(self.engine.builder.build_alloca(llvm_ty, name))?;
+        let alloca = self.create_entry_block_alloca(llvm_ty, name)?;
         llvm_err(self.engine.builder.build_store(alloca, val))?;
 
         self.local_vars.insert(name.to_string(), (alloca, mat_ty));

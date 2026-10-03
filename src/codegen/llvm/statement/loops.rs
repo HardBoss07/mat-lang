@@ -86,14 +86,10 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         let elem_llvm_ty = self.engine.llvm_type(&elem_mat_ty);
         let i64_ty = self.engine.context.i64_type();
 
-        let array_alloca = llvm_err(
-            self.engine
-                .builder
-                .build_alloca(array_llvm_ty, "for_in_arr"),
-        )?;
+        let array_alloca = self.create_entry_block_alloca(array_llvm_ty, "for_in_arr")?;
         llvm_err(self.engine.builder.build_store(array_alloca, iter_val))?;
 
-        let idx_alloca = llvm_err(self.engine.builder.build_alloca(i64_ty, "for_in_idx"))?;
+        let idx_alloca = self.create_entry_block_alloca(i64_ty.into(), "for_in_idx")?;
         let zero_i64 = i64_ty.const_int(0, false);
         llvm_err(self.engine.builder.build_store(idx_alloca, zero_i64))?;
 
@@ -154,7 +150,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                 .build_load(elem_llvm_ty, elem_ptr, var_name),
         )?;
 
-        let var_alloca = llvm_err(self.engine.builder.build_alloca(elem_llvm_ty, var_name))?;
+        let var_alloca = self.create_entry_block_alloca(elem_llvm_ty, var_name)?;
         llvm_err(self.engine.builder.build_store(var_alloca, elem_val))?;
 
         self.local_vars

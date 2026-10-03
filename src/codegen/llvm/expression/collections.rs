@@ -19,7 +19,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         }
 
         let struct_ty = self.engine.context.struct_type(&field_types, false);
-        let alloca = llvm_err(self.engine.builder.build_alloca(struct_ty, "tuple_tmp"))?;
+        let alloca = self.create_entry_block_alloca(struct_ty.into(), "tuple_tmp")?;
 
         for (idx, val) in field_values.into_iter().enumerate() {
             let field_ptr = llvm_err(self.engine.builder.build_struct_gep(
@@ -56,7 +56,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
 
         let elem_llvm_ty = compiled_elements[0].get_type();
         let array_ty = elem_llvm_ty.array_type(elements.len() as u32);
-        let alloca = llvm_err(self.engine.builder.build_alloca(array_ty, "arr_tmp"))?;
+        let alloca = self.create_entry_block_alloca(array_ty.into(), "arr_tmp")?;
 
         let zero = self.engine.context.i32_type().const_int(0, false);
         for (idx, val) in compiled_elements.into_iter().enumerate() {
