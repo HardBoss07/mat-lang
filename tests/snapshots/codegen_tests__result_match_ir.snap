@@ -29,16 +29,17 @@ declare i1 @_mat_rt_write_file(ptr, ptr)
 
 define { i1, i64, ptr } @_mat_safe_div(i64 %0, i64 %1) {
 entry:
+  %ok_tmp = alloca { i1, i64, ptr }, align 8
+  %err_tmp = alloca { i1, i64, ptr }, align 8
+  %b = alloca i64, align 8
   %a = alloca i64, align 8
   store i64 %0, ptr %a, align 4
-  %b = alloca i64, align 8
   store i64 %1, ptr %b, align 4
   %b1 = load i64, ptr %b, align 4
   %eqtmp = icmp eq i64 %b1, 0
   br i1 %eqtmp, label %if_then, label %if_after
 
 if_then:                                          ; preds = %entry
-  %err_tmp = alloca { i1, i64, ptr }, align 8
   %tag_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %err_tmp, i32 0, i32 0
   store i1 false, ptr %tag_ptr, align 1
   %err_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %err_tmp, i32 0, i32 2
@@ -50,7 +51,6 @@ if_after:                                         ; preds = %after_return, %entr
   %a2 = load i64, ptr %a, align 4
   %b3 = load i64, ptr %b, align 4
   %divtmp = sdiv i64 %a2, %b3
-  %ok_tmp = alloca { i1, i64, ptr }, align 8
   %tag_ptr4 = getelementptr inbounds { i1, i64, ptr }, ptr %ok_tmp, i32 0, i32 0
   store i1 true, ptr %tag_ptr4, align 1
   %val_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %ok_tmp, i32 0, i32 1
@@ -66,12 +66,16 @@ after_return5:                                    ; No predecessors!
 
 define i32 @main() {
 entry:
+  %s = alloca ptr, align 8
+  %e4 = alloca ptr, align 8
+  %x = alloca i64, align 8
+  %v2 = alloca i64, align 8
+  %match_result_tmp = alloca { i1, i64, ptr }, align 8
+  %res = alloca { i1, i64, ptr }, align 8
   call void @_mat_rt_init()
   %calltmp = call { i1, i64, ptr } @_mat_safe_div(i64 10, i64 2)
-  %res = alloca { i1, i64, ptr }, align 8
   store { i1, i64, ptr } %calltmp, ptr %res, align 8
   %res1 = load { i1, i64, ptr }, ptr %res, align 8
-  %match_result_tmp = alloca { i1, i64, ptr }, align 8
   store { i1, i64, ptr } %res1, ptr %match_result_tmp, align 8
   %tag_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %match_result_tmp, i32 0, i32 0
   %tag_val = load i1, ptr %tag_ptr, align 1
@@ -83,20 +87,16 @@ match_after:                                      ; preds = %match_err, %match_o
 match_ok:                                         ; preds = %entry
   %ok_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %match_result_tmp, i32 0, i32 1
   %v = load i64, ptr %ok_ptr, align 4
-  %v2 = alloca i64, align 8
   store i64 %v, ptr %v2, align 4
   %v3 = load i64, ptr %v2, align 4
-  %x = alloca i64, align 8
   store i64 %v3, ptr %x, align 4
   br label %match_after
 
 match_err:                                        ; preds = %entry
   %err_ptr = getelementptr inbounds { i1, i64, ptr }, ptr %match_result_tmp, i32 0, i32 2
   %e = load ptr, ptr %err_ptr, align 8
-  %e4 = alloca ptr, align 8
   store ptr %e, ptr %e4, align 8
   %e5 = load ptr, ptr %e4, align 8
-  %s = alloca ptr, align 8
   store ptr %e5, ptr %s, align 8
   br label %match_after
 }

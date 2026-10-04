@@ -27,35 +27,35 @@ declare i1 @_mat_rt_write_file(ptr, ptr)
 
 define i32 @main() {
 entry:
-  call void @_mat_rt_init()
-  %a = alloca i64, align 8
-  store i64 10, ptr %a, align 4
+  %rem = alloca i64, align 8
+  %div = alloca i64, align 8
+  %mul = alloca i64, align 8
+  %sub = alloca i64, align 8
+  %add = alloca i64, align 8
   %b = alloca i64, align 8
+  %a = alloca i64, align 8
+  call void @_mat_rt_init()
+  store i64 10, ptr %a, align 4
   store i64 3, ptr %b, align 4
   %a1 = load i64, ptr %a, align 4
   %b2 = load i64, ptr %b, align 4
   %addtmp = add i64 %a1, %b2
-  %add = alloca i64, align 8
   store i64 %addtmp, ptr %add, align 4
   %a3 = load i64, ptr %a, align 4
   %b4 = load i64, ptr %b, align 4
   %subtmp = sub i64 %a3, %b4
-  %sub = alloca i64, align 8
   store i64 %subtmp, ptr %sub, align 4
   %a5 = load i64, ptr %a, align 4
   %b6 = load i64, ptr %b, align 4
   %multmp = mul i64 %a5, %b6
-  %mul = alloca i64, align 8
   store i64 %multmp, ptr %mul, align 4
   %a7 = load i64, ptr %a, align 4
   %b8 = load i64, ptr %b, align 4
   %divtmp = sdiv i64 %a7, %b8
-  %div = alloca i64, align 8
   store i64 %divtmp, ptr %div, align 4
   %a9 = load i64, ptr %a, align 4
   %b10 = load i64, ptr %b, align 4
   %modtmp = srem i64 %a9, %b10
-  %rem = alloca i64, align 8
   store i64 %modtmp, ptr %rem, align 4
   ret i32 0
 }

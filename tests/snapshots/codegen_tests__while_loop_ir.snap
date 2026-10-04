@@ -27,8 +27,8 @@ declare i1 @_mat_rt_write_file(ptr, ptr)
 
 define i32 @main() {
 entry:
-  call void @_mat_rt_init()
   %i = alloca i64, align 8
+  call void @_mat_rt_init()
   store i64 0, ptr %i, align 4
   br label %while_cond
 

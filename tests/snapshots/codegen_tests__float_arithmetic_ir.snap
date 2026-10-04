@@ -27,25 +27,25 @@ declare i1 @_mat_rt_write_file(ptr, ptr)
 
 define i32 @main() {
 entry:
-  call void @_mat_rt_init()
-  %a = alloca double, align 8
-  store double 3.140000e+00, ptr %a, align 8
+  %div = alloca double, align 8
+  %mul = alloca double, align 8
+  %add = alloca double, align 8
   %b = alloca double, align 8
+  %a = alloca double, align 8
+  call void @_mat_rt_init()
+  store double 3.140000e+00, ptr %a, align 8
   store double 2.000000e+00, ptr %b, align 8
   %a1 = load double, ptr %a, align 8
   %b2 = load double, ptr %b, align 8
   %addtmp = fadd double %a1, %b2
-  %add = alloca double, align 8
   store double %addtmp, ptr %add, align 8
   %a3 = load double, ptr %a, align 8
   %b4 = load double, ptr %b, align 8
   %multmp = fmul double %a3, %b4
-  %mul = alloca double, align 8
   store double %multmp, ptr %mul, align 8
   %a5 = load double, ptr %a, align 8
   %b6 = load double, ptr %b, align 8
   %divtmp = fdiv double %a5, %b6
-  %div = alloca double, align 8
   store double %divtmp, ptr %div, align 8
   ret i32 0
 }

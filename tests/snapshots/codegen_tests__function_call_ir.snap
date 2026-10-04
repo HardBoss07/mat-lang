@@ -38,9 +38,9 @@ after_return:                                     ; No predecessors!
 
 define i32 @main() {
 entry:
+  %r = alloca i64, align 8
   call void @_mat_rt_init()
   %calltmp = call i64 @_mat_double(i64 21)
-  %r = alloca i64, align 8
   store i64 %calltmp, ptr %r, align 4
   ret i32 0
 }

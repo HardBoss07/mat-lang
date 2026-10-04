@@ -27,8 +27,13 @@ declare i1 @_mat_rt_write_file(ptr, ptr)
 
 define i32 @main() {
 entry:
-  call void @_mat_rt_init()
+  %v = alloca i64, align 8
+  %n4 = alloca i64, align 8
+  %for_in_idx = alloca i64, align 8
+  %for_in_arr = alloca [3 x i64], align 8
+  %nums = alloca [3 x i64], align 8
   %arr_tmp = alloca [3 x i64], align 8
+  call void @_mat_rt_init()
   %arr_gep = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 0
   store i64 10, ptr %arr_gep, align 4
   %arr_gep1 = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 1
@@ -36,12 +41,9 @@ entry:
   %arr_gep2 = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 2
   store i64 30, ptr %arr_gep2, align 4
   %arr_val = load [3 x i64], ptr %arr_tmp, align 4
-  %nums = alloca [3 x i64], align 8
   store [3 x i64] %arr_val, ptr %nums, align 4
   %nums3 = load [3 x i64], ptr %nums, align 4
-  %for_in_arr = alloca [3 x i64], align 8
   store [3 x i64] %nums3, ptr %for_in_arr, align 4
-  %for_in_idx = alloca i64, align 8
   store i64 0, ptr %for_in_idx, align 4
   br label %for_in_cond
 
@@ -53,10 +55,8 @@ for_in_cond:                                      ; preds = %for_in_step, %entry
 for_in_body:                                      ; preds = %for_in_cond
   %for_in_elem_ptr = getelementptr [3 x i64], ptr %for_in_arr, i32 0, i64 %curr_idx
   %n = load i64, ptr %for_in_elem_ptr, align 4
-  %n4 = alloca i64, align 8
   store i64 %n, ptr %n4, align 4
   %n5 = load i64, ptr %n4, align 4
-  %v = alloca i64, align 8
   store i64 %n5, ptr %v, align 4
   br label %for_in_step
 

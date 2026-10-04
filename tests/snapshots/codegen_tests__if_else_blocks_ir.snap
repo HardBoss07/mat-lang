@@ -27,15 +27,16 @@ declare i1 @_mat_rt_write_file(ptr, ptr)
 
 define i32 @main() {
 entry:
-  call void @_mat_rt_init()
+  %b = alloca i64, align 8
+  %a = alloca i64, align 8
   %x = alloca i64, align 8
+  call void @_mat_rt_init()
   store i64 5, ptr %x, align 4
   %x1 = load i64, ptr %x, align 4
   %gttmp = icmp sgt i64 %x1, 3
   br i1 %gttmp, label %if_then, label %if_else
 
 if_then:                                          ; preds = %entry
-  %a = alloca i64, align 8
   store i64 1, ptr %a, align 4
   br label %if_after
 
@@ -43,7 +44,6 @@ if_after:                                         ; preds = %if_else, %if_then
   ret i32 0
 
 if_else:                                          ; preds = %entry
-  %b = alloca i64, align 8
   store i64 2, ptr %b, align 4
   br label %if_after
 }

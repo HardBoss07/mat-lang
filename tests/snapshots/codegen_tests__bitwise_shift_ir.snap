@@ -27,8 +27,9 @@ declare i1 @_mat_rt_write_file(ptr, ptr)
 
 define i32 @main() {
 entry:
-  call void @_mat_rt_init()
+  %shifted = alloca i64, align 8
   %mask = alloca i64, align 8
+  call void @_mat_rt_init()
   store i64 1, ptr %mask, align 4
   %mask1 = load i64, ptr %mask, align 4
   %shltmp = shl i64 %mask1, 3
@@ -38,7 +39,6 @@ entry:
   store i64 %shrtmp, ptr %mask, align 4
   %mask3 = load i64, ptr %mask, align 4
   %shltmp4 = shl i64 %mask3, 2
-  %shifted = alloca i64, align 8
   store i64 %shltmp4, ptr %shifted, align 4
   ret i32 0
 }

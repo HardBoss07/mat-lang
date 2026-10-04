@@ -27,40 +27,40 @@ declare i1 @_mat_rt_write_file(ptr, ptr)
 
 define i32 @main() {
 entry:
-  call void @_mat_rt_init()
-  %a = alloca i64, align 8
-  store i64 5, ptr %a, align 4
+  %or = alloca i1, align 1
+  %and = alloca i1, align 1
+  %ge = alloca i1, align 1
+  %ne = alloca i1, align 1
+  %eq = alloca i1, align 1
+  %lt = alloca i1, align 1
   %b = alloca i64, align 8
+  %a = alloca i64, align 8
+  call void @_mat_rt_init()
+  store i64 5, ptr %a, align 4
   store i64 10, ptr %b, align 4
   %a1 = load i64, ptr %a, align 4
   %b2 = load i64, ptr %b, align 4
   %lttmp = icmp slt i64 %a1, %b2
-  %lt = alloca i1, align 1
   store i1 %lttmp, ptr %lt, align 1
   %a3 = load i64, ptr %a, align 4
   %b4 = load i64, ptr %b, align 4
   %eqtmp = icmp eq i64 %a3, %b4
-  %eq = alloca i1, align 1
   store i1 %eqtmp, ptr %eq, align 1
   %a5 = load i64, ptr %a, align 4
   %b6 = load i64, ptr %b, align 4
   %netmp = icmp ne i64 %a5, %b6
-  %ne = alloca i1, align 1
   store i1 %netmp, ptr %ne, align 1
   %b7 = load i64, ptr %b, align 4
   %a8 = load i64, ptr %a, align 4
   %gtetmp = icmp sge i64 %b7, %a8
-  %ge = alloca i1, align 1
   store i1 %gtetmp, ptr %ge, align 1
   %lt9 = load i1, ptr %lt, align 1
   %eq10 = load i1, ptr %eq, align 1
   %andtmp = and i1 %lt9, %eq10
-  %and = alloca i1, align 1
   store i1 %andtmp, ptr %and, align 1
   %ne11 = load i1, ptr %ne, align 1
   %ge12 = load i1, ptr %ge, align 1
   %ortmp = or i1 %ne11, %ge12
-  %or = alloca i1, align 1
   store i1 %ortmp, ptr %or, align 1
   ret i32 0
 }
