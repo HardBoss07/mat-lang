@@ -1,0 +1,38 @@
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+struct Shape {
+    color: String,
+    points: Vec<Point>,
+}
+
+fn main() {
+    let point1 = Point { x: 10, y: 20 };
+    let point2 = Point { x: 30, y: 40 };
+
+    // Initialize heap vector using multi-push instead of array literal
+    let mut shape_points: Vec<Point> = Vec::new();
+    shape_points.push(point1, point2);
+
+    // Push an additional point dynamically
+    let point3 = Point { x: 50, y: 60 };
+    shape_points.push(point3);
+
+    let shape = Shape {
+        color: "Red",
+        points: shape_points,
+    };
+
+    println("Point 1: ({point1.x}, {point1.y})");
+    println("Point 2: ({point2.x}, {point2.y})");
+
+    println("Shape Color: {shape.color}");
+    println("Total points in shape: {shape.points.len()}");
+
+    // Iterate over the struct's vector field
+    for p in shape.points {
+        println("Shape Point: ({p.x}, {p.y})");
+    }
+}

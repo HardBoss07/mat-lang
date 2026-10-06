@@ -1,0 +1,45 @@
+fn main() {
+    // 1. Inferred collection types
+    let array = [1, 2, 3];             // Inferred as [int; 3]
+    let tuple = (1, "Name", 90.5);     // Inferred as (int, String, f64)
+    let mut vector = {1.5, 2.5, 3.5};  // Vector literal inferred as Vec<f64>
+
+    println("Array Access: {array[0]}");
+    println("Tuple Access: {tuple.1}");
+    println("Vector Access: {vector[2]}");
+
+    // 2. Method calls: Universal .len() across Arrays, Tuples, and Vectors
+    println("Array Len: {array.len()}");
+    println("Tuple Len: {tuple.len()}");
+    println("Vector Len: {vector.len()}");
+
+    // 3. Multi-argument push and pop on dynamic vectors
+    vector.push(4.5, 5.5, 6.5);
+    println("Vector Len after multi-push: {vector.len()}");
+
+    let last_val = vector.pop();
+    println("Popped Value: {last_val}");
+    println("Vector Len after pop: {vector.len()}");
+
+    // 4. Explicitly typed collections
+    let array2: [i32; 3] = [4, 5, 6];
+    let tuple2: (String, i32, f64) = ("Name", 2, 60.5);
+
+    let mut vector2: Vec<i8> = Vec::new();
+    vector2.push(10, 11, 12);
+
+    println("Second Array Access: {array2[0]}, {array2[1]}, {array2[2]}");
+    println("Second Tuple Access: {tuple2.0}, {tuple2.1}, {tuple2.2}");
+    println("Second Vector Access: {vector2[0]}, {vector2[1]}, {vector2[2]}");
+
+    // 5. Collection iteration (desugared to indexed loops)
+    println("Iterating over array2:");
+    for num in array2 {
+        println("Array element: {num}");
+    }
+
+    println("Iterating over vector2:");
+    for item in vector2 {
+        println("Vector element: {item}");
+    }
+}
