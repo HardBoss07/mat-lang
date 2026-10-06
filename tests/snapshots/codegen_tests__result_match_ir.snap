@@ -27,6 +27,16 @@ declare ptr @_mat_rt_read_file(ptr)
 
 declare i1 @_mat_rt_write_file(ptr, ptr)
 
+declare ptr @_mat_rt_vec_create(i64, i64)
+
+declare void @_mat_rt_vec_push(ptr, ptr)
+
+declare void @_mat_rt_vec_pop(ptr, ptr)
+
+declare ptr @_mat_rt_vec_get(ptr, i64)
+
+declare i64 @_mat_rt_vec_len(ptr)
+
 define { i1, i64, ptr } @_mat_safe_div(i64 %0, i64 %1) {
 entry:
   %ok_tmp = alloca { i1, i64, ptr }, align 8

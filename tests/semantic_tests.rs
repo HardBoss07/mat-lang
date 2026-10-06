@@ -391,7 +391,7 @@ fn main() {
     }
 }
 "#,
-        "array",
+        "collection",
     );
 }
 
