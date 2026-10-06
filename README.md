@@ -2,6 +2,8 @@
 
 An experimental programming language built in Rust targeting **LLVM IR 18.1.8**. This project serves as a practical exploration of compiler architecture, AST representation, semantic verification, and native code generation.
 
+You can also use the official [MAT Syntax Highlighting VSCode Extension](https://marketplace.visualstudio.com/items?itemName=m4tt3o.mat-lang-syntax).
+
 ## Features
 
 - **Direct LLVM IR Emission:** Targets LLVM 18 IR API bindings via `inkwell`.
