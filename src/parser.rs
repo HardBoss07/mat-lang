@@ -5,7 +5,7 @@ pub mod types;
 pub mod utils;
 
 pub use expression::parse_expression;
-pub use item::{parse_function, parse_import};
+pub use item::{parse_function, parse_import, parse_struct};
 pub use statement::parse_statement;
 pub use types::parse_type;
 
@@ -41,6 +41,7 @@ impl<'a> Parser<'a> {
             }
             let item = alt((
                 parse_import.map(Item::Import),
+                parse_struct.map(Item::Struct),
                 parse_function.map(Item::Function),
             ))
             .parse_next(&mut input)

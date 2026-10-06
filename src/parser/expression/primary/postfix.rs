@@ -45,6 +45,38 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
                 };
                 continue;
             }
+
+            let mut ident_checkpoint = *input;
+            ident_checkpoint = &ident_checkpoint[1..];
+            let ident_res = super::parse_single_identifier_str(&mut ident_checkpoint);
+            if let Ok(name) = ident_res {
+                let member_name = name.to_string();
+                let mut after_ident = ident_checkpoint;
+                let _ = skip_ws_and_comments(&mut after_ident)?;
+                if after_ident.starts_with('(') {
+                    let args_res: ModalResult<Vec<Expression>> =
+                        delimited('(', separated(0.., parse_expression, ','), ')')
+                            .parse_next(&mut after_ident);
+                    if let Ok(args) = args_res {
+                        *input = after_ident;
+                        expr = Expression::MethodCall {
+                            receiver: Box::new(expr),
+                            method: member_name,
+                            args,
+                            span: get_span_between_ptrs(start_offset, *input),
+                        };
+                        continue;
+                    }
+                } else {
+                    *input = ident_checkpoint;
+                    expr = Expression::FieldAccess {
+                        expr: Box::new(expr),
+                        field: member_name,
+                        span: get_span_between_ptrs(start_offset, *input),
+                    };
+                    continue;
+                }
+            }
             break;
         } else if input.starts_with('[') {
             let start_offset = expr.span().start;

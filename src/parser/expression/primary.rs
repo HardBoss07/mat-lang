@@ -1,7 +1,7 @@
 pub mod collections;
 pub mod postfix;
 
-pub use collections::{parse_array_literal, parse_tuple_or_parenthesized};
+pub use collections::{parse_array_literal, parse_tuple_or_parenthesized, parse_vector_literal};
 pub use postfix::parse_postfix_expression;
 
 use winnow::ModalResult;
@@ -155,6 +155,85 @@ pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
     }
 }
 
+pub fn parse_struct_init(input: &mut &str) -> ModalResult<Expression> {
+    let checkpoint = *input;
+    let _ = skip_ws_and_comments(input)?;
+    let tok_start = *input;
+
+    let struct_name = match parse_identifier_str.parse_next(input) {
+        Ok(name) => name.to_string(),
+        Err(e) => {
+            *input = checkpoint;
+            return Err(e);
+        }
+    };
+
+    let _ = skip_ws_and_comments(input)?;
+    if !input.starts_with('{') {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[1..];
+    let _ = skip_ws_and_comments(input)?;
+
+    let mut fields = Vec::new();
+    while !input.is_empty() && !input.starts_with('}') {
+        let field_name = match parse_single_identifier_str.parse_next(input) {
+            Ok(name) => name.to_string(),
+            Err(e) => {
+                *input = checkpoint;
+                return Err(e);
+            }
+        };
+
+        let _ = skip_ws_and_comments(input)?;
+        if !input.starts_with(':') {
+            *input = checkpoint;
+            return Err(winnow::error::ErrMode::Backtrack(
+                winnow::error::ContextError::default(),
+            ));
+        }
+        *input = &input[1..];
+        let _ = skip_ws_and_comments(input)?;
+
+        let val_expr = match parse_expression.parse_next(input) {
+            Ok(expr) => expr,
+            Err(e) => {
+                *input = checkpoint;
+                return Err(e);
+            }
+        };
+
+        fields.push((field_name, val_expr));
+
+        let _ = skip_ws_and_comments(input)?;
+        if input.starts_with(',') {
+            *input = &input[1..];
+            let _ = skip_ws_and_comments(input)?;
+        } else {
+            break;
+        }
+    }
+
+    let _ = skip_ws_and_comments(input)?;
+    if !input.starts_with('}') {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[1..];
+    let tok_end = *input;
+
+    Ok(Expression::StructInit {
+        name: struct_name,
+        fields,
+        span: get_span_between(tok_start, tok_end),
+    })
+}
+
 pub fn parse_primary_expression(input: &mut &str) -> ModalResult<Expression> {
     let _ = skip_ws_and_comments(input)?;
     alt((
@@ -165,6 +244,8 @@ pub fn parse_primary_expression(input: &mut &str) -> ModalResult<Expression> {
         parse_ok_or_err_expression,
         parse_tuple_or_parenthesized,
         parse_array_literal,
+        parse_struct_init,
+        parse_vector_literal,
         parse_identifier,
     ))
     .parse_next(input)

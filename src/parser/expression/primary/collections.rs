@@ -90,3 +90,25 @@ pub fn parse_array_literal(input: &mut &str) -> ModalResult<Expression> {
         winnow::error::ContextError::default(),
     ))
 }
+
+pub fn parse_vector_literal(input: &mut &str) -> ModalResult<Expression> {
+    let checkpoint = *input;
+    let _ = skip_ws_and_comments(input)?;
+    if !input.starts_with('{') {
+        *input = checkpoint;
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+
+    let vec_res: ModalResult<Vec<Expression>> =
+        delimited('{', separated(0.., parse_expression, ','), '}').parse_next(input);
+    if let Ok(elements) = vec_res {
+        return Ok(Expression::VectorLiteral(elements, Span::new(0, 0)));
+    }
+
+    *input = checkpoint;
+    Err(winnow::error::ErrMode::Backtrack(
+        winnow::error::ContextError::default(),
+    ))
+}

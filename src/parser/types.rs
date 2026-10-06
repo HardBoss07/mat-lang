@@ -62,6 +62,28 @@ pub fn parse_type(input: &mut &str) -> ModalResult<Type> {
             "bool" => return Ok(Type::Bool),
             "String" => return Ok(Type::String),
             "void" => return Ok(Type::Void),
+            "Vec" => {
+                let _ = skip_ws_and_comments(input)?;
+                if input.starts_with('<') {
+                    *input = &input[1..];
+                    let _ = skip_ws_and_comments(input)?;
+                    let elem_ty = parse_type.parse_next(input)?;
+                    let _ = skip_ws_and_comments(input)?;
+                    if !input.starts_with('>') {
+                        *input = checkpoint;
+                        return Err(winnow::error::ErrMode::Backtrack(
+                            winnow::error::ContextError::default(),
+                        ));
+                    }
+                    *input = &input[1..];
+                    return Ok(Type::Vector(Box::new(elem_ty)));
+                } else {
+                    *input = checkpoint;
+                    return Err(winnow::error::ErrMode::Backtrack(
+                        winnow::error::ContextError::default(),
+                    ));
+                }
+            }
             "Result" => {
                 let _ = skip_ws_and_comments(input)?;
                 if input.starts_with('<') {
