@@ -14,6 +14,8 @@ pub enum Type {
     String,
     Tuple(Vec<Type>),
     Array(Box<Type>, usize),
+    Vector(Box<Type>),
+    Struct(String),
     Custom(String),
     Result(Box<Type>, Box<Type>),
 }

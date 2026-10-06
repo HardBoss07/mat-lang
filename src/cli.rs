@@ -269,7 +269,7 @@ fn resolve_and_parse_program(
                     combined_items.extend(imported_items);
                 }
             }
-            Item::Function(_) => {
+            Item::Function(_) | Item::Struct(_) => {
                 combined_items.push(item);
             }
         }
@@ -389,9 +389,25 @@ fn prefix_expression(expr: &mut Expression, prefix: &str) {
             prefix_expression(left, prefix);
             prefix_expression(right, prefix);
         }
-        Expression::TupleLiteral(elems, _) | Expression::ArrayLiteral(elems, _) => {
+        Expression::TupleLiteral(elems, _)
+        | Expression::ArrayLiteral(elems, _)
+        | Expression::VectorLiteral(elems, _) => {
             for elem in elems {
                 prefix_expression(elem, prefix);
+            }
+        }
+        Expression::StructInit { fields, .. } => {
+            for (_, expr) in fields {
+                prefix_expression(expr, prefix);
+            }
+        }
+        Expression::FieldAccess { expr, .. } => {
+            prefix_expression(expr, prefix);
+        }
+        Expression::MethodCall { receiver, args, .. } => {
+            prefix_expression(receiver, prefix);
+            for arg in args {
+                prefix_expression(arg, prefix);
             }
         }
         Expression::InterpolatedString(parts, _) => {

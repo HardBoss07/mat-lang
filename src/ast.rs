@@ -64,6 +64,26 @@ pub enum Expression {
     InterpolatedString(Vec<(Expression, FormatSpecifier)>, #[serde(skip)] Span),
     TupleLiteral(Vec<Expression>, #[serde(skip)] Span),
     ArrayLiteral(Vec<Expression>, #[serde(skip)] Span),
+    VectorLiteral(Vec<Expression>, #[serde(skip)] Span),
+    StructInit {
+        name: String,
+        fields: Vec<(String, Expression)>,
+        #[serde(skip)]
+        span: Span,
+    },
+    FieldAccess {
+        expr: Box<Expression>,
+        field: String,
+        #[serde(skip)]
+        span: Span,
+    },
+    MethodCall {
+        receiver: Box<Expression>,
+        method: String,
+        args: Vec<Expression>,
+        #[serde(skip)]
+        span: Span,
+    },
     Ok(Box<Expression>, #[serde(skip)] Span),
     Err(Box<Expression>, #[serde(skip)] Span),
     Binary {
@@ -104,6 +124,10 @@ impl Expression {
             | Expression::InterpolatedString(_, span)
             | Expression::TupleLiteral(_, span)
             | Expression::ArrayLiteral(_, span)
+            | Expression::VectorLiteral(_, span)
+            | Expression::StructInit { span, .. }
+            | Expression::FieldAccess { span, .. }
+            | Expression::MethodCall { span, .. }
             | Expression::Ok(_, span)
             | Expression::Err(_, span)
             | Expression::Binary { span, .. }
@@ -234,9 +258,27 @@ pub struct ImportDeclaration {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct StructField {
+    pub name: String,
+    pub ty: Type,
+    #[serde(skip)]
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct StructDeclaration {
+    pub is_pub: bool,
+    pub name: String,
+    pub fields: Vec<StructField>,
+    #[serde(skip)]
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Item {
     Function(FunctionDeclaration),
     Import(ImportDeclaration),
+    Struct(StructDeclaration),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
