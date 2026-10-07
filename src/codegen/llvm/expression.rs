@@ -49,6 +49,15 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             }
             Expression::TupleLiteral(elements, _) => self.compile_tuple_literal(elements),
             Expression::ArrayLiteral(elements, _) => self.compile_array_literal(elements),
+            Expression::VectorLiteral(elements, _) => self.compile_vector_literal(elements),
+            Expression::StructInit { name, fields, .. } => self.compile_struct_init(name, fields),
+            Expression::FieldAccess { expr, field, .. } => self.compile_field_access(expr, field),
+            Expression::MethodCall {
+                receiver,
+                method,
+                args,
+                ..
+            } => self.compile_method_call(receiver, method, args),
             Expression::TupleAccess { expr, index, .. } => self.compile_tuple_access(expr, *index),
             Expression::ArrayAccess { expr, index, .. } => self.compile_array_access(expr, index),
             Expression::InterpolatedString(parts, _) => self.compile_interpolated_string(parts),

@@ -62,4 +62,29 @@ pub fn declare_runtime_symbols<'a>(context: &'a Context, module: &Module<'a>) {
         let fn_type = bool_type.fn_type(&[ptr_type.into(), ptr_type.into()], false);
         module.add_function("_mat_rt_write_file", fn_type, None);
     }
+
+    if module.get_function("_mat_rt_vec_create").is_none() {
+        let fn_type = ptr_type.fn_type(&[i64_type.into(), i64_type.into()], false);
+        module.add_function("_mat_rt_vec_create", fn_type, None);
+    }
+
+    if module.get_function("_mat_rt_vec_push").is_none() {
+        let fn_type = void_type.fn_type(&[ptr_type.into(), ptr_type.into()], false);
+        module.add_function("_mat_rt_vec_push", fn_type, None);
+    }
+
+    if module.get_function("_mat_rt_vec_pop").is_none() {
+        let fn_type = void_type.fn_type(&[ptr_type.into(), ptr_type.into()], false);
+        module.add_function("_mat_rt_vec_pop", fn_type, None);
+    }
+
+    if module.get_function("_mat_rt_vec_get").is_none() {
+        let fn_type = ptr_type.fn_type(&[ptr_type.into(), i64_type.into()], false);
+        module.add_function("_mat_rt_vec_get", fn_type, None);
+    }
+
+    if module.get_function("_mat_rt_vec_len").is_none() {
+        let fn_type = i64_type.fn_type(&[ptr_type.into()], false);
+        module.add_function("_mat_rt_vec_len", fn_type, None);
+    }
 }

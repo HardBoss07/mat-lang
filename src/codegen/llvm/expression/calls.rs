@@ -294,6 +294,22 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             return Ok(self.engine.context.i32_type().const_int(0, false).into());
         }
 
+        if callee == "Vec::new" {
+            let elem_size = self.engine.context.i64_type().const_int(8, false);
+            let init_cap = self.engine.context.i64_type().const_int(4, false);
+            let create_fn = self
+                .engine
+                .module
+                .get_function("_mat_rt_vec_create")
+                .unwrap();
+            let call_site = llvm_err(self.engine.builder.build_call(
+                create_fn,
+                &[elem_size.into(), init_cap.into()],
+                "call_vec_new",
+            ))?;
+            return Ok(unsafe { BasicValueEnum::new(call_site.as_value_ref()) });
+        }
+
         let mangled = mangle_symbol(callee);
         let target_fn =
             self.engine.module.get_function(&mangled).ok_or_else(|| {

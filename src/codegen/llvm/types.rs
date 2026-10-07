@@ -35,7 +35,17 @@ impl<'ctx> CodegenEngine<'ctx> {
                     .struct_type(&[bool_ty, ok_llvm, err_llvm], false)
                     .into()
             }
-            Type::Custom(_) => self.context.i64_type().into(),
+            Type::Vector(_) => self
+                .context
+                .ptr_type(inkwell::AddressSpace::default())
+                .into(),
+            Type::Struct(name) | Type::Custom(name) => {
+                if let Some(struct_ty) = self.struct_types.borrow().get(name) {
+                    (*struct_ty).into()
+                } else {
+                    self.context.i64_type().into()
+                }
+            }
         }
     }
 }

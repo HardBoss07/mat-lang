@@ -2,6 +2,7 @@ use super::super::function::{FunctionCompiler, LoopBlocks};
 use super::super::util::{branch_if_unterminated, llvm_err};
 use crate::ast::{Expression, Statement, Type};
 use crate::error::{MatcError, Result};
+use inkwell::values::{AsValueRef, BasicValueEnum};
 
 impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
     pub(crate) fn compile_fori_stmt(
@@ -72,22 +73,37 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         let iter_mat_ty = self
             .type_checker
             .synthesize_expr(iterable, &self.symbol_table)?;
-        let (elem_mat_ty, array_len) = match iter_mat_ty {
-            Type::Array(ref elem, len) => (*elem.clone(), len),
+
+        let iter_val = self.compile_expression(iterable)?;
+        let i64_ty = self.engine.context.i64_type();
+
+        let (elem_mat_ty, len_val, is_vector) = match iter_mat_ty {
+            Type::Array(ref elem, len) => {
+                (*elem.clone(), i64_ty.const_int(len as u64, false), false)
+            }
+            Type::Vector(ref elem) => {
+                let len_fn = self.engine.module.get_function("_mat_rt_vec_len").unwrap();
+                let call_res = llvm_err(self.engine.builder.build_call(
+                    len_fn,
+                    &[iter_val.into()],
+                    "vec_len",
+                ))?;
+                let len_int =
+                    unsafe { BasicValueEnum::new(call_res.as_value_ref()) }.into_int_value();
+                (*elem.clone(), len_int, true)
+            }
             _ => {
                 return Err(MatcError::CodegenError(
-                    "Expected array type in for-in".to_string(),
+                    "Expected array or vector type in for-in".to_string(),
                 ));
             }
         };
 
-        let iter_val = self.compile_expression(iterable)?;
-        let array_llvm_ty = self.engine.llvm_type(&iter_mat_ty);
+        let iter_llvm_ty = self.engine.llvm_type(&iter_mat_ty);
         let elem_llvm_ty = self.engine.llvm_type(&elem_mat_ty);
-        let i64_ty = self.engine.context.i64_type();
 
-        let array_alloca = self.create_entry_block_alloca(array_llvm_ty, "for_in_arr")?;
-        llvm_err(self.engine.builder.build_store(array_alloca, iter_val))?;
+        let iter_alloca = self.create_entry_block_alloca(iter_llvm_ty, "for_in_coll")?;
+        llvm_err(self.engine.builder.build_store(iter_alloca, iter_val))?;
 
         let idx_alloca = self.create_entry_block_alloca(i64_ty.into(), "for_in_idx")?;
         let zero_i64 = i64_ty.const_int(0, false);
@@ -119,7 +135,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                 .build_load(i64_ty, idx_alloca, "curr_idx"),
         )?
         .into_int_value();
-        let len_val = i64_ty.const_int(array_len as u64, false);
+
         let cond_val = llvm_err(self.engine.builder.build_int_compare(
             inkwell::IntPredicate::SLT,
             current_idx,
@@ -135,20 +151,41 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         self.engine.builder.position_at_end(for_in_body);
         self.symbol_table.push_scope();
 
-        let zero_i32 = self.engine.context.i32_type().const_int(0, false);
-        let elem_ptr = unsafe {
-            llvm_err(self.engine.builder.build_gep(
-                array_llvm_ty,
-                array_alloca,
-                &[zero_i32, current_idx],
-                "for_in_elem_ptr",
-            ))?
+        let elem_val = if is_vector {
+            let coll_loaded = llvm_err(self.engine.builder.build_load(
+                iter_llvm_ty,
+                iter_alloca,
+                "vec_ptr",
+            ))?;
+            let get_fn = self.engine.module.get_function("_mat_rt_vec_get").unwrap();
+            let call_res = llvm_err(self.engine.builder.build_call(
+                get_fn,
+                &[coll_loaded.into(), current_idx.into()],
+                "call_vec_get",
+            ))?;
+            let elem_ptr =
+                unsafe { BasicValueEnum::new(call_res.as_value_ref()) }.into_pointer_value();
+            llvm_err(
+                self.engine
+                    .builder
+                    .build_load(elem_llvm_ty, elem_ptr, var_name),
+            )?
+        } else {
+            let zero_i32 = self.engine.context.i32_type().const_int(0, false);
+            let elem_ptr = unsafe {
+                llvm_err(self.engine.builder.build_gep(
+                    iter_llvm_ty,
+                    iter_alloca,
+                    &[zero_i32, current_idx],
+                    "for_in_elem_ptr",
+                ))?
+            };
+            llvm_err(
+                self.engine
+                    .builder
+                    .build_load(elem_llvm_ty, elem_ptr, var_name),
+            )?
         };
-        let elem_val = llvm_err(
-            self.engine
-                .builder
-                .build_load(elem_llvm_ty, elem_ptr, var_name),
-        )?;
 
         let var_alloca = self.create_entry_block_alloca(elem_llvm_ty, var_name)?;
         llvm_err(self.engine.builder.build_store(var_alloca, elem_val))?;

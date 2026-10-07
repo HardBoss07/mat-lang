@@ -15,10 +15,14 @@ use crate::codegen::runtime::declare_runtime_symbols;
 use crate::error::{MatcError, Result};
 use crate::semantic::SymbolTable;
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+
 pub struct CodegenEngine<'ctx> {
     pub context: &'ctx Context,
     pub module: Module<'ctx>,
     pub builder: Builder<'ctx>,
+    pub struct_types: RefCell<HashMap<String, inkwell::types::StructType<'ctx>>>,
 }
 
 impl<'ctx> CodegenEngine<'ctx> {
@@ -32,11 +36,44 @@ impl<'ctx> CodegenEngine<'ctx> {
             context,
             module,
             builder,
+            struct_types: RefCell::new(HashMap::new()),
         }
     }
 
     pub fn compile_program(&self, program: &Program) -> Result<()> {
         let mut global_symbols = SymbolTable::new();
+
+        // Pass 0: Register all struct declarations
+        for item in &program.items {
+            if let Item::Struct(struct_decl) = item {
+                let fields = struct_decl
+                    .fields
+                    .iter()
+                    .map(|f| (f.name.clone(), f.ty.clone()))
+                    .collect();
+                global_symbols.insert_struct(struct_decl.name.clone(), fields);
+
+                // Create LLVM struct type placeholder
+                let struct_type = self.context.opaque_struct_type(&struct_decl.name);
+                self.struct_types
+                    .borrow_mut()
+                    .insert(struct_decl.name.clone(), struct_type);
+            }
+        }
+
+        // Set struct bodies now that types are registered
+        for item in &program.items {
+            if let Item::Struct(struct_decl) = item {
+                let field_types: Vec<inkwell::types::BasicTypeEnum<'ctx>> = struct_decl
+                    .fields
+                    .iter()
+                    .map(|f| self.llvm_type(&f.ty))
+                    .collect();
+                if let Some(struct_type) = self.struct_types.borrow().get(&struct_decl.name) {
+                    struct_type.set_body(&field_types, false);
+                }
+            }
+        }
 
         // Pass 1: Declare all function prototypes in the LLVM module first
         for item in &program.items {
@@ -50,6 +87,7 @@ impl<'ctx> CodegenEngine<'ctx> {
                     );
                     self.declare_function_prototype(func);
                 }
+                Item::Struct(_) => {}
                 Item::Import(_) => {}
             }
         }
@@ -58,6 +96,7 @@ impl<'ctx> CodegenEngine<'ctx> {
         for item in &program.items {
             match item {
                 Item::Function(func) => self.compile_function_body(func, &global_symbols)?,
+                Item::Struct(_) => {}
                 Item::Import(_) => {}
             }
         }
