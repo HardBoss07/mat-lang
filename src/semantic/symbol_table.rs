@@ -15,10 +15,17 @@ pub struct FunctionSymbol {
     pub return_type: Type,
 }
 
+#[derive(Debug, Clone)]
+pub struct StructSymbol {
+    pub name: String,
+    pub fields: Vec<(String, Type)>,
+}
+
 #[derive(Clone)]
 pub struct SymbolTable {
     scopes: Vec<HashMap<String, Symbol>>,
     functions: HashMap<String, FunctionSymbol>,
+    structs: HashMap<String, StructSymbol>,
 }
 
 impl SymbolTable {
@@ -88,6 +95,7 @@ impl SymbolTable {
         Self {
             scopes: vec![global_scope],
             functions,
+            structs: HashMap::new(),
         }
     }
 
@@ -136,5 +144,14 @@ impl SymbolTable {
 
     pub fn lookup_function(&self, name: &str) -> Option<&FunctionSymbol> {
         self.functions.get(name)
+    }
+
+    pub fn insert_struct(&mut self, name: String, fields: Vec<(String, Type)>) {
+        self.structs
+            .insert(name.clone(), StructSymbol { name, fields });
+    }
+
+    pub fn lookup_struct(&self, name: &str) -> Option<&StructSymbol> {
+        self.structs.get(name)
     }
 }

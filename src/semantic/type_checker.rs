@@ -30,6 +30,14 @@ impl TypeChecker {
     pub fn check_program(&self, program: &Program, symbols: &mut SymbolTable) -> Result<()> {
         for item in &program.items {
             match item {
+                Item::Struct(struct_decl) => {
+                    let fields = struct_decl
+                        .fields
+                        .iter()
+                        .map(|f| (f.name.clone(), f.ty.clone()))
+                        .collect();
+                    symbols.insert_struct(struct_decl.name.clone(), fields);
+                }
                 Item::Function(func) => {
                     let param_tys = func.params.iter().map(|p| p.ty.clone()).collect();
                     symbols.insert_function(func.name.clone(), param_tys, func.return_type.clone());
@@ -50,6 +58,7 @@ impl TypeChecker {
                     }
                     symbols.pop_scope();
                 }
+                Item::Struct(_) => {}
                 Item::Import(_) => {}
             }
         }

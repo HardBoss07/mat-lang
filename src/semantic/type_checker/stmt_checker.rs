@@ -155,9 +155,10 @@ impl TypeChecker {
                 let iter_ty = self.synthesize_expr(iterable, symbols)?;
                 let elem_ty = match iter_ty {
                     Type::Array(elem, _) => *elem,
+                    Type::Vector(elem) => *elem,
                     other => {
                         return Err(self.type_error(
-                            format!("Cannot iterate over non-array type {:?}", other),
+                            format!("Cannot iterate over non-collection type {:?}", other),
                             iterable.span(),
                         ));
                     }

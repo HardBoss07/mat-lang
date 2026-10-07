@@ -73,6 +73,106 @@ impl TypeChecker {
                     )),
                 }
             }
+            Expression::VectorLiteral(elements, span) => {
+                if elements.is_empty() {
+                    return Err(self.type_error(
+                        "Cannot infer type of empty vector literal without explicit annotation",
+                        *span,
+                    ));
+                }
+                let first_ty = self.synthesize_expr(&elements[0], symbols)?;
+                for elem in &elements[1..] {
+                    let elem_ty = self.synthesize_expr(elem, symbols)?;
+                    if elem_ty != first_ty {
+                        return Err(self.type_error(
+                            format!(
+                                "Mismatched types in vector literal: expected {:?}, got {:?}",
+                                first_ty, elem_ty
+                            ),
+                            elem.span(),
+                        ));
+                    }
+                }
+                Ok(Type::Vector(Box::new(first_ty)))
+            }
+            Expression::StructInit { name, fields, span } => {
+                let struct_def = symbols
+                    .lookup_struct(name)
+                    .ok_or_else(|| self.type_error(format!("Undefined struct '{}'", name), *span))?
+                    .clone();
+
+                if fields.len() != struct_def.fields.len() {
+                    return Err(self.type_error(
+                        format!(
+                            "Struct '{}' expects {} fields, got {}",
+                            name,
+                            struct_def.fields.len(),
+                            fields.len()
+                        ),
+                        *span,
+                    ));
+                }
+
+                for (field_name, field_expr) in fields {
+                    let expected_field_ty = struct_def
+                        .fields
+                        .iter()
+                        .find(|(n, _)| n == field_name)
+                        .map(|(_, ty)| ty)
+                        .ok_or_else(|| {
+                            self.type_error(
+                                format!("Unknown field '{}' on struct '{}'", field_name, name),
+                                field_expr.span(),
+                            )
+                        })?;
+                    self.check_expr(field_expr, expected_field_ty, symbols)?;
+                }
+
+                Ok(Type::Struct(name.clone()))
+            }
+            Expression::FieldAccess { expr, field, span } => {
+                let expr_ty = self.synthesize_expr(expr, symbols)?;
+                let struct_name = match &expr_ty {
+                    Type::Struct(name) => name,
+                    Type::Custom(name) => name,
+                    other => {
+                        return Err(self.type_error(
+                            format!(
+                                "Cannot access field '{}' on non-struct type {:?}",
+                                field, other
+                            ),
+                            expr.span(),
+                        ));
+                    }
+                };
+
+                let struct_def = symbols.lookup_struct(struct_name).ok_or_else(|| {
+                    self.type_error(format!("Undefined struct '{}'", struct_name), *span)
+                })?;
+
+                let field_ty = struct_def
+                    .fields
+                    .iter()
+                    .find(|(n, _)| n == field)
+                    .map(|(_, ty)| ty.clone())
+                    .ok_or_else(|| {
+                        self.type_error(
+                            format!("Struct '{}' has no field '{}'", struct_name, field),
+                            *span,
+                        )
+                    })?;
+
+                Ok(field_ty)
+            }
+            Expression::MethodCall {
+                receiver,
+                method,
+                args,
+                span,
+            } => {
+                let receiver_ty = self.synthesize_expr(receiver, symbols)?;
+                self.check_method_call(&receiver_ty, method, args, *span, symbols)
+            }
             Expression::ArrayAccess { expr, index, span } => {
                 let expr_ty = self.synthesize_expr(expr, symbols)?;
                 let index_ty = self.synthesize_expr(index, symbols)?;
@@ -84,6 +184,7 @@ impl TypeChecker {
                 }
                 match expr_ty {
                     Type::Array(elem_ty, _) => Ok(*elem_ty),
+                    Type::Vector(elem_ty) => Ok(*elem_ty),
                     other => {
                         Err(self
                             .type_error(format!("Cannot index non-array type {:?}", other), *span))
@@ -95,6 +196,12 @@ impl TypeChecker {
                 arguments,
                 span,
             } => {
+                if callee == "Vec::new" {
+                    return Err(
+                        self.type_error("Vec::new() requires type annotation context", *span)
+                    );
+                }
+
                 let fn_sym = symbols
                     .lookup_function(callee)
                     .ok_or_else(|| self.undefined_function(callee, *span))?
@@ -239,10 +346,58 @@ impl TypeChecker {
                 }
                 Ok(Type::Array(target_elem_ty.clone(), *expected_len))
             }
+            (Expression::VectorLiteral(elements, _), Type::Vector(target_elem_ty)) => {
+                for elem in elements {
+                    self.check_expr(elem, target_elem_ty, symbols)?;
+                }
+                Ok(Type::Vector(target_elem_ty.clone()))
+            }
+            (
+                Expression::Call {
+                    callee,
+                    arguments,
+                    span,
+                },
+                Type::Vector(target_elem_ty),
+            ) if callee == "Vec::new" => {
+                if !arguments.is_empty() {
+                    return Err(self.type_error("Vec::new() takes 0 arguments", *span));
+                }
+                Ok(Type::Vector(target_elem_ty.clone()))
+            }
+            (
+                Expression::StructInit {
+                    name,
+                    fields: _,
+                    span,
+                },
+                target_ty @ (Type::Struct(target_name) | Type::Custom(target_name)),
+            ) => {
+                if name != target_name {
+                    return Err(self.type_error(
+                        format!(
+                            "Type mismatch in struct initialization: expected {}, got {}",
+                            target_name, name
+                        ),
+                        *span,
+                    ));
+                }
+                self.synthesize_expr(expr, symbols)?;
+                Ok(target_ty.clone())
+            }
             (other_expr, target_ty) => {
                 let synthesized = self.synthesize_expr(other_expr, symbols)?;
-                if synthesized == *target_ty {
-                    Ok(synthesized)
+                let matched = if synthesized == *target_ty {
+                    true
+                } else {
+                    matches!(
+                        (&synthesized, target_ty),
+                        (Type::Struct(a), Type::Custom(b)) | (Type::Custom(a), Type::Struct(b)) if a == b
+                    )
+                };
+
+                if matched {
+                    Ok(target_ty.clone())
                 } else {
                     Err(self.type_error(
                         format!(
@@ -253,6 +408,53 @@ impl TypeChecker {
                     ))
                 }
             }
+        }
+    }
+
+    pub fn check_method_call(
+        &self,
+        receiver_ty: &Type,
+        method: &str,
+        args: &[Expression],
+        span: crate::ast::Span,
+        symbols: &SymbolTable,
+    ) -> Result<Type> {
+        match (receiver_ty, method) {
+            (Type::Vector(elem_ty), "push") => {
+                if args.is_empty() {
+                    return Err(self.type_error("push requires at least 1 argument", span));
+                }
+                for arg in args {
+                    self.check_expr(arg, elem_ty, symbols)?;
+                }
+                Ok(Type::Void)
+            }
+            (Type::Vector(elem_ty), "pop") => {
+                if !args.is_empty() {
+                    return Err(self.type_error("pop takes 0 arguments", span));
+                }
+                Ok((**elem_ty).clone())
+            }
+            (Type::Vector(elem_ty), "get") => {
+                if args.len() != 1 {
+                    return Err(self.type_error("get takes exactly 1 argument", span));
+                }
+                let index_ty = self.synthesize_expr(&args[0], symbols)?;
+                if index_ty != Type::Int && index_ty != Type::I32 {
+                    return Err(self.type_error("get index must be integer", args[0].span()));
+                }
+                Ok((**elem_ty).clone())
+            }
+            (Type::Vector(_), "len") | (Type::Array(_, _), "len") | (Type::Tuple(_), "len") => {
+                if !args.is_empty() {
+                    return Err(self.type_error("len takes 0 arguments", span));
+                }
+                Ok(Type::Int)
+            }
+            _ => Err(self.type_error(
+                format!("Method '{}' not found on type {:?}", method, receiver_ty),
+                span,
+            )),
         }
     }
 }
