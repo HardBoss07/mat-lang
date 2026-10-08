@@ -23,6 +23,7 @@ pub struct CodegenEngine<'ctx> {
     pub module: Module<'ctx>,
     pub builder: Builder<'ctx>,
     pub struct_types: RefCell<HashMap<String, inkwell::types::StructType<'ctx>>>,
+    pub enum_types: RefCell<HashMap<String, inkwell::types::StructType<'ctx>>>,
 }
 
 impl<'ctx> CodegenEngine<'ctx> {
@@ -37,31 +38,50 @@ impl<'ctx> CodegenEngine<'ctx> {
             module,
             builder,
             struct_types: RefCell::new(HashMap::new()),
+            enum_types: RefCell::new(HashMap::new()),
         }
     }
 
     pub fn compile_program(&self, program: &Program) -> Result<()> {
         let mut global_symbols = SymbolTable::new();
 
-        // Pass 0: Register all struct declarations
+        // Pass 0: Register all struct & enum declarations
         for item in &program.items {
-            if let Item::Struct(struct_decl) = item {
-                let fields = struct_decl
-                    .fields
-                    .iter()
-                    .map(|f| (f.name.clone(), f.ty.clone()))
-                    .collect();
-                global_symbols.insert_struct(struct_decl.name.clone(), fields);
+            match item {
+                Item::Struct(struct_decl) => {
+                    let fields = struct_decl
+                        .fields
+                        .iter()
+                        .map(|f| (f.name.clone(), f.ty.clone()))
+                        .collect();
+                    global_symbols.insert_struct(struct_decl.name.clone(), fields);
 
-                // Create LLVM struct type placeholder
-                let struct_type = self.context.opaque_struct_type(&struct_decl.name);
-                self.struct_types
-                    .borrow_mut()
-                    .insert(struct_decl.name.clone(), struct_type);
+                    let struct_type = self.context.opaque_struct_type(&struct_decl.name);
+                    self.struct_types
+                        .borrow_mut()
+                        .insert(struct_decl.name.clone(), struct_type);
+                }
+                Item::Enum(enum_decl) => {
+                    let variants = enum_decl
+                        .variants
+                        .iter()
+                        .map(|v| crate::semantic::symbol_table::EnumVariantSymbol {
+                            name: v.name.clone(),
+                            payload: v.payload.clone(),
+                        })
+                        .collect();
+                    global_symbols.insert_enum(enum_decl.name.clone(), variants);
+
+                    let enum_type = self.context.opaque_struct_type(&enum_decl.name);
+                    self.enum_types
+                        .borrow_mut()
+                        .insert(enum_decl.name.clone(), enum_type);
+                }
+                _ => {}
             }
         }
 
-        // Set struct bodies now that types are registered
+        // Set struct & enum bodies now that types are registered
         for item in &program.items {
             if let Item::Struct(struct_decl) = item {
                 let field_types: Vec<inkwell::types::BasicTypeEnum<'ctx>> = struct_decl
@@ -72,12 +92,30 @@ impl<'ctx> CodegenEngine<'ctx> {
                 if let Some(struct_type) = self.struct_types.borrow().get(&struct_decl.name) {
                     struct_type.set_body(&field_types, false);
                 }
+            } else if let Item::Enum(enum_decl) = item {
+                // Tagged union in LLVM: { i32 tag, [64 x i8] payload }
+                let tag_type = self.context.i32_type().as_basic_type_enum();
+                let payload_bytes = self.context.i8_type().array_type(64).as_basic_type_enum();
+                if let Some(enum_type) = self.enum_types.borrow().get(&enum_decl.name) {
+                    enum_type.set_body(&[tag_type, payload_bytes], false);
+                }
             }
         }
 
-        // Pass 1: Declare all function prototypes in the LLVM module first
+        // Pass 1: Declare global variables and function prototypes
         for item in &program.items {
             match item {
+                Item::GlobalLet(global_let) => {
+                    let ty = if let Some(annotated_ty) = &global_let.ty {
+                        annotated_ty.clone()
+                    } else {
+                        Type::Int
+                    };
+                    let llvm_ty = self.llvm_type(&ty);
+                    let gvar = self.module.add_global(llvm_ty, None, &global_let.name);
+                    gvar.set_initializer(&llvm_ty.const_zero());
+                    global_symbols.insert(global_let.name.clone(), ty, global_let.is_mutable);
+                }
                 Item::Function(func) => {
                     let param_tys = func.params.iter().map(|p| p.ty.clone()).collect();
                     global_symbols.insert_function(
@@ -87,8 +125,7 @@ impl<'ctx> CodegenEngine<'ctx> {
                     );
                     self.declare_function_prototype(func);
                 }
-                Item::Struct(_) => {}
-                Item::Import(_) => {}
+                Item::Struct(_) | Item::Enum(_) | Item::Import(_) => {}
             }
         }
 
@@ -96,8 +133,7 @@ impl<'ctx> CodegenEngine<'ctx> {
         for item in &program.items {
             match item {
                 Item::Function(func) => self.compile_function_body(func, &global_symbols)?,
-                Item::Struct(_) => {}
-                Item::Import(_) => {}
+                _ => {}
             }
         }
         Ok(())
@@ -173,9 +209,11 @@ impl<'ctx> CodegenEngine<'ctx> {
             compiler
                 .local_vars
                 .insert(param_ast.name.clone(), (alloca, param_ast.ty.clone()));
-            compiler
-                .symbol_table
-                .insert(param_ast.name.clone(), param_ast.ty.clone(), false);
+            compiler.symbol_table.insert(
+                param_ast.name.clone(),
+                param_ast.ty.clone(),
+                param_ast.is_mutable,
+            );
         }
 
         for stmt in &func.body {
