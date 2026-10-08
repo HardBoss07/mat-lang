@@ -34,6 +34,7 @@ pub enum FormatSpecifier {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Param {
+    pub is_mutable: bool,
     pub name: String,
     pub ty: Type,
     #[serde(skip)]
@@ -44,6 +45,20 @@ pub struct Param {
 pub enum MatchPattern {
     Ok(String),
     Err(String),
+    EnumUnit {
+        enum_name: Option<String>,
+        variant: String,
+    },
+    EnumTuple {
+        enum_name: Option<String>,
+        variant: String,
+        vars: Vec<String>,
+    },
+    EnumStruct {
+        enum_name: Option<String>,
+        variant: String,
+        fields: Vec<(String, String)>,
+    },
     Literal(Expression),
     Wildcard,
 }
@@ -68,6 +83,13 @@ pub enum Expression {
     StructInit {
         name: String,
         fields: Vec<(String, Expression)>,
+        #[serde(skip)]
+        span: Span,
+    },
+    EnumInit {
+        enum_name: Option<String>,
+        variant_name: String,
+        payload: Option<Box<Expression>>,
         #[serde(skip)]
         span: Span,
     },
@@ -126,6 +148,7 @@ impl Expression {
             | Expression::ArrayLiteral(_, span)
             | Expression::VectorLiteral(_, span)
             | Expression::StructInit { span, .. }
+            | Expression::EnumInit { span, .. }
             | Expression::FieldAccess { span, .. }
             | Expression::MethodCall { span, .. }
             | Expression::Ok(_, span)
@@ -259,6 +282,7 @@ pub struct ImportDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct StructField {
+    pub is_pub: bool,
     pub name: String,
     pub ty: Type,
     #[serde(skip)]
@@ -275,10 +299,47 @@ pub struct StructDeclaration {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+pub enum EnumVariantPayload {
+    Unit,
+    Tuple(Vec<Type>),
+    Struct(Vec<StructField>),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct EnumVariant {
+    pub name: String,
+    pub payload: EnumVariantPayload,
+    #[serde(skip)]
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct EnumDeclaration {
+    pub is_pub: bool,
+    pub name: String,
+    pub variants: Vec<EnumVariant>,
+    #[serde(skip)]
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct GlobalLetDeclaration {
+    pub is_pub: bool,
+    pub name: String,
+    pub is_mutable: bool,
+    pub ty: Option<Type>,
+    pub value: Expression,
+    #[serde(skip)]
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Item {
     Function(FunctionDeclaration),
     Import(ImportDeclaration),
     Struct(StructDeclaration),
+    Enum(EnumDeclaration),
+    GlobalLet(GlobalLetDeclaration),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
