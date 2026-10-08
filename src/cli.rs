@@ -269,7 +269,7 @@ fn resolve_and_parse_program(
                     combined_items.extend(imported_items);
                 }
             }
-            Item::Function(_) | Item::Struct(_) => {
+            Item::Function(_) | Item::Struct(_) | Item::Enum(_) | Item::GlobalLet(_) => {
                 combined_items.push(item);
             }
         }
@@ -285,13 +285,32 @@ fn get_embedded_std_module(path: &[String]) -> Option<&'static str> {
 
 fn prefix_module_items(items: &mut [Item], prefix: &str) {
     for item in items {
-        if let Item::Function(func) = item {
-            if !func.name.contains("::") {
-                func.name = format!("{}::{}", prefix, func.name);
+        match item {
+            Item::Function(func) => {
+                if !func.name.contains("::") {
+                    func.name = format!("{}::{}", prefix, func.name);
+                }
+                for stmt in &mut func.body {
+                    prefix_statement(stmt, prefix);
+                }
             }
-            for stmt in &mut func.body {
-                prefix_statement(stmt, prefix);
+            Item::Struct(s) => {
+                if !s.name.contains("::") {
+                    s.name = format!("{}::{}", prefix, s.name);
+                }
             }
+            Item::Enum(e) => {
+                if !e.name.contains("::") {
+                    e.name = format!("{}::{}", prefix, e.name);
+                }
+            }
+            Item::GlobalLet(g) => {
+                if !g.name.contains("::") {
+                    g.name = format!("{}::{}", prefix, g.name);
+                }
+                prefix_expression(&mut g.value, prefix);
+            }
+            Item::Import(_) => {}
         }
     }
 }
