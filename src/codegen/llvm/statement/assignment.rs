@@ -2,9 +2,78 @@ use super::super::function::FunctionCompiler;
 use super::super::util::{coerce_val_to_type, llvm_err};
 use crate::ast::{BinaryOp, Expression, Type};
 use crate::error::{MatcError, Result};
-use inkwell::values::BasicValueEnum;
+use inkwell::values::{BasicValueEnum, PointerValue};
 
 impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
+    fn resolve_target_ptr(&mut self, target: &str) -> Result<(PointerValue<'ctx>, Type)> {
+        let parts: Vec<&str> = target.split('.').collect();
+        let base_name = parts[0];
+        let (mut ptr, mut mat_ty) = self
+            .local_vars
+            .get(base_name)
+            .ok_or_else(|| {
+                MatcError::CodegenError(format!("Undefined variable in codegen: {}", base_name))
+            })?
+            .clone();
+
+        for field in &parts[1..] {
+            match &mat_ty {
+                Type::Struct(struct_name) | Type::Custom(struct_name) => {
+                    let struct_def =
+                        self.symbol_table
+                            .lookup_struct(struct_name)
+                            .ok_or_else(|| {
+                                MatcError::CodegenError(format!(
+                                    "Struct '{}' not found",
+                                    struct_name
+                                ))
+                            })?;
+                    let field_idx = struct_def
+                        .fields
+                        .iter()
+                        .position(|(n, _)| n == *field)
+                        .ok_or_else(|| {
+                            MatcError::CodegenError(format!(
+                                "Field '{}' not found on struct '{}'",
+                                field, struct_name
+                            ))
+                        })?;
+                    let field_mat_ty = struct_def.fields[field_idx].1.clone();
+                    let llvm_struct_ty = self.engine.llvm_type(&mat_ty).into_struct_type();
+                    ptr = llvm_err(self.engine.builder.build_struct_gep(
+                        llvm_struct_ty,
+                        ptr,
+                        field_idx as u32,
+                        &format!("{}_{}_ptr", base_name, field),
+                    ))?;
+                    mat_ty = field_mat_ty;
+                }
+                Type::Tuple(elem_types) => {
+                    let idx: u32 = field.parse().map_err(|_| {
+                        MatcError::CodegenError(format!("Invalid tuple index '{}'", field))
+                    })?;
+                    let field_mat_ty = elem_types[idx as usize].clone();
+                    let llvm_tuple_ty = self.engine.llvm_type(&mat_ty).into_struct_type();
+                    ptr = llvm_err(self.engine.builder.build_struct_gep(
+                        llvm_tuple_ty,
+                        ptr,
+                        idx,
+                        &format!("{}_{}_ptr", base_name, field),
+                    ))?;
+                    mat_ty = field_mat_ty;
+                }
+                _ => {
+                    return Err(MatcError::CodegenError(format!(
+                        "Cannot access field '{}' on non-struct type {:?}",
+                        field, mat_ty
+                    )));
+                }
+            }
+        }
+
+        Ok((ptr, mat_ty))
+    }
+
     pub(crate) fn compile_let_stmt(
         &mut self,
         name: &str,
@@ -40,13 +109,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         target: &str,
         value: &Expression,
     ) -> Result<()> {
-        let (ptr, mat_ty) = self
-            .local_vars
-            .get(target)
-            .ok_or_else(|| {
-                MatcError::CodegenError(format!("Undefined variable in codegen: {}", target))
-            })?
-            .clone();
+        let (ptr, mat_ty) = self.resolve_target_ptr(target)?;
 
         let raw_val = self.compile_expression(value)?;
         let val = coerce_val_to_type(self.engine, raw_val, &mat_ty)?;
@@ -61,13 +124,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         op: &BinaryOp,
         value: &Expression,
     ) -> Result<()> {
-        let (ptr, mat_ty) = self
-            .local_vars
-            .get(target)
-            .ok_or_else(|| {
-                MatcError::CodegenError(format!("Undefined variable in codegen: {}", target))
-            })?
-            .clone();
+        let (ptr, mat_ty) = self.resolve_target_ptr(target)?;
 
         let llvm_ty = self.engine.llvm_type(&mat_ty);
         let loaded = llvm_err(self.engine.builder.build_load(llvm_ty, ptr, target))?;
@@ -160,32 +217,28 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
     }
 
     pub(crate) fn compile_increment_stmt(&mut self, target: &str) -> Result<()> {
-        let (ptr, ty) = self.local_vars.get(target).ok_or_else(|| {
-            MatcError::CodegenError(format!("Undefined variable in codegen: {}", target))
-        })?;
-        let llvm_ty = self.engine.llvm_type(ty);
+        let (ptr, ty) = self.resolve_target_ptr(target)?;
+        let llvm_ty = self.engine.llvm_type(&ty);
         let loaded =
-            llvm_err(self.engine.builder.build_load(llvm_ty, *ptr, target))?.into_int_value();
+            llvm_err(self.engine.builder.build_load(llvm_ty, ptr, target))?.into_int_value();
 
         let one = loaded.get_type().const_int(1, false);
         let inc = llvm_err(self.engine.builder.build_int_add(loaded, one, "inc"))?;
 
-        llvm_err(self.engine.builder.build_store(*ptr, inc))?;
+        llvm_err(self.engine.builder.build_store(ptr, inc))?;
         Ok(())
     }
 
     pub(crate) fn compile_decrement_stmt(&mut self, target: &str) -> Result<()> {
-        let (ptr, ty) = self.local_vars.get(target).ok_or_else(|| {
-            MatcError::CodegenError(format!("Undefined variable in codegen: {}", target))
-        })?;
-        let llvm_ty = self.engine.llvm_type(ty);
+        let (ptr, ty) = self.resolve_target_ptr(target)?;
+        let llvm_ty = self.engine.llvm_type(&ty);
         let loaded =
-            llvm_err(self.engine.builder.build_load(llvm_ty, *ptr, target))?.into_int_value();
+            llvm_err(self.engine.builder.build_load(llvm_ty, ptr, target))?.into_int_value();
 
         let one = loaded.get_type().const_int(1, false);
         let dec = llvm_err(self.engine.builder.build_int_sub(loaded, one, "dec"))?;
 
-        llvm_err(self.engine.builder.build_store(*ptr, dec))?;
+        llvm_err(self.engine.builder.build_store(ptr, dec))?;
         Ok(())
     }
 }
