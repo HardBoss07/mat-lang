@@ -140,15 +140,25 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             .ok_or_else(|| MatcError::CodegenError(format!("Struct '{}' not found", name)))?
             .clone();
 
-        let struct_ty = self
-            .engine
-            .struct_types
-            .borrow()
+        let short_name = name.split("::").last().unwrap_or(name);
+        let struct_map = self.engine.struct_types.borrow();
+        let mut struct_ty = struct_map
             .get(name)
-            .copied()
-            .ok_or_else(|| {
-                MatcError::CodegenError(format!("LLVM struct type '{}' not found", name))
-            })?;
+            .or_else(|| struct_map.get(short_name))
+            .copied();
+        if struct_ty.is_none() {
+            let suffix = format!("::{}", short_name);
+            for (k, &ty) in struct_map.iter() {
+                if k.ends_with(&suffix) {
+                    struct_ty = Some(ty);
+                    break;
+                }
+            }
+        }
+
+        let struct_ty = struct_ty.ok_or_else(|| {
+            MatcError::CodegenError(format!("LLVM struct type '{}' not found", name))
+        })?;
 
         let alloca = self.create_entry_block_alloca(struct_ty.into(), "struct_tmp")?;
 
