@@ -117,6 +117,75 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             }
 
             self.engine.builder.position_at_end(match_after);
+        } else if let Type::Custom(ref _enum_name) | Type::Struct(ref _enum_name) = expr_mat_ty {
+            let enum_llvm_ty = self.engine.llvm_type(&expr_mat_ty);
+            let struct_ty = enum_llvm_ty.into_struct_type();
+
+            let alloca = self.create_entry_block_alloca(struct_ty.into(), "match_enum_tmp")?;
+            llvm_err(self.engine.builder.build_store(alloca, compiled_expr))?;
+
+            let _tag_ptr = llvm_err(
+                self.engine
+                    .builder
+                    .build_struct_gep(struct_ty, alloca, 0, "tag_ptr"),
+            )?;
+
+            for arm in arms {
+                let arm_block = self
+                    .engine
+                    .context
+                    .append_basic_block(self.fn_value, "match_arm");
+
+                self.engine.builder.position_at_end(arm_block);
+                self.symbol_table.push_scope();
+
+                match &arm.pattern {
+                    MatchPattern::EnumUnit { .. } => {
+                        for stmt in &arm.body {
+                            self.compile_statement(stmt)?;
+                        }
+                    }
+                    MatchPattern::EnumTuple { vars, .. } => {
+                        for var_name in vars {
+                            let var_alloca = self.create_entry_block_alloca(
+                                self.engine.context.i64_type().into(),
+                                var_name,
+                            )?;
+                            self.local_vars
+                                .insert(var_name.clone(), (var_alloca, Type::Int));
+                            self.symbol_table.insert(var_name.clone(), Type::Int, false);
+                        }
+                        for stmt in &arm.body {
+                            self.compile_statement(stmt)?;
+                        }
+                    }
+                    MatchPattern::EnumStruct { fields, .. } => {
+                        for (_field_name, var_name) in fields {
+                            let var_alloca = self.create_entry_block_alloca(
+                                self.engine.context.i64_type().into(),
+                                var_name,
+                            )?;
+                            self.local_vars
+                                .insert(var_name.clone(), (var_alloca, Type::Int));
+                            self.symbol_table.insert(var_name.clone(), Type::Int, false);
+                        }
+                        for stmt in &arm.body {
+                            self.compile_statement(stmt)?;
+                        }
+                    }
+                    MatchPattern::Wildcard | MatchPattern::Literal(_) => {
+                        for stmt in &arm.body {
+                            self.compile_statement(stmt)?;
+                        }
+                    }
+                    _ => {}
+                }
+
+                self.symbol_table.pop_scope();
+                branch_if_unterminated(self.engine, match_after)?;
+            }
+
+            self.engine.builder.position_at_end(match_after);
         }
         Ok(())
     }
