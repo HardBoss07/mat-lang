@@ -40,11 +40,32 @@ impl<'ctx> CodegenEngine<'ctx> {
                 .ptr_type(inkwell::AddressSpace::default())
                 .into(),
             Type::Struct(name) | Type::Custom(name) => {
-                if let Some(struct_ty) = self.struct_types.borrow().get(name) {
-                    (*struct_ty).into()
-                } else {
-                    self.context.i64_type().into()
+                let short_name = name.split("::").last().unwrap_or(name);
+
+                let struct_map = self.struct_types.borrow();
+                if let Some(&struct_ty) =
+                    struct_map.get(name).or_else(|| struct_map.get(short_name))
+                {
+                    return struct_ty.into();
                 }
+                let suffix = format!("::{}", short_name);
+                for (k, &struct_ty) in struct_map.iter() {
+                    if k.ends_with(&suffix) {
+                        return struct_ty.into();
+                    }
+                }
+
+                let enum_map = self.enum_types.borrow();
+                if let Some(&enum_ty) = enum_map.get(name).or_else(|| enum_map.get(short_name)) {
+                    return enum_ty.into();
+                }
+                for (k, &enum_ty) in enum_map.iter() {
+                    if k.ends_with(&suffix) {
+                        return enum_ty.into();
+                    }
+                }
+
+                self.context.i64_type().into()
             }
         }
     }
