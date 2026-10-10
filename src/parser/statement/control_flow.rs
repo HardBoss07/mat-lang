@@ -12,24 +12,116 @@ use crate::parser::utils::{get_span_between, keyword, skip_ws_and_comments, symb
 pub fn parse_match_arm(input: &mut &str) -> ModalResult<MatchArm> {
     let _ = skip_ws_and_comments(input)?;
 
-    let pattern = if input.starts_with("Ok") {
+    let pattern = if input.starts_with("Ok(") || input.starts_with("Ok (") {
         let _ = literal("Ok").parse_next(input)?;
         let _ = symbol("(").parse_next(input)?;
         let var_name = parse_identifier_str.parse_next(input)?.to_string();
         let _ = symbol(")").parse_next(input)?;
         MatchPattern::Ok(var_name)
-    } else if input.starts_with("Err") {
+    } else if input.starts_with("Err(") || input.starts_with("Err (") {
         let _ = literal("Err").parse_next(input)?;
         let _ = symbol("(").parse_next(input)?;
         let var_name = parse_identifier_str.parse_next(input)?.to_string();
         let _ = symbol(")").parse_next(input)?;
         MatchPattern::Err(var_name)
-    } else if input.starts_with('_') {
+    } else if input.starts_with('_')
+        && !input
+            .chars()
+            .nth(1)
+            .map_or(false, |c| c.is_alphanumeric() || c == '_')
+    {
         *input = &input[1..];
         MatchPattern::Wildcard
     } else {
-        let expr = parse_expression.parse_next(input)?;
-        MatchPattern::Literal(expr)
+        let checkpoint = *input;
+        if let Ok(path) = parse_identifier_str.parse_next(input) {
+            let _ = skip_ws_and_comments(input)?;
+            if path.contains("::") || input.starts_with('(') || input.starts_with('{') {
+                let parts: Vec<&str> = path.split("::").collect();
+                let (enum_name, variant) = if parts.len() > 1 {
+                    (
+                        Some(parts[..parts.len() - 1].join("::")),
+                        parts.last().unwrap().to_string(),
+                    )
+                } else {
+                    (None, parts[0].to_string())
+                };
+
+                if input.starts_with('(') {
+                    let _ = symbol("(").parse_next(input)?;
+                    let mut vars = Vec::new();
+                    if !input.starts_with(')') {
+                        while !input.is_empty() {
+                            let v = parse_identifier_str.parse_next(input)?.to_string();
+                            vars.push(v);
+                            let _ = skip_ws_and_comments(input)?;
+                            if input.starts_with(',') {
+                                *input = &input[1..];
+                                let _ = skip_ws_and_comments(input)?;
+                                if input.starts_with(')') {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                    let _ = symbol(")").parse_next(input)?;
+                    MatchPattern::EnumTuple {
+                        enum_name,
+                        variant,
+                        vars,
+                    }
+                } else if input.starts_with('{') {
+                    let _ = symbol("{").parse_next(input)?;
+                    let mut fields = Vec::new();
+                    if !input.starts_with('}') {
+                        while !input.is_empty() {
+                            let field_name = parse_identifier_str.parse_next(input)?.to_string();
+                            let _ = skip_ws_and_comments(input)?;
+                            let binding_name = if input.starts_with(':') {
+                                *input = &input[1..];
+                                let _ = skip_ws_and_comments(input)?;
+                                parse_identifier_str.parse_next(input)?.to_string()
+                            } else {
+                                field_name.clone()
+                            };
+                            fields.push((field_name, binding_name));
+                            let _ = skip_ws_and_comments(input)?;
+                            if input.starts_with(',') {
+                                *input = &input[1..];
+                                let _ = skip_ws_and_comments(input)?;
+                                if input.starts_with('}') {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                    let _ = symbol("}").parse_next(input)?;
+                    MatchPattern::EnumStruct {
+                        enum_name,
+                        variant,
+                        fields,
+                    }
+                } else if path.contains("::") {
+                    MatchPattern::EnumUnit { enum_name, variant }
+                } else {
+                    *input = checkpoint;
+                    let expr = parse_expression.parse_next(input)?;
+                    MatchPattern::Literal(expr)
+                }
+            } else {
+                *input = checkpoint;
+                let expr = parse_expression.parse_next(input)?;
+                MatchPattern::Literal(expr)
+            }
+        } else {
+            *input = checkpoint;
+            let expr = parse_expression.parse_next(input)?;
+            MatchPattern::Literal(expr)
+        }
     };
 
     let _ = symbol("=>").parse_next(input)?;
