@@ -3,72 +3,118 @@ use winnow::Parser;
 
 use crate::ast::{BinaryOp, Statement};
 use crate::parser::expression::parse_expression;
-use crate::parser::expression::primary::parse_identifier_str;
-use crate::parser::utils::{get_span_between, skip_ws_and_comments, symbol};
+use crate::parser::expression::primary::parse_single_identifier_str;
+use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 
-pub fn parse_compound_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
+pub fn parse_assignment_target<'a>(input: &mut &'a str) -> ModalResult<String> {
+    let _ = skip_ws_and_comments(input)?;
+    let start = *input;
+    let _ = parse_single_identifier_str(input)?;
+
+    loop {
+        let checkpoint = *input;
+        if input.starts_with("::") {
+            *input = &input[2..];
+            if parse_single_identifier_str(input).is_err() {
+                *input = checkpoint;
+                break;
+            }
+        } else if input.starts_with('.') {
+            *input = &input[1..];
+            if parse_single_identifier_str(input).is_err()
+                && winnow::ascii::digit1::<_, winnow::error::ContextError>
+                    .parse_next(input)
+                    .is_err()
+            {
+                *input = checkpoint;
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
+    let len = start.len() - input.len();
+    Ok(start[..len].to_string())
+}
+
+pub fn parse_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
 
-    let target = match parse_identifier_str.parse_next(input) {
-        Ok(t) => t,
-        Err(e) => {
-            *input = start_input;
-            return Err(e);
-        }
-    };
+    let target = parse_assignment_target(input)?;
     let _ = skip_ws_and_comments(input)?;
 
-    let op = if input.starts_with("+=") {
-        *input = &input[2..];
-        BinaryOp::Add
-    } else if input.starts_with("-=") {
-        *input = &input[2..];
-        BinaryOp::Sub
-    } else if input.starts_with("*=") {
-        *input = &input[2..];
-        BinaryOp::Mul
-    } else if input.starts_with("/=") {
-        *input = &input[2..];
-        BinaryOp::Div
-    } else if input.starts_with("%=") {
-        *input = &input[2..];
-        BinaryOp::Mod
-    } else if input.starts_with("<<=") {
-        *input = &input[3..];
-        BinaryOp::Shl
-    } else if input.starts_with(">>=") {
-        *input = &input[3..];
-        BinaryOp::Shr
-    } else {
-        *input = start_input;
+    if !input.starts_with('=') || input.starts_with("==") {
         return Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::default(),
         ));
-    };
+    }
+    *input = &input[1..];
+    let _ = skip_ws_and_comments(input)?;
 
-    let value = parse_expression.parse_next(input)?;
-    let _ = symbol(";").parse_next(input)?;
+    let value = parse_expression(input)?;
+    let _ = skip_ws_and_comments(input)?;
+
+    if !input.starts_with(';') {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[1..];
     let end_input = *input;
 
-    Ok(Statement::CompoundAssignment {
-        target: target.to_string(),
-        op,
+    Ok(Statement::Assignment {
+        target,
         value,
         span: get_span_between(start_input, end_input),
     })
 }
 
-pub fn parse_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
+pub fn parse_compound_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
-    let target = parse_identifier_str.parse_next(input)?;
-    let _ = symbol("=").parse_next(input)?;
-    let value = parse_expression.parse_next(input)?;
-    let _ = symbol(";").parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
+
+    let target = parse_assignment_target(input)?;
+    let _ = skip_ws_and_comments(input)?;
+
+    let (op, op_len) = if input.starts_with("<<=") {
+        (BinaryOp::Shl, 3)
+    } else if input.starts_with(">>=") {
+        (BinaryOp::Shr, 3)
+    } else if input.starts_with("+=") {
+        (BinaryOp::Add, 2)
+    } else if input.starts_with("-=") {
+        (BinaryOp::Sub, 2)
+    } else if input.starts_with("*=") {
+        (BinaryOp::Mul, 2)
+    } else if input.starts_with("/=") {
+        (BinaryOp::Div, 2)
+    } else if input.starts_with("%=") {
+        (BinaryOp::Mod, 2)
+    } else {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    };
+
+    *input = &input[op_len..];
+    let _ = skip_ws_and_comments(input)?;
+
+    let value = parse_expression(input)?;
+    let _ = skip_ws_and_comments(input)?;
+
+    if !input.starts_with(';') {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[1..];
     let end_input = *input;
 
-    Ok(Statement::Assignment {
-        target: target.to_string(),
+    Ok(Statement::CompoundAssignment {
+        target,
+        op,
         value,
         span: get_span_between(start_input, end_input),
     })
@@ -76,26 +122,58 @@ pub fn parse_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
 
 pub fn parse_increment_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
-    let target = parse_identifier_str.parse_next(input)?;
-    let _ = symbol("++").parse_next(input)?;
-    let _ = symbol(";").parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
+
+    let target = parse_assignment_target(input)?;
+    let _ = skip_ws_and_comments(input)?;
+
+    if !input.starts_with("++") {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[2..];
+    let _ = skip_ws_and_comments(input)?;
+
+    if !input.starts_with(';') {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[1..];
     let end_input = *input;
 
     Ok(Statement::Increment {
-        target: target.to_string(),
+        target,
         span: get_span_between(start_input, end_input),
     })
 }
 
 pub fn parse_decrement_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
-    let target = parse_identifier_str.parse_next(input)?;
-    let _ = symbol("--").parse_next(input)?;
-    let _ = symbol(";").parse_next(input)?;
+    let _ = skip_ws_and_comments(input)?;
+
+    let target = parse_assignment_target(input)?;
+    let _ = skip_ws_and_comments(input)?;
+
+    if !input.starts_with("--") {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[2..];
+    let _ = skip_ws_and_comments(input)?;
+
+    if !input.starts_with(';') {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[1..];
     let end_input = *input;
 
     Ok(Statement::Decrement {
-        target: target.to_string(),
+        target,
         span: get_span_between(start_input, end_input),
     })
 }
