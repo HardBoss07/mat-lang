@@ -3,14 +3,56 @@ use super::TypeChecker;
 use crate::ast::{Expression, Type};
 use crate::error::Result;
 
+pub fn types_compatible(t1: &Type, t2: &Type) -> bool {
+    if t1 == t2 {
+        return true;
+    }
+    match (t1, t2) {
+        (Type::Custom(a) | Type::Struct(a), Type::Custom(b) | Type::Struct(b)) => {
+            let short_a = a.split("::").last().unwrap_or(a);
+            let short_b = b.split("::").last().unwrap_or(b);
+            short_a == short_b
+        }
+        (Type::Result(a_ok, a_err), Type::Result(b_ok, b_err)) => {
+            types_compatible(a_ok, b_ok) && types_compatible(a_err, b_err)
+        }
+        (Type::Vector(a), Type::Vector(b)) => types_compatible(a, b),
+        (Type::Array(a, len_a), Type::Array(b, len_b)) => len_a == len_b && types_compatible(a, b),
+        (Type::Tuple(elems_a), Type::Tuple(elems_b)) => {
+            elems_a.len() == elems_b.len()
+                && elems_a
+                    .iter()
+                    .zip(elems_b.iter())
+                    .all(|(ea, eb)| types_compatible(ea, eb))
+        }
+        _ => false,
+    }
+}
+
 impl TypeChecker {
     pub fn synthesize_expr(&self, expr: &Expression, symbols: &SymbolTable) -> Result<Type> {
         match expr {
             Expression::Identifier(name, span) => {
-                let sym = symbols
-                    .lookup(name)
-                    .ok_or_else(|| self.undefined_variable(name, *span))?;
-                Ok(sym.ty.clone())
+                if let Some(sym) = symbols.lookup(name) {
+                    Ok(sym.ty.clone())
+                } else if name.contains("::") {
+                    let parts: Vec<&str> = name.split("::").collect();
+                    let enum_name = parts[..parts.len() - 1].join("::");
+                    let variant_name = parts.last().unwrap();
+
+                    if let Some(enum_def) = symbols.lookup_enum(&enum_name) {
+                        if let Some(variant) =
+                            enum_def.variants.iter().find(|v| v.name == *variant_name)
+                        {
+                            if matches!(variant.payload, crate::ast::EnumVariantPayload::Unit) {
+                                return Ok(Type::Custom(enum_name));
+                            }
+                        }
+                    }
+                    Err(self.undefined_variable(name, *span))
+                } else {
+                    Err(self.undefined_variable(name, *span))
+                }
             }
             Expression::IntLiteral(_, _) => Ok(Type::Int),
             Expression::FloatLiteral(_, _) => Ok(Type::F64),
@@ -42,7 +84,7 @@ impl TypeChecker {
                 let first_ty = self.synthesize_expr(&elements[0], symbols)?;
                 for elem in &elements[1..] {
                     let elem_ty = self.synthesize_expr(elem, symbols)?;
-                    if elem_ty != first_ty {
+                    if !types_compatible(&elem_ty, &first_ty) {
                         return Err(self.type_error(
                             format!(
                                 "Mismatched types in array literal: expected {:?}, got {:?}",
@@ -83,7 +125,7 @@ impl TypeChecker {
                 let first_ty = self.synthesize_expr(&elements[0], symbols)?;
                 for elem in &elements[1..] {
                     let elem_ty = self.synthesize_expr(elem, symbols)?;
-                    if elem_ty != first_ty {
+                    if !types_compatible(&elem_ty, &first_ty) {
                         return Err(self.type_error(
                             format!(
                                 "Mismatched types in vector literal: expected {:?}, got {:?}",
@@ -129,6 +171,39 @@ impl TypeChecker {
                 }
 
                 Ok(Type::Struct(name.clone()))
+            }
+            Expression::EnumInit {
+                enum_name,
+                variant_name,
+                payload,
+                span,
+            } => {
+                let e_name = match enum_name {
+                    Some(name) => name.clone(),
+                    None => variant_name.clone(),
+                };
+
+                let enum_def = symbols
+                    .lookup_enum(&e_name)
+                    .ok_or_else(|| self.type_error(format!("Undefined enum '{}'", e_name), *span))?
+                    .clone();
+
+                let _variant = enum_def
+                    .variants
+                    .iter()
+                    .find(|v| v.name == *variant_name)
+                    .ok_or_else(|| {
+                        self.type_error(
+                            format!("Enum '{}' has no variant '{}'", e_name, variant_name),
+                            *span,
+                        )
+                    })?;
+
+                if let Some(payload_expr) = payload {
+                    self.synthesize_expr(payload_expr, symbols)?;
+                }
+
+                Ok(Type::Custom(e_name))
             }
             Expression::FieldAccess { expr, field, span } => {
                 let expr_ty = self.synthesize_expr(expr, symbols)?;
@@ -202,33 +277,119 @@ impl TypeChecker {
                     );
                 }
 
-                let fn_sym = symbols
-                    .lookup_function(callee)
-                    .ok_or_else(|| self.undefined_function(callee, *span))?
-                    .clone();
-
-                if callee != "println" && arguments.len() != fn_sym.param_types.len() {
-                    return Err(self.type_error(
-                        format!(
-                            "Function '{}' expects {} arguments, got {}",
-                            callee,
-                            fn_sym.param_types.len(),
-                            arguments.len()
-                        ),
-                        *span,
-                    ));
-                }
-
-                if callee != "println" {
-                    for (arg, param_ty) in arguments.iter().zip(fn_sym.param_types.iter()) {
-                        self.check_expr(arg, param_ty, symbols)?;
-                    }
-                } else {
+                if callee == "println" || callee == "print" {
                     for arg in arguments {
                         self.synthesize_expr(arg, symbols)?;
                     }
+                    return Ok(Type::Void);
                 }
-                Ok(fn_sym.return_type)
+
+                if let Some(fn_sym) = symbols.lookup_function(callee).cloned() {
+                    if callee != "println"
+                        && !callee.starts_with("_mat_rt_")
+                        && arguments.len() != fn_sym.param_types.len()
+                    {
+                        return Err(self.type_error(
+                            format!(
+                                "Function '{}' expects {} arguments, got {}",
+                                callee,
+                                fn_sym.param_types.len(),
+                                arguments.len()
+                            ),
+                            *span,
+                        ));
+                    }
+
+                    if callee != "println" {
+                        for (arg, param_ty) in arguments.iter().zip(fn_sym.param_types.iter()) {
+                            self.check_expr(arg, param_ty, symbols)?;
+                        }
+                    } else {
+                        for arg in arguments {
+                            self.synthesize_expr(arg, symbols)?;
+                        }
+                    }
+                    return Ok(fn_sym.return_type);
+                }
+
+                if callee.starts_with("_mat_rt_") {
+                    let mut param_types = Vec::new();
+                    for arg in arguments {
+                        param_types.push(self.synthesize_expr(arg, symbols)?);
+                    }
+                    let return_type =
+                        if callee.contains("read_line") || callee.contains("read_to_string") {
+                            Type::String
+                        } else if callee.contains("open")
+                            || callee.contains("write")
+                            || callee.contains("seek")
+                            || callee.contains("abs_int")
+                        {
+                            Type::Int
+                        } else if callee.contains("flush") || callee.contains("close") {
+                            Type::Bool
+                        } else if callee.contains("print") {
+                            Type::Void
+                        } else {
+                            Type::F64
+                        };
+
+                    if callee != "println" {
+                        for arg in arguments {
+                            self.synthesize_expr(arg, symbols)?;
+                        }
+                    }
+                    return Ok(return_type);
+                }
+
+                if callee.contains("::") {
+                    let parts: Vec<&str> = callee.split("::").collect();
+                    let enum_name = parts[..parts.len() - 1].join("::");
+                    let variant_name = parts.last().unwrap();
+
+                    if let Some(enum_def) = symbols.lookup_enum(&enum_name).cloned() {
+                        if let Some(variant) =
+                            enum_def.variants.iter().find(|v| v.name == *variant_name)
+                        {
+                            match &variant.payload {
+                                crate::ast::EnumVariantPayload::Tuple(expected_types) => {
+                                    if arguments.len() != expected_types.len() {
+                                        return Err(self.type_error(
+                                            format!(
+                                                "Enum variant '{}::{}' expects {} arguments, got {}",
+                                                enum_name,
+                                                variant_name,
+                                                expected_types.len(),
+                                                arguments.len()
+                                            ),
+                                            *span,
+                                        ));
+                                    }
+                                    for (arg, expected_ty) in
+                                        arguments.iter().zip(expected_types.iter())
+                                    {
+                                        self.check_expr(arg, expected_ty, symbols)?;
+                                    }
+                                }
+                                crate::ast::EnumVariantPayload::Unit => {
+                                    if !arguments.is_empty() {
+                                        return Err(self.type_error(
+                                            format!(
+                                                "Unit enum variant '{}::{}' takes 0 arguments",
+                                                enum_name, variant_name
+                                            ),
+                                            *span,
+                                        ));
+                                    }
+                                }
+                                crate::ast::EnumVariantPayload::Struct(_) => {}
+                            }
+                            return Ok(Type::Custom(enum_name));
+                        }
+                    }
+                }
+
+                Err(self.undefined_function(callee, *span))
             }
             Expression::Ok(_, span) | Expression::Err(_, span) => Err(self.type_error(
                 "Ok(...) and Err(...) constructors require type context",
@@ -298,8 +459,8 @@ impl TypeChecker {
                 target_ty,
             ) => {
                 let synthesized_ty = self.synthesize_binary_expr(op, left, right, symbols)?;
-                if synthesized_ty == *target_ty {
-                    Ok(synthesized_ty)
+                if types_compatible(&synthesized_ty, target_ty) {
+                    Ok(target_ty.clone())
                 } else {
                     Err(self.type_error(
                         format!(
@@ -366,6 +527,38 @@ impl TypeChecker {
                 Ok(Type::Vector(target_elem_ty.clone()))
             }
             (
+                Expression::Call {
+                    callee,
+                    arguments: _,
+                    span: _,
+                },
+                target_ty @ (Type::Custom(target_name) | Type::Struct(target_name)),
+            ) => {
+                let target_short = target_name.split("::").last().unwrap_or(target_name);
+                if callee.contains("::") {
+                    let parts: Vec<&str> = callee.split("::").collect();
+                    let enum_name = parts[..parts.len() - 1].join("::");
+                    let enum_short = enum_name.split("::").last().unwrap_or(&enum_name);
+
+                    if enum_short == target_short {
+                        self.synthesize_expr(expr, symbols)?;
+                        return Ok(target_ty.clone());
+                    }
+                }
+                let synthesized = self.synthesize_expr(expr, symbols)?;
+                if types_compatible(&synthesized, target_ty) {
+                    Ok(target_ty.clone())
+                } else {
+                    Err(self.type_error(
+                        format!(
+                            "Type mismatch: expected {:?}, got {:?}",
+                            target_ty, synthesized
+                        ),
+                        expr.span(),
+                    ))
+                }
+            }
+            (
                 Expression::StructInit {
                     name,
                     fields: _,
@@ -373,7 +566,9 @@ impl TypeChecker {
                 },
                 target_ty @ (Type::Struct(target_name) | Type::Custom(target_name)),
             ) => {
-                if name != target_name {
+                let name_short = name.split("::").last().unwrap_or(name);
+                let target_short = target_name.split("::").last().unwrap_or(target_name);
+                if name_short != target_short {
                     return Err(self.type_error(
                         format!(
                             "Type mismatch in struct initialization: expected {}, got {}",
@@ -385,18 +580,38 @@ impl TypeChecker {
                 self.synthesize_expr(expr, symbols)?;
                 Ok(target_ty.clone())
             }
+            (
+                Expression::EnumInit {
+                    enum_name,
+                    variant_name: _,
+                    payload,
+                    span,
+                },
+                target_ty @ (Type::Custom(target_name) | Type::Struct(target_name)),
+            ) => {
+                let target_short = target_name.split("::").last().unwrap_or(target_name);
+                let e_name = enum_name
+                    .as_ref()
+                    .map(|s| s.as_str())
+                    .unwrap_or(target_short);
+                let e_short = e_name.split("::").last().unwrap_or(e_name);
+                if e_short != target_short {
+                    return Err(self.type_error(
+                        format!(
+                            "Type mismatch in enum initialization: expected {}, got {}",
+                            target_name, e_name
+                        ),
+                        *span,
+                    ));
+                }
+                if let Some(payload_expr) = payload {
+                    self.synthesize_expr(payload_expr, symbols)?;
+                }
+                Ok(target_ty.clone())
+            }
             (other_expr, target_ty) => {
                 let synthesized = self.synthesize_expr(other_expr, symbols)?;
-                let matched = if synthesized == *target_ty {
-                    true
-                } else {
-                    matches!(
-                        (&synthesized, target_ty),
-                        (Type::Struct(a), Type::Custom(b)) | (Type::Custom(a), Type::Struct(b)) if a == b
-                    )
-                };
-
-                if matched {
+                if types_compatible(&synthesized, target_ty) {
                     Ok(target_ty.clone())
                 } else {
                     Err(self.type_error(
