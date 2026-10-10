@@ -2,7 +2,7 @@ mod binary_ops;
 mod expr_checker;
 mod stmt_checker;
 
-use super::symbol_table::SymbolTable;
+use super::symbol_table::{EnumVariantSymbol, SymbolTable};
 use crate::ast::{Item, Program, Span};
 use crate::error::{MatcError, Result};
 use miette::SourceSpan;
@@ -38,6 +38,25 @@ impl TypeChecker {
                         .collect();
                     symbols.insert_struct(struct_decl.name.clone(), fields);
                 }
+                Item::Enum(enum_decl) => {
+                    let variants = enum_decl
+                        .variants
+                        .iter()
+                        .map(|v| EnumVariantSymbol {
+                            name: v.name.clone(),
+                            payload: v.payload.clone(),
+                        })
+                        .collect();
+                    symbols.insert_enum(enum_decl.name.clone(), variants);
+                }
+                Item::GlobalLet(global_let) => {
+                    let ty = if let Some(annotated_ty) = &global_let.ty {
+                        annotated_ty.clone()
+                    } else {
+                        self.synthesize_expr(&global_let.value, symbols)?
+                    };
+                    symbols.insert(global_let.name.clone(), ty, global_let.is_mutable);
+                }
                 Item::Function(func) => {
                     let param_tys = func.params.iter().map(|p| p.ty.clone()).collect();
                     symbols.insert_function(func.name.clone(), param_tys, func.return_type.clone());
@@ -48,6 +67,13 @@ impl TypeChecker {
 
         for item in &program.items {
             match item {
+                Item::GlobalLet(global_let) => {
+                    if let Some(expected_ty) = &global_let.ty {
+                        self.check_expr(&global_let.value, expected_ty, symbols)?;
+                    } else {
+                        self.synthesize_expr(&global_let.value, symbols)?;
+                    }
+                }
                 Item::Function(func) => {
                     symbols.push_scope();
                     for param in &func.params {
@@ -58,8 +84,7 @@ impl TypeChecker {
                     }
                     symbols.pop_scope();
                 }
-                Item::Struct(_) => {}
-                Item::Import(_) => {}
+                Item::Struct(_) | Item::Enum(_) | Item::Import(_) => {}
             }
         }
         Ok(())
