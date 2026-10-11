@@ -1,0 +1,31 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Import:
+      is_std: true
+      path:
+        - io
+  - Import:
+      is_std: true
+      path:
+        - math
+  - Import:
+      is_std: false
+      path:
+        - geometry
+        - calc
+  - Function:
+      is_pub: false
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: x
+            is_mutable: false
+            ty: Int
+            value:
+              IntLiteral:
+                - 10

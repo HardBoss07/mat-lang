@@ -1,0 +1,68 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      is_pub: false
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: cube
+            is_mutable: false
+            ty:
+              Array:
+                - Array:
+                    - Array:
+                        - Int
+                        - 2
+                    - 2
+                - 2
+            value:
+              ArrayLiteral:
+                - - ArrayLiteral:
+                      - - ArrayLiteral:
+                            - - IntLiteral:
+                                  - 1
+                              - IntLiteral:
+                                  - 2
+                        - ArrayLiteral:
+                            - - IntLiteral:
+                                  - 3
+                              - IntLiteral:
+                                  - 4
+                  - ArrayLiteral:
+                      - - ArrayLiteral:
+                            - - IntLiteral:
+                                  - 5
+                              - IntLiteral:
+                                  - 6
+                        - ArrayLiteral:
+                            - - IntLiteral:
+                                  - 7
+                              - IntLiteral:
+                                  - 8
+        - Let:
+            name: val
+            is_mutable: false
+            ty: Int
+            value:
+              ArrayAccess:
+                expr:
+                  ArrayAccess:
+                    expr:
+                      ArrayAccess:
+                        expr:
+                          Identifier:
+                            - cube
+                        index:
+                          IntLiteral:
+                            - 1
+                    index:
+                      IntLiteral:
+                        - 0
+                index:
+                  IntLiteral:
+                    - 1

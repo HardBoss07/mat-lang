@@ -1,0 +1,96 @@
+---
+source: tests/codegen_tests.rs
+expression: ir
+---
+
+%Point = type { i64, i64 }
+
+declare void @_mat_rt_init()
+
+declare ptr @_mat_rt_fmt_string(ptr, ...)
+
+declare ptr @_mat_rt_fmt_bin(i64)
+
+declare ptr @_mat_rt_fmt_hex(i64)
+
+declare void @_mat_rt_println_str(ptr)
+
+declare void @_mat_rt_print_str(ptr)
+
+declare void @_mat_rt_println_int(i64)
+
+declare void @_mat_rt_println_float(double)
+
+declare void @_mat_rt_println_bool(i1)
+
+declare ptr @_mat_rt_read_line()
+
+declare ptr @_mat_rt_file_open(ptr, ptr)
+
+declare i1 @_mat_rt_file_close(ptr)
+
+declare ptr @_mat_rt_file_read_line(ptr)
+
+declare ptr @_mat_rt_file_read_to_string(ptr)
+
+declare i64 @_mat_rt_file_write(ptr, ptr)
+
+declare i1 @_mat_rt_file_flush(ptr)
+
+declare i64 @_mat_rt_file_seek(ptr, i64, i32)
+
+declare ptr @_mat_rt_vec_create(i64, i64)
+
+declare void @_mat_rt_vec_push(ptr, ptr)
+
+declare void @_mat_rt_vec_pop(ptr, ptr)
+
+declare ptr @_mat_rt_vec_get(ptr, i64)
+
+declare i64 @_mat_rt_vec_len(ptr)
+
+declare double @_mat_rt_sin(double)
+
+declare double @_mat_rt_cos(double)
+
+declare double @_mat_rt_tan(double)
+
+declare double @_mat_rt_asin(double)
+
+declare double @_mat_rt_acos(double)
+
+declare double @_mat_rt_atan(double)
+
+declare double @_mat_rt_sqrt(double)
+
+declare double @_mat_rt_abs_f64(double)
+
+declare double @_mat_rt_floor(double)
+
+declare double @_mat_rt_ceil(double)
+
+declare double @_mat_rt_round(double)
+
+declare double @_mat_rt_atan2(double, double)
+
+declare double @_mat_rt_pow(double, double)
+
+declare i64 @_mat_rt_abs_int(i64)
+
+define i32 @main() {
+entry:
+  %px = alloca i64, align 8
+  %p = alloca %Point, align 8
+  %struct_tmp = alloca %Point, align 8
+  call void @_mat_rt_init()
+  %field_init_gep = getelementptr inbounds %Point, ptr %struct_tmp, i32 0, i32 0
+  store i64 10, ptr %field_init_gep, align 4
+  %field_init_gep1 = getelementptr inbounds %Point, ptr %struct_tmp, i32 0, i32 1
+  store i64 20, ptr %field_init_gep1, align 4
+  %struct_val = load %Point, ptr %struct_tmp, align 4
+  store %Point %struct_val, ptr %p, align 4
+  %field_gep = getelementptr inbounds %Point, ptr %p, i32 0, i32 0
+  %field_val = load i64, ptr %field_gep, align 4
+  store i64 %field_val, ptr %px, align 4
+  ret i32 0
+}

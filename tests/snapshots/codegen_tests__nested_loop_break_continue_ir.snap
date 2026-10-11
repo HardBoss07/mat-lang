@@ -1,0 +1,129 @@
+---
+source: tests/codegen_tests.rs
+expression: ir
+---
+
+declare void @_mat_rt_init()
+
+declare ptr @_mat_rt_fmt_string(ptr, ...)
+
+declare ptr @_mat_rt_fmt_bin(i64)
+
+declare ptr @_mat_rt_fmt_hex(i64)
+
+declare void @_mat_rt_println_str(ptr)
+
+declare void @_mat_rt_print_str(ptr)
+
+declare void @_mat_rt_println_int(i64)
+
+declare void @_mat_rt_println_float(double)
+
+declare void @_mat_rt_println_bool(i1)
+
+declare ptr @_mat_rt_read_line()
+
+declare ptr @_mat_rt_file_open(ptr, ptr)
+
+declare i1 @_mat_rt_file_close(ptr)
+
+declare ptr @_mat_rt_file_read_line(ptr)
+
+declare ptr @_mat_rt_file_read_to_string(ptr)
+
+declare i64 @_mat_rt_file_write(ptr, ptr)
+
+declare i1 @_mat_rt_file_flush(ptr)
+
+declare i64 @_mat_rt_file_seek(ptr, i64, i32)
+
+declare ptr @_mat_rt_vec_create(i64, i64)
+
+declare void @_mat_rt_vec_push(ptr, ptr)
+
+declare void @_mat_rt_vec_pop(ptr, ptr)
+
+declare ptr @_mat_rt_vec_get(ptr, i64)
+
+declare i64 @_mat_rt_vec_len(ptr)
+
+declare double @_mat_rt_sin(double)
+
+declare double @_mat_rt_cos(double)
+
+declare double @_mat_rt_tan(double)
+
+declare double @_mat_rt_asin(double)
+
+declare double @_mat_rt_acos(double)
+
+declare double @_mat_rt_atan(double)
+
+declare double @_mat_rt_sqrt(double)
+
+declare double @_mat_rt_abs_f64(double)
+
+declare double @_mat_rt_floor(double)
+
+declare double @_mat_rt_ceil(double)
+
+declare double @_mat_rt_round(double)
+
+declare double @_mat_rt_atan2(double, double)
+
+declare double @_mat_rt_pow(double, double)
+
+declare i64 @_mat_rt_abs_int(i64)
+
+define i32 @main() {
+entry:
+  %i = alloca i64, align 8
+  call void @_mat_rt_init()
+  store i64 0, ptr %i, align 4
+  br label %while_cond
+
+while_cond:                                       ; preds = %loop_after, %if_then, %entry
+  %i1 = load i64, ptr %i, align 4
+  %lttmp = icmp slt i64 %i1, 10
+  br i1 %lttmp, label %while_body, label %while_after
+
+while_body:                                       ; preds = %while_cond
+  %i2 = load i64, ptr %i, align 4
+  %inc = add i64 %i2, 1
+  store i64 %inc, ptr %i, align 4
+  %i3 = load i64, ptr %i, align 4
+  %eqtmp = icmp eq i64 %i3, 5
+  br i1 %eqtmp, label %if_then, label %if_after
+
+while_after:                                      ; preds = %while_cond
+  ret i32 0
+
+if_then:                                          ; preds = %while_body
+  br label %while_cond
+
+if_after:                                         ; preds = %after_continue, %while_body
+  br label %loop_body
+
+after_continue:                                   ; No predecessors!
+  br label %if_after
+
+loop_body:                                        ; preds = %if_after6, %if_after
+  %i4 = load i64, ptr %i, align 4
+  %gttmp = icmp sgt i64 %i4, 8
+  br i1 %gttmp, label %if_then5, label %if_after6
+
+loop_after:                                       ; preds = %if_then5
+  br label %while_cond
+
+if_then5:                                         ; preds = %loop_body
+  br label %loop_after
+
+if_after6:                                        ; preds = %after_break, %loop_body
+  %i7 = load i64, ptr %i, align 4
+  %inc8 = add i64 %i7, 1
+  store i64 %inc8, ptr %i, align 4
+  br label %loop_body
+
+after_break:                                      ; No predecessors!
+  br label %if_after6
+}

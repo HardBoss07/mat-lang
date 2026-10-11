@@ -1,0 +1,141 @@
+---
+source: tests/codegen_tests.rs
+expression: ir
+---
+
+declare void @_mat_rt_init()
+
+declare ptr @_mat_rt_fmt_string(ptr, ...)
+
+declare ptr @_mat_rt_fmt_bin(i64)
+
+declare ptr @_mat_rt_fmt_hex(i64)
+
+declare void @_mat_rt_println_str(ptr)
+
+declare void @_mat_rt_print_str(ptr)
+
+declare void @_mat_rt_println_int(i64)
+
+declare void @_mat_rt_println_float(double)
+
+declare void @_mat_rt_println_bool(i1)
+
+declare ptr @_mat_rt_read_line()
+
+declare ptr @_mat_rt_file_open(ptr, ptr)
+
+declare i1 @_mat_rt_file_close(ptr)
+
+declare ptr @_mat_rt_file_read_line(ptr)
+
+declare ptr @_mat_rt_file_read_to_string(ptr)
+
+declare i64 @_mat_rt_file_write(ptr, ptr)
+
+declare i1 @_mat_rt_file_flush(ptr)
+
+declare i64 @_mat_rt_file_seek(ptr, i64, i32)
+
+declare ptr @_mat_rt_vec_create(i64, i64)
+
+declare void @_mat_rt_vec_push(ptr, ptr)
+
+declare void @_mat_rt_vec_pop(ptr, ptr)
+
+declare ptr @_mat_rt_vec_get(ptr, i64)
+
+declare i64 @_mat_rt_vec_len(ptr)
+
+declare double @_mat_rt_sin(double)
+
+declare double @_mat_rt_cos(double)
+
+declare double @_mat_rt_tan(double)
+
+declare double @_mat_rt_asin(double)
+
+declare double @_mat_rt_acos(double)
+
+declare double @_mat_rt_atan(double)
+
+declare double @_mat_rt_sqrt(double)
+
+declare double @_mat_rt_abs_f64(double)
+
+declare double @_mat_rt_floor(double)
+
+declare double @_mat_rt_ceil(double)
+
+declare double @_mat_rt_round(double)
+
+declare double @_mat_rt_atan2(double, double)
+
+declare double @_mat_rt_pow(double, double)
+
+declare i64 @_mat_rt_abs_int(i64)
+
+define i32 @main() {
+entry:
+  %val = alloca i64, align 8
+  %arr_access_tmp30 = alloca [2 x i64], align 8
+  %arr_access_tmp27 = alloca [2 x [2 x i64]], align 8
+  %arr_access_tmp = alloca [2 x [2 x [2 x i64]]], align 8
+  %cube = alloca [2 x [2 x [2 x i64]]], align 8
+  %arr_tmp22 = alloca [2 x [2 x [2 x i64]]], align 8
+  %arr_tmp18 = alloca [2 x [2 x i64]], align 8
+  %arr_tmp14 = alloca [2 x i64], align 8
+  %arr_tmp10 = alloca [2 x i64], align 8
+  %arr_tmp6 = alloca [2 x [2 x i64]], align 8
+  %arr_tmp2 = alloca [2 x i64], align 8
+  %arr_tmp = alloca [2 x i64], align 8
+  call void @_mat_rt_init()
+  %arr_gep = getelementptr [2 x i64], ptr %arr_tmp, i32 0, i32 0
+  store i64 1, ptr %arr_gep, align 4
+  %arr_gep1 = getelementptr [2 x i64], ptr %arr_tmp, i32 0, i32 1
+  store i64 2, ptr %arr_gep1, align 4
+  %arr_val = load [2 x i64], ptr %arr_tmp, align 4
+  %arr_gep3 = getelementptr [2 x i64], ptr %arr_tmp2, i32 0, i32 0
+  store i64 3, ptr %arr_gep3, align 4
+  %arr_gep4 = getelementptr [2 x i64], ptr %arr_tmp2, i32 0, i32 1
+  store i64 4, ptr %arr_gep4, align 4
+  %arr_val5 = load [2 x i64], ptr %arr_tmp2, align 4
+  %arr_gep7 = getelementptr [2 x [2 x i64]], ptr %arr_tmp6, i32 0, i32 0
+  store [2 x i64] %arr_val, ptr %arr_gep7, align 4
+  %arr_gep8 = getelementptr [2 x [2 x i64]], ptr %arr_tmp6, i32 0, i32 1
+  store [2 x i64] %arr_val5, ptr %arr_gep8, align 4
+  %arr_val9 = load [2 x [2 x i64]], ptr %arr_tmp6, align 4
+  %arr_gep11 = getelementptr [2 x i64], ptr %arr_tmp10, i32 0, i32 0
+  store i64 5, ptr %arr_gep11, align 4
+  %arr_gep12 = getelementptr [2 x i64], ptr %arr_tmp10, i32 0, i32 1
+  store i64 6, ptr %arr_gep12, align 4
+  %arr_val13 = load [2 x i64], ptr %arr_tmp10, align 4
+  %arr_gep15 = getelementptr [2 x i64], ptr %arr_tmp14, i32 0, i32 0
+  store i64 7, ptr %arr_gep15, align 4
+  %arr_gep16 = getelementptr [2 x i64], ptr %arr_tmp14, i32 0, i32 1
+  store i64 8, ptr %arr_gep16, align 4
+  %arr_val17 = load [2 x i64], ptr %arr_tmp14, align 4
+  %arr_gep19 = getelementptr [2 x [2 x i64]], ptr %arr_tmp18, i32 0, i32 0
+  store [2 x i64] %arr_val13, ptr %arr_gep19, align 4
+  %arr_gep20 = getelementptr [2 x [2 x i64]], ptr %arr_tmp18, i32 0, i32 1
+  store [2 x i64] %arr_val17, ptr %arr_gep20, align 4
+  %arr_val21 = load [2 x [2 x i64]], ptr %arr_tmp18, align 4
+  %arr_gep23 = getelementptr [2 x [2 x [2 x i64]]], ptr %arr_tmp22, i32 0, i32 0
+  store [2 x [2 x i64]] %arr_val9, ptr %arr_gep23, align 4
+  %arr_gep24 = getelementptr [2 x [2 x [2 x i64]]], ptr %arr_tmp22, i32 0, i32 1
+  store [2 x [2 x i64]] %arr_val21, ptr %arr_gep24, align 4
+  %arr_val25 = load [2 x [2 x [2 x i64]]], ptr %arr_tmp22, align 4
+  store [2 x [2 x [2 x i64]]] %arr_val25, ptr %cube, align 4
+  %cube26 = load [2 x [2 x [2 x i64]]], ptr %cube, align 4
+  store [2 x [2 x [2 x i64]]] %cube26, ptr %arr_access_tmp, align 4
+  %arr_elem_gep = getelementptr [2 x [2 x [2 x i64]]], ptr %arr_access_tmp, i32 0, i64 1
+  %arr_elem_val = load [2 x [2 x i64]], ptr %arr_elem_gep, align 4
+  store [2 x [2 x i64]] %arr_elem_val, ptr %arr_access_tmp27, align 4
+  %arr_elem_gep28 = getelementptr [2 x [2 x i64]], ptr %arr_access_tmp27, i32 0, i64 0
+  %arr_elem_val29 = load [2 x i64], ptr %arr_elem_gep28, align 4
+  store [2 x i64] %arr_elem_val29, ptr %arr_access_tmp30, align 4
+  %arr_elem_gep31 = getelementptr [2 x i64], ptr %arr_access_tmp30, i32 0, i64 1
+  %arr_elem_val32 = load i64, ptr %arr_elem_gep31, align 4
+  store i64 %arr_elem_val32, ptr %val, align 4
+  ret i32 0
+}

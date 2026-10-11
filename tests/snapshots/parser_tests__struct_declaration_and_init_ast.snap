@@ -1,0 +1,46 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Struct:
+      is_pub: true
+      name: Point
+      fields:
+        - is_pub: true
+          name: x
+          ty: Int
+        - is_pub: false
+          name: y
+          ty: Int
+  - Function:
+      is_pub: false
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: p
+            is_mutable: false
+            ty:
+              Custom: Point
+            value:
+              StructInit:
+                name: Point
+                fields:
+                  - - x
+                    - IntLiteral:
+                        - 10
+                  - - y
+                    - IntLiteral:
+                        - 20
+        - Let:
+            name: px
+            is_mutable: false
+            ty: Int
+            value:
+              FieldAccess:
+                expr:
+                  Identifier:
+                    - p
+                field: x

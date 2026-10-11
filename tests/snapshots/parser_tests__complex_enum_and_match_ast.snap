@@ -1,0 +1,115 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Enum:
+      is_pub: true
+      name: Shape
+      variants:
+        - name: Circle
+          payload:
+            Tuple:
+              - F64
+        - name: Rectangle
+          payload:
+            Tuple:
+              - Int
+              - Int
+        - name: Label
+          payload:
+            Struct:
+              - is_pub: false
+                name: title
+                ty: String
+              - is_pub: false
+                name: is_visible
+                ty: Bool
+        - name: Empty
+          payload: Unit
+  - Function:
+      is_pub: false
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: s
+            is_mutable: false
+            ty:
+              Custom: Shape
+            value:
+              Call:
+                callee: "Shape::Circle"
+                arguments:
+                  - FloatLiteral:
+                      - 3.14
+        - Match:
+            expr:
+              Identifier:
+                - s
+            arms:
+              - pattern:
+                  EnumTuple:
+                    enum_name: ~
+                    variant: "Shape::Circle"
+                    vars:
+                      - r
+                body:
+                  - Let:
+                      name: area
+                      is_mutable: false
+                      ty: F64
+                      value:
+                        Identifier:
+                          - r
+              - pattern:
+                  EnumTuple:
+                    enum_name: ~
+                    variant: "Shape::Rectangle"
+                    vars:
+                      - w
+                      - h
+                body:
+                  - Let:
+                      name: perim
+                      is_mutable: false
+                      ty: Int
+                      value:
+                        Binary:
+                          op: Add
+                          left:
+                            Identifier:
+                              - w
+                          right:
+                            Identifier:
+                              - h
+              - pattern:
+                  EnumStruct:
+                    enum_name: ~
+                    variant: "Shape::Label"
+                    fields:
+                      - - title
+                        - title
+                      - - is_visible
+                        - is_visible
+                body:
+                  - Let:
+                      name: t
+                      is_mutable: false
+                      ty: String
+                      value:
+                        Identifier:
+                          - title
+              - pattern:
+                  EnumUnit:
+                    enum_name: ~
+                    variant: "Shape::Empty"
+                body:
+                  - Let:
+                      name: x
+                      is_mutable: false
+                      ty: Int
+                      value:
+                        IntLiteral:
+                          - 0

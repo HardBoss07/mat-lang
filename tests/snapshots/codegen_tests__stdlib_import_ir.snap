@@ -1,0 +1,98 @@
+---
+source: tests/codegen_tests.rs
+expression: ir
+---
+
+declare void @_mat_rt_init()
+
+declare ptr @_mat_rt_fmt_string(ptr, ...)
+
+declare ptr @_mat_rt_fmt_bin(i64)
+
+declare ptr @_mat_rt_fmt_hex(i64)
+
+declare void @_mat_rt_println_str(ptr)
+
+declare void @_mat_rt_print_str(ptr)
+
+declare void @_mat_rt_println_int(i64)
+
+declare void @_mat_rt_println_float(double)
+
+declare void @_mat_rt_println_bool(i1)
+
+declare ptr @_mat_rt_read_line()
+
+declare ptr @_mat_rt_file_open(ptr, ptr)
+
+declare i1 @_mat_rt_file_close(ptr)
+
+declare ptr @_mat_rt_file_read_line(ptr)
+
+declare ptr @_mat_rt_file_read_to_string(ptr)
+
+declare i64 @_mat_rt_file_write(ptr, ptr)
+
+declare i1 @_mat_rt_file_flush(ptr)
+
+declare i64 @_mat_rt_file_seek(ptr, i64, i32)
+
+declare ptr @_mat_rt_vec_create(i64, i64)
+
+declare void @_mat_rt_vec_push(ptr, ptr)
+
+declare void @_mat_rt_vec_pop(ptr, ptr)
+
+declare ptr @_mat_rt_vec_get(ptr, i64)
+
+declare i64 @_mat_rt_vec_len(ptr)
+
+declare double @_mat_rt_sin(double)
+
+declare double @_mat_rt_cos(double)
+
+declare double @_mat_rt_tan(double)
+
+declare double @_mat_rt_asin(double)
+
+declare double @_mat_rt_acos(double)
+
+declare double @_mat_rt_atan(double)
+
+declare double @_mat_rt_sqrt(double)
+
+declare double @_mat_rt_abs_f64(double)
+
+declare double @_mat_rt_floor(double)
+
+declare double @_mat_rt_ceil(double)
+
+declare double @_mat_rt_round(double)
+
+declare double @_mat_rt_atan2(double, double)
+
+declare double @_mat_rt_pow(double, double)
+
+declare i64 @_mat_rt_abs_int(i64)
+
+define double @_mat_sqrt(double %0) {
+entry:
+  %x = alloca double, align 8
+  store double %0, ptr %x, align 8
+  %x1 = load double, ptr %x, align 8
+  ret double %x1
+
+after_return:                                     ; No predecessors!
+}
+
+define i32 @main() {
+entry:
+  %s = alloca double, align 8
+  %val = alloca double, align 8
+  call void @_mat_rt_init()
+  store double 9.000000e+00, ptr %val, align 8
+  %val1 = load double, ptr %val, align 8
+  %calltmp = call double @_mat_sqrt(double %val1)
+  store double %calltmp, ptr %s, align 8
+  ret i32 0
+}

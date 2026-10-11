@@ -1,0 +1,79 @@
+---
+source: tests/parser_tests.rs
+expression: prog
+---
+items:
+  - Function:
+      is_pub: false
+      name: main
+      params: []
+      return_type: Void
+      body:
+        - Let:
+            name: outer
+            is_mutable: true
+            ty: Int
+            value:
+              IntLiteral:
+                - 0
+        - While:
+            condition:
+              Binary:
+                op: Lt
+                left:
+                  Identifier:
+                    - outer
+                right:
+                  IntLiteral:
+                    - 5
+            body:
+              - Increment:
+                  target: outer
+              - If:
+                  condition:
+                    Binary:
+                      op: Eq
+                      left:
+                        Identifier:
+                          - outer
+                      right:
+                        IntLiteral:
+                          - 2
+                  then_branch:
+                    - Continue
+                  else_branch: ~
+              - ForI:
+                  init:
+                    Let:
+                      name: inner
+                      is_mutable: false
+                      ty: Int
+                      value:
+                        IntLiteral:
+                          - 0
+                  condition:
+                    Binary:
+                      op: Lt
+                      left:
+                        Identifier:
+                          - inner
+                      right:
+                        IntLiteral:
+                          - 3
+                  step:
+                    Increment:
+                      target: inner
+                  body:
+                    - If:
+                        condition:
+                          Binary:
+                            op: Eq
+                            left:
+                              Identifier:
+                                - inner
+                            right:
+                              IntLiteral:
+                                - 1
+                        then_branch:
+                          - Break
+                        else_branch: ~
