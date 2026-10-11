@@ -4,6 +4,68 @@ use crate::ast::{MatchPattern, Statement, Type};
 use crate::error::Result;
 
 impl TypeChecker {
+    fn resolve_target_type(
+        &self,
+        target: &str,
+        symbols: &SymbolTable,
+        span: crate::ast::Span,
+    ) -> Result<Type> {
+        let parts: Vec<&str> = target.split('.').collect();
+        let base_name = parts[0];
+        let sym = symbols
+            .lookup(base_name)
+            .ok_or_else(|| self.undefined_variable(base_name, span))?;
+        let mut current_ty = sym.ty.clone();
+
+        for field in &parts[1..] {
+            match &current_ty {
+                Type::Struct(struct_name) | Type::Custom(struct_name) => {
+                    let struct_def = symbols.lookup_struct(struct_name).ok_or_else(|| {
+                        self.type_error(format!("Undefined struct '{}'", struct_name), span)
+                    })?;
+                    let field_ty = struct_def
+                        .fields
+                        .iter()
+                        .find(|(n, _)| n == *field)
+                        .map(|(_, ty)| ty.clone())
+                        .ok_or_else(|| {
+                            self.type_error(
+                                format!("Struct '{}' has no field '{}'", struct_name, field),
+                                span,
+                            )
+                        })?;
+                    current_ty = field_ty;
+                }
+                Type::Tuple(elem_types) => {
+                    if let Ok(idx) = field.parse::<usize>() {
+                        if idx < elem_types.len() {
+                            current_ty = elem_types[idx].clone();
+                        } else {
+                            return Err(
+                                self.type_error(format!("Tuple index {} out of bounds", idx), span)
+                            );
+                        }
+                    } else {
+                        return Err(
+                            self.type_error(format!("Invalid tuple index '{}'", field), span)
+                        );
+                    }
+                }
+                other => {
+                    return Err(self.type_error(
+                        format!(
+                            "Cannot access field '{}' on non-struct type {:?}",
+                            field, other
+                        ),
+                        span,
+                    ));
+                }
+            }
+        }
+
+        Ok(current_ty)
+    }
+
     pub(crate) fn check_statement(
         &self,
         stmt: &Statement,
@@ -36,6 +98,23 @@ impl TypeChecker {
                         }
                         (MatchPattern::Err(var_name), Type::Result(_, err_ty)) => {
                             symbols.insert(var_name.clone(), *err_ty.clone(), false);
+                        }
+                        (MatchPattern::EnumUnit { .. }, _) => {}
+                        (
+                            MatchPattern::EnumTuple { vars, .. },
+                            Type::Custom(_enum_name) | Type::Struct(_enum_name),
+                        ) => {
+                            for var in vars {
+                                symbols.insert(var.clone(), Type::Int, false);
+                            }
+                        }
+                        (
+                            MatchPattern::EnumStruct { fields, .. },
+                            Type::Custom(_enum_name) | Type::Struct(_enum_name),
+                        ) => {
+                            for (_field, var) in fields {
+                                symbols.insert(var.clone(), Type::Int, false);
+                            }
                         }
                         (MatchPattern::Wildcard, _) => {}
                         (MatchPattern::Literal(lit), target_ty) => {
@@ -75,11 +154,8 @@ impl TypeChecker {
                 value,
                 span,
             } => {
-                let sym = symbols
-                    .lookup(target)
-                    .ok_or_else(|| self.undefined_variable(target, *span))?
-                    .clone();
-                self.check_expr(value, &sym.ty, symbols)?;
+                let target_ty = self.resolve_target_type(target, symbols, *span)?;
+                self.check_expr(value, &target_ty, symbols)?;
             }
             Statement::CompoundAssignment {
                 target,
@@ -87,16 +163,11 @@ impl TypeChecker {
                 span,
                 ..
             } => {
-                let sym = symbols
-                    .lookup(target)
-                    .ok_or_else(|| self.undefined_variable(target, *span))?
-                    .clone();
-                self.check_expr(value, &sym.ty, symbols)?;
+                let target_ty = self.resolve_target_type(target, symbols, *span)?;
+                self.check_expr(value, &target_ty, symbols)?;
             }
             Statement::Increment { target, span } | Statement::Decrement { target, span } => {
-                let _ = symbols
-                    .lookup(target)
-                    .ok_or_else(|| self.undefined_variable(target, *span))?;
+                let _ = self.resolve_target_type(target, symbols, *span)?;
             }
             Statement::Expression(expr) => {
                 self.synthesize_expr(expr, symbols)?;
