@@ -5,7 +5,7 @@
 // runs it, and asserts the exact stdout output.
 
 mod common;
-use common::compile_and_run;
+use common::*;
 
 // ---------------------------------------------------------------------------
 // Helper: assert exact multi-line output with trailing whitespace trimmed.
@@ -433,4 +433,205 @@ fn main() {
         "expected 20.0 or 20 in float multiply output, got: {}",
         output
     );
+}
+
+#[test]
+fn test_e2e_struct_instantiation_and_field_access() {
+    let src = r#"
+struct Point {
+    x: int,
+    y: int,
+}
+
+fn double_point(p: Point) -> Point {
+    return Point { x: p.x * 2, y: p.y * 2 };
+}
+
+fn main() {
+    let p1: Point = Point { x: 15, y: 25 };
+    println(p1.x);
+    println(p1.y);
+    let p2: Point = double_point(p1);
+    println(p2.x);
+    println(p2.y);
+}
+"#;
+    assert_output(src, "15\n25\n30\n50");
+}
+
+// ---------------------------------------------------------------------------
+// 21. Struct and Field Operations
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_e2e_nested_structs() {
+    let src = r#"
+struct Vector2 {
+    x: int,
+    y: int,
+}
+
+struct Player {
+    pos: Vector2,
+    hp: int,
+}
+
+fn main() {
+    let p: Player = Player {
+        pos: Vector2 { x: 100, y: 200 },
+        hp: 100,
+    };
+    println(p.pos.x);
+    println(p.pos.y);
+    println(p.hp);
+}
+"#;
+    assert_output(src, "100\n200\n100");
+}
+
+#[test]
+fn test_e2e_enum_unit_tuple_struct_variants() {
+    let src = r#"
+enum Shape {
+    Empty,
+    Circle(int),
+    Rectangle { width: int, height: int },
+}
+
+fn inspect(s: Shape) {
+    match s {
+        Shape::Empty => println("empty");
+        Shape::Circle(r) => println("circle: {r}");
+        Shape::Rectangle { width, height } => println("rect: {width}x{height}");
+    }
+}
+
+fn main() {
+    inspect(Shape::Empty);
+    inspect(Shape::Circle(15));
+    inspect(Shape::Rectangle { width: 10, height: 20 });
+}
+"#;
+    assert_output(src, "empty\ncircle: 15\nrect: 10x20");
+}
+
+#[test]
+fn test_e2e_multi_file_module_import() {
+    let files = [
+        (
+            "math/calc.mat",
+            r#"
+pub struct ResultBox {
+    pub value: int,
+}
+
+pub fn add(a: int, b: int) -> int {
+    return a + b;
+}
+"#,
+        ),
+        (
+            "main.mat",
+            r#"
+import math::calc;
+
+fn main() {
+    let sum: int = calc::add(20, 22);
+    let box: calc::ResultBox = calc::ResultBox { value: sum };
+    println(box.value);
+}
+"#,
+        ),
+    ];
+
+    let output = compile_and_run_multi(&files);
+    assert_eq!(output.trim(), "42");
+}
+
+#[test]
+fn test_e2e_stdlib_math_integration() {
+    let src = r#"
+import std::math;
+
+fn main() {
+    let val: f64 = 16.0;
+    let res: f64 = math::sqrt(val);
+    println(res);
+}
+"#;
+    let output = compile_and_run(src);
+    assert!(output.contains("4"), "expected sqrt(16.0) = 4");
+}
+
+#[test]
+fn test_e2e_deep_scope_variable_shadowing() {
+    let src = r#"
+fn main() {
+    let x: int = 10;
+    println(x);
+    if tru {
+        let x: int = 20;
+        println(x);
+        fori (let i: int = 0; i < 1; i++) {
+            let x: int = 30;
+            println(x);
+        }
+        println(x);
+    }
+    println(x);
+}
+"#;
+    assert_output(src, "10\n20\n30\n20\n10");
+}
+
+#[test]
+fn test_e2e_nested_loops_with_targeted_break_and_continue() {
+    let src = r#"
+fn main() {
+    let mut total: int = 0;
+    fori (let i: int = 1; i <= 3; i++) {
+        if i == 2 {
+            continue;
+        }
+        let mut j: int = 0;
+        while j < 5 {
+            j++;
+            if j == 3 {
+                break;
+            }
+            total += i * 10 + j;
+        }
+    }
+    println(total);
+}
+"#;
+    // i=1: j=1 -> 11, j=2 -> 12. (j=3 breaks) -> sum = 23
+    // i=2: skipped (continue)
+    // i=3: j=1 -> 31, j=2 -> 32. (j=3 breaks) -> sum = 63
+    // Total sum = 23 + 63 = 86
+    assert_output(src, "86");
+}
+
+#[test]
+fn test_e2e_early_return_in_nested_loop() {
+    let src = r#"
+fn find_first_pair_product(target: int) -> int {
+    fori (let i: int = 1; i <= 10; i++) {
+        fori (let j: int = 1; j <= 10; j++) {
+            if i * j == target {
+                return i * 100 + j;
+            }
+        }
+    }
+    return 0 - 1;
+}
+
+fn main() {
+    println(find_first_pair_product(12));
+    println(find_first_pair_product(999));
+}
+"#;
+    // Target 12: first pair is i=2, j=6 -> 206
+    // Target 999: not found -> -1
+    assert_output(src, "206\n-1");
 }

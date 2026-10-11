@@ -116,3 +116,69 @@ pub fn compile_and_run(src: &str) -> String {
     // Normalize Windows CRLF line endings to LF (\n) so output string comparisons pass
     String::from_utf8_lossy(&output.stdout).replace("\r\n", "\n")
 }
+
+/// Write multiple relative source files inside a temp directory, compile the entrypoint,
+/// execute the binary, and return stdout[cite: 5].
+pub fn compile_and_run_multi(files: &[(&str, &str)]) -> String {
+    let dir = tempdir().expect("tempdir should be creatable");
+    let mut main_path = None;
+
+    for (rel_path, content) in files {
+        let full_path = dir.path().join(rel_path);
+        if let Some(parent) = full_path.parent() {
+            std::fs::create_dir_all(parent).expect("failed to create directory structure");
+        }
+        std::fs::write(&full_path, content).expect("should write file");
+
+        if *rel_path == "main.mat" || main_path.is_none() {
+            main_path = Some(full_path);
+        }
+    }
+
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let matc_bin = std::path::PathBuf::from(manifest_dir)
+        .join("target")
+        .join("debug")
+        .join(if cfg!(target_os = "windows") {
+            "matc.exe"
+        } else {
+            "matc"
+        });
+
+    let exec_name = if cfg!(target_os = "windows") {
+        "test_out.exe"
+    } else {
+        "test_out"
+    };
+    let exec_path = dir.path().join(exec_name);
+
+    let compile_output = Command::new(&matc_bin)
+        .current_dir(dir.path())
+        .args([
+            "build",
+            main_path.unwrap().to_str().unwrap(),
+            "-o",
+            exec_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("matc should be executable");
+
+    assert!(
+        compile_output.status.success(),
+        "matc compilation failed for multi-file source:\nstderr:\n{}",
+        String::from_utf8_lossy(&compile_output.stderr)
+    );
+
+    let output = Command::new(&exec_path)
+        .current_dir(dir.path())
+        .output()
+        .expect("compiled binary should be runnable");
+
+    assert!(
+        output.status.success(),
+        "compiled binary exited with non-zero status. stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    String::from_utf8_lossy(&output.stdout).replace("\r\n", "\n")
+}

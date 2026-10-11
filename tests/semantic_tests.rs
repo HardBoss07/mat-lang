@@ -447,3 +447,270 @@ fn main() {
         "mismatch",
     );
 }
+
+#[test]
+fn test_semantic_valid_struct_usage() {
+    assert_ok(
+        r#"
+struct Point {
+    x: int,
+    y: int,
+}
+
+struct Rectangle {
+    origin: Point,
+    width: int,
+    height: int,
+}
+
+fn get_x(p: Point) -> int {
+    return p.x;
+}
+
+fn main() {
+    let p: Point = Point { x: 5, y: 10 };
+    let x_val: int = get_x(p);
+    let rect: Rectangle = Rectangle { origin: p, width: 100, height: 50 };
+    let rect_x: int = rect.origin.x;
+}
+"#,
+    );
+}
+
+#[test]
+fn test_semantic_error_undefined_struct() {
+    assert_type_err_contains(
+        r#"
+fn main() {
+    let p = NonExistentStruct { x: 1 };
+}
+"#,
+        "Struct",
+    );
+}
+
+#[test]
+fn test_semantic_error_missing_struct_field() {
+    assert_type_err_contains(
+        r#"
+struct Point {
+    x: int,
+    y: int,
+}
+fn main() {
+    let p: Point = Point { x: 1 };
+}
+"#,
+        "field",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 12. Struct and Field Operations
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_semantic_error_struct_field_type_mismatch() {
+    assert_type_err_contains(
+        r#"
+struct Point {
+    x: int,
+    y: int,
+}
+fn main() {
+    let p: Point = Point { x: "not_an_int", y: 2 };
+}
+"#,
+        "mismatch",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 13. Multi-Dimensional Arrays and Indexing
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_semantic_valid_3d_array_indexing() {
+    assert_ok(
+        r#"
+fn main() {
+    let cube: [[[int; 2]; 2]; 2] = [
+        [[1, 2], [3, 4]],
+        [[5, 6], [7, 8]]
+    ];
+    let elem: int = cube[0][1][0];
+}
+"#,
+    );
+}
+
+#[test]
+fn test_semantic_error_3d_array_type_mismatch() {
+    assert_type_err_contains(
+        r#"
+fn main() {
+    let cube: [[[int; 2]; 2]; 2] = [
+        [[1, 2], [3, "not_an_int"]],
+        [[5, 6], [7, 8]]
+    ];
+}
+"#,
+        "mismatch",
+    );
+}
+
+#[test]
+fn test_semantic_error_3d_array_dimension_mismatch() {
+    assert_type_err_contains(
+        r#"
+fn main() {
+    let cube: [[[int; 2]; 2]; 2] = [
+        [[1, 2, 3], [4, 5]]
+    ];
+}
+"#,
+        "length",
+    );
+}
+
+#[test]
+fn test_semantic_valid_enum_payload_matching() {
+    assert_ok(
+        r#"
+enum Command {
+    Quit,
+    Move(int, int),
+    Write { text: String },
+}
+
+fn main() {
+    let cmd: Command = Command::Move(10, 20);
+    match cmd {
+        Command::Quit => { let q: int = 1; }
+        Command::Move(x, y) => { let sum: int = x + y; }
+        Command::Write { text } => { let s: String = text; }
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn test_semantic_error_enum_variant_not_found() {
+    assert_type_err_contains(
+        r#"
+enum Status {
+    Active,
+    Inactive,
+}
+
+fn main() {
+    let s = Status::NonExistentVariant;
+}
+"#,
+        "variant",
+    );
+}
+
+#[test]
+fn test_semantic_error_enum_match_payload_type_mismatch() {
+    assert_type_err_contains(
+        r#"
+enum Value {
+    Number(int),
+}
+
+fn main() {
+    let v = Value::Number(10);
+    match v {
+        Value::Number(flag) => {
+            let b: bool = flag;
+        }
+    }
+}
+"#,
+        "mismatch",
+    );
+}
+
+#[test]
+fn test_semantic_valid_stdlib_function_calls() {
+    assert_ok(
+        r#"
+import std::math;
+
+fn main() {
+    let x: f64 = 4.0;
+    let root: f64 = sqrt(x);
+}
+"#,
+    );
+}
+
+#[test]
+fn test_semantic_error_private_field_access() {
+    assert_type_err_contains(
+        r#"
+import secret_module;
+
+fn main() {
+    let s: secret_module::Secret = secret_module::Secret { private_val: 42 };
+    let v: int = s.private_val;
+}
+"#,
+        "Undefined",
+    );
+}
+
+#[test]
+fn test_semantic_valid_deep_scope_shadowing() {
+    assert_ok(
+        r#"
+fn main() {
+    let x: int = 1;
+    if tru {
+        let x: String = "level_2";
+        if tru {
+            let x: bool = tru;
+            let b: bool = x;
+        }
+        let s: String = x;
+    }
+    let i: int = x;
+}
+"#,
+    );
+}
+
+#[test]
+fn test_semantic_error_early_return_type_mismatch() {
+    assert_type_err_contains(
+        r#"
+fn compute(n: int) -> int {
+    if n > 10 {
+        return "invalid_type";
+    }
+    return n;
+}
+fn main() {
+    let res: int = compute(15);
+}
+"#,
+        "mismatch",
+    );
+}
+
+#[test]
+fn test_semantic_error_variable_leakage_across_scopes() {
+    assert_type_err_contains(
+        r#"
+fn main() {
+    if tru {
+        let scoped_var: int = 100;
+    }
+    let leak: int = scoped_var;
+}
+"#,
+        "Undefined",
+    );
+}

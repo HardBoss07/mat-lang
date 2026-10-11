@@ -15,6 +15,9 @@ use matc::codegen::CodegenEngine;
 // ---------------------------------------------------------------------------
 fn emit_ir(src: &str) -> String {
     let program = parse(src);
+    let mut analyzer = matc::semantic::SemanticAnalyzer::new("test.mat", src);
+    let _ = analyzer.analyze(&program);
+
     let context = Context::create();
     let engine = CodegenEngine::new(&context, "test_module");
     engine
@@ -314,4 +317,132 @@ fn main() {
     assert!(ir.contains("fmul"), "expected float multiply");
     assert!(ir.contains("fdiv"), "expected float divide");
     insta::assert_snapshot!("float_arithmetic_ir", ir);
+}
+
+// ---------------------------------------------------------------------------
+// 13. Struct and Field Operations
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_codegen_struct_init_and_field_access_ir() {
+    let ir = emit_ir(
+        r#"
+struct Point {
+    x: int,
+    y: int,
+}
+
+fn main() {
+    let p: Point = Point { x: 10, y: 20 };
+    let px: int = p.x;
+}
+"#,
+    );
+    assert!(
+        ir.contains("alloca"),
+        "expected stack allocation for struct"
+    );
+    assert!(
+        ir.contains("getelementptr") || ir.contains("extractvalue"),
+        "expected GEP or extractvalue for field access"
+    );
+    insta::assert_snapshot!("struct_init_and_field_access_ir", ir);
+}
+
+// ---------------------------------------------------------------------------
+// 14. Multi-Dimensional Arrays and Indexing
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_codegen_3d_array_access_ir() {
+    let ir = emit_ir(
+        r#"
+fn main() {
+    let cube: [[[int; 2]; 2]; 2] = [
+        [[1, 2], [3, 4]],
+        [[5, 6], [7, 8]]
+    ];
+    let val: int = cube[1][0][1];
+}
+"#,
+    );
+    assert!(
+        ir.contains("getelementptr"),
+        "expected GEP for nested array indexing"
+    );
+    insta::assert_snapshot!("3d_array_access_ir", ir);
+}
+
+#[test]
+fn test_codegen_enum_payload_match_ir() {
+    let ir = emit_ir(
+        r#"
+fn safe_div(a: int, b: int) -> Result<int, String> {
+    if b == 0 {
+        return Err("zero");
+    }
+    return Ok(a / b);
+}
+
+fn main() {
+    let res: Result<int, String> = safe_div(10, 2);
+    match res {
+        Ok(v)  => { let x: int = v; }
+        Err(e) => { let s: String = e; }
+    }
+}
+"#,
+    );
+    assert!(
+        ir.contains("match_ok") || ir.contains("match_err") || ir.contains("switch"),
+        "expected match dispatch"
+    );
+    insta::assert_snapshot!("enum_payload_match_ir", ir);
+}
+
+#[test]
+fn test_codegen_stdlib_import_ir() {
+    let ir = emit_ir(
+        r#"
+fn sqrt(x: f64) -> f64 {
+    return x;
+}
+
+fn main() {
+    let val: f64 = 9.0;
+    let s: f64 = sqrt(val);
+}
+"#,
+    );
+    assert!(
+        ir.contains("call double") || ir.contains("define double"),
+        "expected LLVM function declaration and call"
+    );
+    insta::assert_snapshot!("stdlib_import_ir", ir);
+}
+
+#[test]
+fn test_codegen_nested_loop_break_continue_ir() {
+    let ir = emit_ir(
+        r#"
+fn main() {
+    let mut i: int = 0;
+    while i < 10 {
+        i++;
+        if i == 5 {
+            continue;
+        }
+        loop {
+            if i > 8 {
+                break;
+            }
+            i++;
+        }
+    }
+}
+"#,
+    );
+    assert!(ir.contains("while_cond"), "expected while condition block");
+    assert!(ir.contains("loop_body"), "expected inner loop body block");
+    insta::assert_snapshot!("nested_loop_break_continue_ir", ir);
 }

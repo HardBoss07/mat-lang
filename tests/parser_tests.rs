@@ -344,3 +344,128 @@ fn main() {
     let prog = parse(src);
     insta::assert_yaml_snapshot!("comments_ast", prog);
 }
+
+// ---------------------------------------------------------------------------
+// 12. Struct and Field Operations
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_parser_struct_declaration_and_init_ast() {
+    let src = r#"
+pub struct Point {
+    pub x: int,
+    y: int,
+}
+
+fn main() {
+    let p: Point = Point { x: 10, y: 20 };
+    let px: int = p.x;
+}
+"#;
+    let prog = parse(src);
+    insta::assert_yaml_snapshot!("struct_declaration_and_init_ast", prog);
+}
+
+#[test]
+fn test_parser_error_missing_struct_field_colon() {
+    let src = r#"
+struct Point {
+    x int
+}
+"#;
+    let result = Parser::new("test.mat", src).parse_program();
+    assert!(
+        result.is_err(),
+        "expected parse error for missing colon in struct field"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 13. Multi-Dimensional Arrays and Indexing
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_parser_3d_array_ast() {
+    let src = r#"
+fn main() {
+    let cube: [[[int; 2]; 2]; 2] = [
+        [[1, 2], [3, 4]],
+        [[5, 6], [7, 8]]
+    ];
+    let val: int = cube[1][0][1];
+}
+"#;
+    let prog = parse(src);
+    insta::assert_yaml_snapshot!("3d_array_ast", prog);
+}
+
+#[test]
+fn test_parser_complex_enum_and_match_ast() {
+    let src = r#"
+pub enum Shape {
+    Circle(f64),
+    Rectangle(int, int),
+    Label { title: String, is_visible: bool },
+    Empty,
+}
+
+fn main() {
+    let s: Shape = Shape::Circle(3.14);
+    match s {
+        Shape::Circle(r) => { let area: f64 = r; }
+        Shape::Rectangle(w, h) => { let perim: int = w + h; }
+        Shape::Label { title, is_visible } => { let t: String = title; }
+        Shape::Empty => { let x: int = 0; }
+    }
+}
+"#;
+    let prog = parse(src);
+    insta::assert_yaml_snapshot!("complex_enum_and_match_ast", prog);
+}
+
+#[test]
+fn test_parser_import_declarations_ast() {
+    let src = r#"
+import std::io;
+import std::math;
+import geometry::calc;
+
+fn main() {
+    let x: int = 10;
+}
+"#;
+    let prog = parse(src);
+    insta::assert_yaml_snapshot!("import_declarations_ast", prog);
+}
+
+#[test]
+fn test_parser_error_invalid_import_path() {
+    let src = "import ;";
+    let result = Parser::new("test.mat", src).parse_program();
+    assert!(
+        result.is_err(),
+        "expected parse error for malformed import path"
+    );
+}
+
+#[test]
+fn test_parser_nested_loops_break_continue_ast() {
+    let src = r#"
+fn main() {
+    let mut outer: int = 0;
+    while outer < 5 {
+        outer++;
+        if outer == 2 {
+            continue;
+        }
+        fori (let inner: int = 0; inner < 3; inner++) {
+            if inner == 1 {
+                break;
+            }
+        }
+    }
+}
+"#;
+    let prog = parse(src);
+    insta::assert_yaml_snapshot!("nested_loops_break_continue_ast", prog);
+}
