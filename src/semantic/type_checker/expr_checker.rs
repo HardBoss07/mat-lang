@@ -47,6 +47,14 @@ impl TypeChecker {
                             if matches!(variant.payload, crate::ast::EnumVariantPayload::Unit) {
                                 return Ok(Type::Custom(enum_name));
                             }
+                        } else {
+                            return Err(self.type_error(
+                                format!(
+                                    "Enum variant '{}' not found on enum '{}'",
+                                    variant_name, enum_name
+                                ),
+                                *span,
+                            ));
                         }
                     }
                     Err(self.undefined_variable(name, *span))
@@ -138,6 +146,54 @@ impl TypeChecker {
                 Ok(Type::Vector(Box::new(first_ty)))
             }
             Expression::StructInit { name, fields, span } => {
+                if name.contains("::") {
+                    let parts: Vec<&str> = name.split("::").collect();
+                    let enum_name = parts[..parts.len() - 1].join("::");
+                    let variant_name = parts.last().unwrap();
+
+                    if let Some(enum_def) = symbols.lookup_enum(&enum_name).cloned() {
+                        if let Some(variant) =
+                            enum_def.variants.iter().find(|v| v.name == *variant_name)
+                        {
+                            if let crate::ast::EnumVariantPayload::Struct(expected_fields) =
+                                &variant.payload
+                            {
+                                if fields.len() != expected_fields.len() {
+                                    return Err(self.type_error(
+                                        format!(
+                                            "Enum variant '{}::{}' expects {} fields, got {}",
+                                            enum_name,
+                                            variant_name,
+                                            expected_fields.len(),
+                                            fields.len()
+                                        ),
+                                        *span,
+                                    ));
+                                }
+
+                                for (field_name, field_expr) in fields {
+                                    let expected_field_ty = expected_fields
+                                        .iter()
+                                        .find(|f| f.name == *field_name)
+                                        .map(|f| &f.ty)
+                                        .ok_or_else(|| {
+                                            self.type_error(
+                                                format!(
+                                                    "Unknown field '{}' on enum variant '{}::{}'",
+                                                    field_name, enum_name, variant_name
+                                                ),
+                                                field_expr.span(),
+                                            )
+                                        })?;
+                                    self.check_expr(field_expr, expected_field_ty, symbols)?;
+                                }
+
+                                return Ok(Type::Custom(enum_name));
+                            }
+                        }
+                    }
+                }
+
                 let struct_def = symbols
                     .lookup_struct(name)
                     .ok_or_else(|| self.type_error(format!("Undefined struct '{}'", name), *span))?
@@ -159,8 +215,8 @@ impl TypeChecker {
                     let expected_field_ty = struct_def
                         .fields
                         .iter()
-                        .find(|(n, _)| n == field_name)
-                        .map(|(_, ty)| ty)
+                        .find(|f| f.name == *field_name)
+                        .map(|f| &f.ty)
                         .ok_or_else(|| {
                             self.type_error(
                                 format!("Unknown field '{}' on struct '{}'", field_name, name),
@@ -225,11 +281,10 @@ impl TypeChecker {
                     self.type_error(format!("Undefined struct '{}'", struct_name), *span)
                 })?;
 
-                let field_ty = struct_def
+                let field_symbol = struct_def
                     .fields
                     .iter()
-                    .find(|(n, _)| n == field)
-                    .map(|(_, ty)| ty.clone())
+                    .find(|f| f.name == *field)
                     .ok_or_else(|| {
                         self.type_error(
                             format!("Struct '{}' has no field '{}'", struct_name, field),
@@ -237,7 +292,17 @@ impl TypeChecker {
                         )
                     })?;
 
-                Ok(field_ty)
+                if struct_name.contains("::") && !field_symbol.is_pub {
+                    return Err(self.type_error(
+                        format!(
+                            "Undefined private field '{}' on struct '{}'",
+                            field, struct_name
+                        ),
+                        *span,
+                    ));
+                }
+
+                Ok(field_symbol.ty.clone())
             }
             Expression::MethodCall {
                 receiver,
@@ -559,26 +624,21 @@ impl TypeChecker {
                 }
             }
             (
-                Expression::StructInit {
-                    name,
-                    fields: _,
-                    span,
-                },
+                Expression::StructInit { name, .. },
                 target_ty @ (Type::Struct(target_name) | Type::Custom(target_name)),
             ) => {
-                let name_short = name.split("::").last().unwrap_or(name);
-                let target_short = target_name.split("::").last().unwrap_or(target_name);
-                if name_short != target_short {
-                    return Err(self.type_error(
+                let synthesized = self.synthesize_expr(expr, symbols)?;
+                if types_compatible(&synthesized, target_ty) {
+                    Ok(target_ty.clone())
+                } else {
+                    Err(self.type_error(
                         format!(
                             "Type mismatch in struct initialization: expected {}, got {}",
                             target_name, name
                         ),
-                        *span,
-                    ));
+                        expr.span(),
+                    ))
                 }
-                self.synthesize_expr(expr, symbols)?;
-                Ok(target_ty.clone())
             }
             (
                 Expression::EnumInit {
