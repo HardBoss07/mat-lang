@@ -2,7 +2,7 @@ mod binary_ops;
 mod expr_checker;
 mod stmt_checker;
 
-use super::symbol_table::{EnumVariantSymbol, SymbolTable};
+use super::symbol_table::{EnumVariantSymbol, StructFieldSymbol, SymbolTable};
 use crate::ast::{Item, Program, Span};
 use crate::error::{MatcError, Result};
 use miette::SourceSpan;
@@ -31,10 +31,14 @@ impl TypeChecker {
         for item in &program.items {
             match item {
                 Item::Struct(struct_decl) => {
-                    let fields = struct_decl
+                    let fields: Vec<StructFieldSymbol> = struct_decl
                         .fields
                         .iter()
-                        .map(|f| (f.name.clone(), f.ty.clone()))
+                        .map(|f| StructFieldSymbol {
+                            is_pub: f.is_pub,
+                            name: f.name.clone(),
+                            ty: f.ty.clone(),
+                        })
                         .collect();
                     symbols.insert_struct(struct_decl.name.clone(), fields);
                 }
