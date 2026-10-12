@@ -26,8 +26,8 @@ impl TypeChecker {
                     let field_ty = struct_def
                         .fields
                         .iter()
-                        .find(|(n, _)| n == *field)
-                        .map(|(_, ty)| ty.clone())
+                        .find(|f| f.name == *field)
+                        .map(|f| f.ty.clone())
                         .ok_or_else(|| {
                             self.type_error(
                                 format!("Struct '{}' has no field '{}'", struct_name, field),
@@ -101,19 +101,77 @@ impl TypeChecker {
                         }
                         (MatchPattern::EnumUnit { .. }, _) => {}
                         (
-                            MatchPattern::EnumTuple { vars, .. },
-                            Type::Custom(_enum_name) | Type::Struct(_enum_name),
+                            MatchPattern::EnumTuple { variant, vars, .. },
+                            Type::Custom(enum_name) | Type::Struct(enum_name),
                         ) => {
-                            for var in vars {
-                                symbols.insert(var.clone(), Type::Int, false);
+                            let short_variant = variant.split("::").last().unwrap_or(variant);
+                            if let Some(enum_def) = symbols.lookup_enum(enum_name).cloned() {
+                                if let Some(variant_def) = enum_def
+                                    .variants
+                                    .iter()
+                                    .find(|v| v.name == short_variant || v.name == *variant)
+                                {
+                                    if let crate::ast::EnumVariantPayload::Tuple(tys) =
+                                        &variant_def.payload
+                                    {
+                                        for (i, var) in vars.iter().enumerate() {
+                                            let ty = tys.get(i).cloned().unwrap_or(Type::Int);
+                                            symbols.insert(var.clone(), ty, false);
+                                        }
+                                    } else {
+                                        for var in vars {
+                                            symbols.insert(var.clone(), Type::Int, false);
+                                        }
+                                    }
+                                } else {
+                                    for var in vars {
+                                        symbols.insert(var.clone(), Type::Int, false);
+                                    }
+                                }
+                            } else {
+                                for var in vars {
+                                    symbols.insert(var.clone(), Type::Int, false);
+                                }
                             }
                         }
                         (
-                            MatchPattern::EnumStruct { fields, .. },
-                            Type::Custom(_enum_name) | Type::Struct(_enum_name),
+                            MatchPattern::EnumStruct {
+                                variant, fields, ..
+                            },
+                            Type::Custom(enum_name) | Type::Struct(enum_name),
                         ) => {
-                            for (_field, var) in fields {
-                                symbols.insert(var.clone(), Type::Int, false);
+                            let short_variant = variant.split("::").last().unwrap_or(variant);
+                            if let Some(enum_def) = symbols.lookup_enum(enum_name).cloned() {
+                                if let Some(variant_def) = enum_def
+                                    .variants
+                                    .iter()
+                                    .find(|v| v.name == short_variant || v.name == *variant)
+                                {
+                                    if let crate::ast::EnumVariantPayload::Struct(flds) =
+                                        &variant_def.payload
+                                    {
+                                        for (field_name, var) in fields {
+                                            let ty = flds
+                                                .iter()
+                                                .find(|f| f.name == *field_name)
+                                                .map(|f| f.ty.clone())
+                                                .unwrap_or(Type::Int);
+                                            symbols.insert(var.clone(), ty, false);
+                                        }
+                                    } else {
+                                        for (_field_name, var) in fields {
+                                            symbols.insert(var.clone(), Type::Int, false);
+                                        }
+                                    }
+                                } else {
+                                    for (_field_name, var) in fields {
+                                        symbols.insert(var.clone(), Type::Int, false);
+                                    }
+                                }
+                            } else {
+                                for (_field_name, var) in fields {
+                                    symbols.insert(var.clone(), Type::Int, false);
+                                }
                             }
                         }
                         (MatchPattern::Wildcard, _) => {}
