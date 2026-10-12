@@ -16,9 +16,16 @@ pub struct FunctionSymbol {
 }
 
 #[derive(Debug, Clone)]
+pub struct StructFieldSymbol {
+    pub is_pub: bool,
+    pub name: String,
+    pub ty: Type,
+}
+
+#[derive(Debug, Clone)]
 pub struct StructSymbol {
     pub name: String,
-    pub fields: Vec<(String, Type)>,
+    pub fields: Vec<StructFieldSymbol>,
 }
 
 #[derive(Debug, Clone)]
@@ -156,16 +163,34 @@ impl SymbolTable {
         if let Some(f) = self.functions.get(name) {
             return Some(f);
         }
+        let short_name = name.split("::").last().unwrap_or(name);
+        let intrinsic_name = format!("_mat_rt_{}", short_name);
+        if let Some(f) = self.functions.get(&intrinsic_name) {
+            return Some(f);
+        }
+
         if name.contains("::") {
+            let suffix = format!("::{}", name);
+            for (key, f) in &self.functions {
+                if key.ends_with(&suffix) {
+                    return Some(f);
+                }
+            }
             if let Some(short_name) = name.split("::").last() {
                 if let Some(f) = self.functions.get(short_name) {
                     return Some(f);
+                }
+                let short_suffix = format!("::{}", short_name);
+                for (key, f) in &self.functions {
+                    if key.ends_with(&short_suffix) {
+                        return Some(f);
+                    }
                 }
             }
         } else {
             let suffix = format!("::{}", name);
             for (key, f) in &self.functions {
-                if key.ends_with(&suffix) {
+                if key == short_name || key.ends_with(&suffix) {
                     return Some(f);
                 }
             }
@@ -173,7 +198,7 @@ impl SymbolTable {
         None
     }
 
-    pub fn insert_struct(&mut self, name: String, fields: Vec<(String, Type)>) {
+    pub fn insert_struct(&mut self, name: String, fields: Vec<StructFieldSymbol>) {
         self.structs
             .insert(name.clone(), StructSymbol { name, fields });
     }
@@ -183,9 +208,21 @@ impl SymbolTable {
             return Some(s);
         }
         if name.contains("::") {
+            let suffix = format!("::{}", name);
+            for (key, s) in &self.structs {
+                if key.ends_with(&suffix) {
+                    return Some(s);
+                }
+            }
             if let Some(short_name) = name.split("::").last() {
                 if let Some(s) = self.structs.get(short_name) {
                     return Some(s);
+                }
+                let short_suffix = format!("::{}", short_name);
+                for (key, s) in &self.structs {
+                    if key.ends_with(&short_suffix) {
+                        return Some(s);
+                    }
                 }
             }
         } else {
@@ -209,9 +246,21 @@ impl SymbolTable {
             return Some(e);
         }
         if name.contains("::") {
+            let suffix = format!("::{}", name);
+            for (key, e) in &self.enums {
+                if key.ends_with(&suffix) {
+                    return Some(e);
+                }
+            }
             if let Some(short_name) = name.split("::").last() {
                 if let Some(e) = self.enums.get(short_name) {
                     return Some(e);
+                }
+                let short_suffix = format!("::{}", short_name);
+                for (key, e) in &self.enums {
+                    if key.ends_with(&short_suffix) {
+                        return Some(e);
+                    }
                 }
             }
         } else {
