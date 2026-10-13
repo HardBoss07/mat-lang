@@ -123,19 +123,19 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             .ok_or_else(|| MatcError::CodegenError(format!("Struct '{}' not found", struct_name)))?
             .clone();
 
-        let (field_idx, (_, field_ty)) = struct_def
+        let (field_idx, field_sym) = struct_def
             .fields
             .iter()
             .enumerate()
-            .find(|(_, (n, _))| n == field)
+            .find(|(_, f)| f.name == *field)
             .ok_or_else(|| {
                 MatcError::CodegenError(format!("Field '{}' not found on '{}'", field, struct_name))
             })?;
 
+        let field_ty = &field_sym.ty;
         let struct_llvm_ty = self.engine.llvm_type(&struct_mat_ty);
         let field_llvm_ty = self.engine.llvm_type(field_ty);
 
-        // If the expression is an identifier, we can directly GEP into its local variable alloca
         if let Expression::Identifier(var_name, _) = expr {
             if let Some((ptr, _)) = self.local_vars.get(var_name).cloned() {
                 let field_ptr = llvm_err(self.engine.builder.build_struct_gep(
