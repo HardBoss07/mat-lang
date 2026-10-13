@@ -33,12 +33,28 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                 Ok(global_str.as_pointer_value().into())
             }
             Expression::Identifier(name, _) => {
-                let (ptr, ty) = self.local_vars.get(name).ok_or_else(|| {
-                    MatcError::CodegenError(format!("Undefined variable in codegen: {}", name))
-                })?;
-                let llvm_ty = self.engine.llvm_type(ty);
-                let loaded = llvm_err(self.engine.builder.build_load(llvm_ty, *ptr, name))?;
-                Ok(loaded)
+                if let Some((ptr, ty)) = self.local_vars.get(name) {
+                    let llvm_ty = self.engine.llvm_type(ty);
+                    let loaded = llvm_err(self.engine.builder.build_load(llvm_ty, *ptr, name))?;
+                    Ok(loaded)
+                } else if let Some(last_colon) = name.rfind("::") {
+                    let enum_name = &name[..last_colon];
+                    let variant_name = &name[last_colon + 2..];
+                    if let Some(enum_sym) = self.symbol_table.lookup_enum(enum_name) {
+                        if enum_sym.variants.iter().any(|v| v.name == variant_name) {
+                            return self.compile_enum_init(Some(enum_name), variant_name, None);
+                        }
+                    }
+                    Err(MatcError::CodegenError(format!(
+                        "Undefined variable in codegen: {}",
+                        name
+                    )))
+                } else {
+                    Err(MatcError::CodegenError(format!(
+                        "Undefined variable in codegen: {}",
+                        name
+                    )))
+                }
             }
             Expression::Binary {
                 op, left, right, ..
@@ -128,17 +144,26 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                 1,
                 "enum_payload_ptr",
             ))?;
-            let target_ptr_ty = self
+            let payload_llvm_ty = compiled_payload.get_type();
+            let payload_struct_ty = self.engine.context.struct_type(&[payload_llvm_ty], false);
+            let ptr_ty = self
                 .engine
                 .context
                 .ptr_type(inkwell::AddressSpace::default());
             let cast_ptr = llvm_err(self.engine.builder.build_bit_cast(
                 payload_buf_ptr,
-                target_ptr_ty,
+                ptr_ty,
                 "payload_cast",
             ))?
             .into_pointer_value();
-            llvm_err(self.engine.builder.build_store(cast_ptr, compiled_payload))?;
+
+            let field_ptr = llvm_err(self.engine.builder.build_struct_gep(
+                payload_struct_ty,
+                cast_ptr,
+                0,
+                "payload_field_0",
+            ))?;
+            llvm_err(self.engine.builder.build_store(field_ptr, compiled_payload))?;
         }
 
         let loaded = llvm_err(self.engine.builder.build_load(
