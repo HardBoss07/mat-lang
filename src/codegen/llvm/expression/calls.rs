@@ -310,6 +310,115 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             return Ok(unsafe { BasicValueEnum::new(call_site.as_value_ref()) });
         }
 
+        if let Some(last_colon) = callee.rfind("::") {
+            let enum_name = &callee[..last_colon];
+            let variant_name = &callee[last_colon + 2..];
+            if let Some(enum_sym) = self.symbol_table.lookup_enum(enum_name).cloned() {
+                if let Some((tag_index, variant_def)) = enum_sym
+                    .variants
+                    .iter()
+                    .enumerate()
+                    .find(|(_, v)| v.name == variant_name)
+                {
+                    let short_e_name = enum_name.split("::").last().unwrap_or(enum_name);
+                    let map = self.engine.enum_types.borrow();
+                    let mut enum_struct_ty = map
+                        .get(enum_name)
+                        .or_else(|| map.get(short_e_name))
+                        .copied();
+                    if enum_struct_ty.is_none() {
+                        let suffix = format!("::{}", short_e_name);
+                        for (k, &ty) in map.iter() {
+                            if k.ends_with(&suffix) {
+                                enum_struct_ty = Some(ty);
+                                break;
+                            }
+                        }
+                    }
+                    let enum_struct_ty = enum_struct_ty.ok_or_else(|| {
+                        MatcError::CodegenError(format!(
+                            "LLVM struct type for enum '{}' not found",
+                            enum_name
+                        ))
+                    })?;
+
+                    let enum_alloca =
+                        self.create_entry_block_alloca(enum_struct_ty.into(), "enum_tmp")?;
+
+                    let tag_val = self
+                        .engine
+                        .context
+                        .i32_type()
+                        .const_int(tag_index as u64, false);
+                    let tag_ptr = llvm_err(self.engine.builder.build_struct_gep(
+                        enum_struct_ty,
+                        enum_alloca,
+                        0,
+                        "enum_tag_ptr",
+                    ))?;
+                    llvm_err(self.engine.builder.build_store(tag_ptr, tag_val))?;
+
+                    let payload_buf_ptr = llvm_err(self.engine.builder.build_struct_gep(
+                        enum_struct_ty,
+                        enum_alloca,
+                        1,
+                        "enum_payload_ptr",
+                    ))?;
+
+                    let payload_field_tys: Vec<_> = match &variant_def.payload {
+                        crate::ast::EnumVariantPayload::Tuple(tys) => {
+                            tys.iter().map(|t| self.engine.llvm_type(t)).collect()
+                        }
+                        _ => vec![],
+                    };
+
+                    if !payload_field_tys.is_empty() {
+                        let payload_struct_ty =
+                            self.engine.context.struct_type(&payload_field_tys, false);
+                        let ptr_ty = self
+                            .engine
+                            .context
+                            .ptr_type(inkwell::AddressSpace::default());
+                        let cast_ptr = llvm_err(self.engine.builder.build_bit_cast(
+                            payload_buf_ptr,
+                            ptr_ty,
+                            "payload_cast",
+                        ))?
+                        .into_pointer_value();
+
+                        for (idx, arg_expr) in arguments.iter().enumerate() {
+                            let field_mat_ty = match &variant_def.payload {
+                                crate::ast::EnumVariantPayload::Tuple(tys) => {
+                                    tys.get(idx).cloned().unwrap_or(Type::Int)
+                                }
+                                _ => Type::Int,
+                            };
+                            let raw_val = self.compile_expression(arg_expr)?;
+                            let val = super::super::util::coerce_val_to_type(
+                                self.engine,
+                                raw_val,
+                                &field_mat_ty,
+                            )?;
+                            let field_ptr = llvm_err(self.engine.builder.build_struct_gep(
+                                payload_struct_ty,
+                                cast_ptr,
+                                idx as u32,
+                                "enum_field_ptr",
+                            ))?;
+                            llvm_err(self.engine.builder.build_store(field_ptr, val))?;
+                        }
+                    }
+
+                    let loaded = llvm_err(self.engine.builder.build_load(
+                        enum_struct_ty,
+                        enum_alloca,
+                        "enum_val",
+                    ))?;
+                    return Ok(loaded);
+                }
+            }
+        }
+
         let mangled = mangle_symbol(callee);
         let target_fn =
             self.engine.module.get_function(&mangled).ok_or_else(|| {
