@@ -134,6 +134,112 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         name: &str,
         fields: &[(String, Expression)],
     ) -> Result<BasicValueEnum<'ctx>> {
+        if let Some(last_colon) = name.rfind("::") {
+            let enum_name = &name[..last_colon];
+            let variant_name = &name[last_colon + 2..];
+            if let Some(enum_sym) = self.symbol_table.lookup_enum(enum_name).cloned() {
+                if let Some((tag_index, variant_def)) = enum_sym
+                    .variants
+                    .iter()
+                    .enumerate()
+                    .find(|(_, v)| v.name == variant_name)
+                {
+                    let short_e_name = enum_name.split("::").last().unwrap_or(enum_name);
+                    let map = self.engine.enum_types.borrow();
+                    let mut enum_struct_ty = map
+                        .get(enum_name)
+                        .or_else(|| map.get(short_e_name))
+                        .copied();
+                    if enum_struct_ty.is_none() {
+                        let suffix = format!("::{}", short_e_name);
+                        for (k, &ty) in map.iter() {
+                            if k.ends_with(&suffix) {
+                                enum_struct_ty = Some(ty);
+                                break;
+                            }
+                        }
+                    }
+                    let enum_struct_ty = enum_struct_ty.ok_or_else(|| {
+                        MatcError::CodegenError(format!(
+                            "LLVM struct type for enum '{}' not found",
+                            enum_name
+                        ))
+                    })?;
+
+                    let enum_alloca =
+                        self.create_entry_block_alloca(enum_struct_ty.into(), "enum_tmp")?;
+
+                    let tag_val = self
+                        .engine
+                        .context
+                        .i32_type()
+                        .const_int(tag_index as u64, false);
+                    let tag_ptr = llvm_err(self.engine.builder.build_struct_gep(
+                        enum_struct_ty,
+                        enum_alloca,
+                        0,
+                        "enum_tag_ptr",
+                    ))?;
+                    llvm_err(self.engine.builder.build_store(tag_ptr, tag_val))?;
+
+                    let payload_buf_ptr = llvm_err(self.engine.builder.build_struct_gep(
+                        enum_struct_ty,
+                        enum_alloca,
+                        1,
+                        "enum_payload_ptr",
+                    ))?;
+
+                    if let crate::ast::EnumVariantPayload::Struct(ref struct_fields) =
+                        variant_def.payload
+                    {
+                        let payload_field_tys: Vec<_> = struct_fields
+                            .iter()
+                            .map(|f| self.engine.llvm_type(&f.ty))
+                            .collect();
+                        let payload_struct_ty =
+                            self.engine.context.struct_type(&payload_field_tys, false);
+                        let ptr_ty = self
+                            .engine
+                            .context
+                            .ptr_type(inkwell::AddressSpace::default());
+                        let cast_ptr = llvm_err(self.engine.builder.build_bit_cast(
+                            payload_buf_ptr,
+                            ptr_ty,
+                            "payload_cast",
+                        ))?
+                        .into_pointer_value();
+
+                        for (idx, field_def) in struct_fields.iter().enumerate() {
+                            if let Some((_, field_expr)) =
+                                fields.iter().find(|(n, _)| n == &field_def.name)
+                            {
+                                let raw_val = self.compile_expression(field_expr)?;
+                                let val = super::super::util::coerce_val_to_type(
+                                    self.engine,
+                                    raw_val,
+                                    &field_def.ty,
+                                )?;
+                                let field_ptr = llvm_err(self.engine.builder.build_struct_gep(
+                                    payload_struct_ty,
+                                    cast_ptr,
+                                    idx as u32,
+                                    "enum_field_ptr",
+                                ))?;
+                                llvm_err(self.engine.builder.build_store(field_ptr, val))?;
+                            }
+                        }
+                    }
+
+                    let loaded = llvm_err(self.engine.builder.build_load(
+                        enum_struct_ty,
+                        enum_alloca,
+                        "enum_val",
+                    ))?;
+                    return Ok(loaded);
+                }
+            }
+        }
+
         let struct_def = self
             .symbol_table
             .lookup_struct(name)
@@ -163,11 +269,11 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         let alloca = self.create_entry_block_alloca(struct_ty.into(), "struct_tmp")?;
 
         for (field_name, field_expr) in fields {
-            let (field_idx, (_, field_ty)) = struct_def
+            let (field_idx, field_sym) = struct_def
                 .fields
                 .iter()
                 .enumerate()
-                .find(|(_, (n, _))| n == field_name)
+                .find(|(_, f)| f.name == *field_name)
                 .ok_or_else(|| {
                     MatcError::CodegenError(format!(
                         "Field '{}' not found in struct '{}'",
@@ -175,6 +281,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                     ))
                 })?;
 
+            let field_ty = &field_sym.ty;
             let raw_val = self.compile_expression(field_expr)?;
             let val = super::super::util::coerce_val_to_type(self.engine, raw_val, field_ty)?;
 
