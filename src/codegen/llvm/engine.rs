@@ -52,7 +52,11 @@ impl<'ctx> CodegenEngine<'ctx> {
                     let fields = struct_decl
                         .fields
                         .iter()
-                        .map(|f| (f.name.clone(), f.ty.clone()))
+                        .map(|f| crate::semantic::symbol_table::StructFieldSymbol {
+                            is_pub: f.is_pub,
+                            name: f.name.clone(),
+                            ty: f.ty.clone(),
+                        })
                         .collect();
                     global_symbols.insert_struct(struct_decl.name.clone(), fields);
 
