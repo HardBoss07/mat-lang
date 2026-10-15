@@ -1,9 +1,25 @@
 use super::super::function::{FunctionCompiler, LoopBlocks};
 use super::super::util::{branch_if_unterminated, coerce_val_to_type, llvm_err};
-use crate::ast::{Expression, Statement};
+use crate::ast::{Expression, Statement, Type};
 use crate::error::{MatcError, Result};
+use std::collections::HashMap;
 
 impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
+    pub(crate) fn push_scope(
+        &mut self,
+    ) -> HashMap<String, (inkwell::values::PointerValue<'ctx>, Type)> {
+        self.symbol_table.push_scope();
+        self.local_vars.clone()
+    }
+
+    pub(crate) fn pop_scope(
+        &mut self,
+        prev_local_vars: HashMap<String, (inkwell::values::PointerValue<'ctx>, Type)>,
+    ) {
+        self.symbol_table.pop_scope();
+        self.local_vars = prev_local_vars;
+    }
+
     pub(crate) fn compile_return_stmt(&mut self, opt_expr: &Option<Expression>) -> Result<()> {
         if let Some(expr) = opt_expr {
             let raw_val = self.compile_expression(expr)?;
@@ -57,20 +73,20 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         )?;
 
         self.engine.builder.position_at_end(if_then);
-        self.symbol_table.push_scope();
+        let saved_vars = self.push_scope();
         for stmt in then_branch {
             self.compile_statement(stmt)?;
         }
-        self.symbol_table.pop_scope();
+        self.pop_scope(saved_vars);
         branch_if_unterminated(self.engine, if_after)?;
 
         if let (Some(else_block), Some(else_stmts)) = (if_else, else_branch) {
             self.engine.builder.position_at_end(else_block);
-            self.symbol_table.push_scope();
+            let saved_vars = self.push_scope();
             for stmt in else_stmts {
                 self.compile_statement(stmt)?;
             }
-            self.symbol_table.pop_scope();
+            self.pop_scope(saved_vars);
             branch_if_unterminated(self.engine, if_after)?;
         }
 
@@ -96,11 +112,11 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             break_target: loop_after,
         });
 
-        self.symbol_table.push_scope();
+        let saved_vars = self.push_scope();
         for stmt in body {
             self.compile_statement(stmt)?;
         }
-        self.symbol_table.pop_scope();
+        self.pop_scope(saved_vars);
         self.loop_stack.pop();
 
         branch_if_unterminated(self.engine, loop_body)?;
@@ -143,11 +159,11 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             break_target: while_after,
         });
 
-        self.symbol_table.push_scope();
+        let saved_vars = self.push_scope();
         for stmt in body {
             self.compile_statement(stmt)?;
         }
-        self.symbol_table.pop_scope();
+        self.pop_scope(saved_vars);
         self.loop_stack.pop();
 
         branch_if_unterminated(self.engine, while_cond)?;
