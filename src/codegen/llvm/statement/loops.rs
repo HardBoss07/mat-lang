@@ -12,7 +12,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         step: &Statement,
         body: &[Statement],
     ) -> Result<()> {
-        self.symbol_table.push_scope();
+        let saved_vars = self.push_scope();
         self.compile_statement(init)?;
 
         let for_cond = self
@@ -60,7 +60,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         llvm_err(self.engine.builder.build_unconditional_branch(for_cond))?;
 
         self.engine.builder.position_at_end(for_after);
-        self.symbol_table.pop_scope();
+        self.pop_scope(saved_vars);
         Ok(())
     }
 
@@ -70,6 +70,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         iterable: &Expression,
         body: &[Statement],
     ) -> Result<()> {
+        let saved_vars = self.push_scope();
         let iter_mat_ty = self
             .type_checker
             .synthesize_expr(iterable, &self.symbol_table)?;
@@ -93,6 +94,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                 (*elem.clone(), len_int, true)
             }
             _ => {
+                self.pop_scope(saved_vars);
                 return Err(MatcError::CodegenError(
                     "Expected array or vector type in for-in".to_string(),
                 ));
@@ -149,7 +151,6 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         ))?;
 
         self.engine.builder.position_at_end(for_in_body);
-        self.symbol_table.push_scope();
 
         let elem_val = if is_vector {
             let coll_loaded = llvm_err(self.engine.builder.build_load(
@@ -207,8 +208,6 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
 
         branch_if_unterminated(self.engine, for_in_step)?;
 
-        self.symbol_table.pop_scope();
-
         self.engine.builder.position_at_end(for_in_step);
         let one_i64 = i64_ty.const_int(1, false);
         let next_idx = llvm_err(self.engine.builder.build_int_add(
@@ -220,6 +219,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         llvm_err(self.engine.builder.build_unconditional_branch(for_in_cond))?;
 
         self.engine.builder.position_at_end(for_in_after);
+        self.pop_scope(saved_vars);
         Ok(())
     }
 }
