@@ -31,14 +31,14 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                     let field_idx = struct_def
                         .fields
                         .iter()
-                        .position(|(n, _)| n == *field)
+                        .position(|f| f.name == *field)
                         .ok_or_else(|| {
                             MatcError::CodegenError(format!(
                                 "Field '{}' not found on struct '{}'",
                                 field, struct_name
                             ))
                         })?;
-                    let field_mat_ty = struct_def.fields[field_idx].1.clone();
+                    let field_mat_ty = struct_def.fields[field_idx].ty.clone();
                     let llvm_struct_ty = self.engine.llvm_type(&mat_ty).into_struct_type();
                     ptr = llvm_err(self.engine.builder.build_struct_gep(
                         llvm_struct_ty,
