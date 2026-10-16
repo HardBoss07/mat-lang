@@ -1,239 +1,43 @@
+//! Primary expression parsing and operator precedence coordination.
+//!
+//! This module coordinates parsing of literals, constructors, identifiers,
+//! and binary operator precedence climbing for expressions in MAT.
+
+pub mod binary_ops;
 pub mod collections;
+pub mod constructors;
+pub mod identifier;
 pub mod postfix;
 
+pub use binary_ops::*;
 pub use collections::{parse_array_literal, parse_tuple_or_parenthesized, parse_vector_literal};
+pub use constructors::*;
+pub use identifier::*;
 pub use postfix::parse_postfix_expression;
 
 use winnow::ModalResult;
 use winnow::Parser;
 use winnow::combinator::alt;
-use winnow::token::{literal, take_while};
 
 use super::literals::{
     parse_bool_literal, parse_float_literal, parse_int_literal, parse_string_or_interpolated,
 };
-use crate::ast::{BinaryOp, Expression, Span};
-use crate::parser::utils::{get_span_between, skip_ws_and_comments};
+use crate::ast::Expression;
+use crate::parser::utils::skip_ws_and_comments;
 
-pub fn parse_single_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
-    let _ = skip_ws_and_comments(input)?;
-    let checkpoint = *input;
-
-    if input.is_empty() {
-        return Err(winnow::error::ErrMode::Backtrack(
-            winnow::error::ContextError::default(),
-        ));
-    }
-
-    let first_char = input.chars().next().unwrap();
-    if !first_char.is_alphabetic() && first_char != '_' {
-        *input = checkpoint;
-        return Err(winnow::error::ErrMode::Backtrack(
-            winnow::error::ContextError::default(),
-        ));
-    }
-
-    take_while(1.., |c: char| c.is_alphanumeric() || c == '_').parse_next(input)
-}
-
-pub fn parse_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
-    let _ = skip_ws_and_comments(input)?;
-    let start = *input;
-    let _ = parse_single_identifier_str(input)?;
-
-    while input.starts_with("::") {
-        let checkpoint = *input;
-        *input = &input[2..];
-        if parse_single_identifier_str(input).is_err() {
-            *input = checkpoint;
-            break;
-        }
-    }
-
-    let len = start.len() - input.len();
-    Ok(&start[..len])
-}
-
-pub fn parse_identifier(input: &mut &str) -> ModalResult<Expression> {
-    let checkpoint = *input;
-    let _ = skip_ws_and_comments(input)?;
-    let tok_start = *input;
-    match parse_identifier_str.parse_next(input) {
-        Ok(name) => Ok(Expression::Identifier(
-            name.to_string(),
-            get_span_between(tok_start, *input),
-        )),
-        Err(e) => {
-            *input = checkpoint;
-            Err(e)
-        }
-    }
-}
-
-pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
-    let checkpoint = *input;
-    let _ = skip_ws_and_comments(input)?;
-    let tok_start = *input;
-
-    let is_ok = if input.starts_with("Ok") {
-        let after = &input[2..];
-        if after
-            .chars()
-            .next()
-            .map_or(false, |c| c.is_alphanumeric() || c == '_')
-        {
-            *input = checkpoint;
-            return Err(winnow::error::ErrMode::Backtrack(
-                winnow::error::ContextError::default(),
-            ));
-        }
-        true
-    } else if input.starts_with("Err") {
-        let after = &input[3..];
-        if after
-            .chars()
-            .next()
-            .map_or(false, |c| c.is_alphanumeric() || c == '_')
-        {
-            *input = checkpoint;
-            return Err(winnow::error::ErrMode::Backtrack(
-                winnow::error::ContextError::default(),
-            ));
-        }
-        false
-    } else {
-        *input = checkpoint;
-        return Err(winnow::error::ErrMode::Backtrack(
-            winnow::error::ContextError::default(),
-        ));
-    };
-
-    if is_ok {
-        let _ = literal("Ok").parse_next(input)?;
-    } else {
-        let _ = literal("Err").parse_next(input)?;
-    }
-
-    let _ = skip_ws_and_comments(input)?;
-    if !input.starts_with('(') {
-        *input = checkpoint;
-        return Err(winnow::error::ErrMode::Backtrack(
-            winnow::error::ContextError::default(),
-        ));
-    }
-    *input = &input[1..];
-    let _ = skip_ws_and_comments(input)?;
-
-    let inner_expr = match parse_expression.parse_next(input) {
-        Ok(e) => e,
-        Err(e) => {
-            *input = checkpoint;
-            return Err(e);
-        }
-    };
-    let _ = skip_ws_and_comments(input)?;
-
-    if !input.starts_with(')') {
-        *input = checkpoint;
-        return Err(winnow::error::ErrMode::Backtrack(
-            winnow::error::ContextError::default(),
-        ));
-    }
-    *input = &input[1..];
-    let tok_end = *input;
-
-    if is_ok {
-        Ok(Expression::Ok(
-            Box::new(inner_expr),
-            get_span_between(tok_start, tok_end),
-        ))
-    } else {
-        Ok(Expression::Err(
-            Box::new(inner_expr),
-            get_span_between(tok_start, tok_end),
-        ))
-    }
-}
-
-pub fn parse_struct_init(input: &mut &str) -> ModalResult<Expression> {
-    let checkpoint = *input;
-    let _ = skip_ws_and_comments(input)?;
-    let tok_start = *input;
-
-    let struct_name = match parse_identifier_str.parse_next(input) {
-        Ok(name) => name.to_string(),
-        Err(e) => {
-            *input = checkpoint;
-            return Err(e);
-        }
-    };
-
-    let _ = skip_ws_and_comments(input)?;
-    if !input.starts_with('{') {
-        *input = checkpoint;
-        return Err(winnow::error::ErrMode::Backtrack(
-            winnow::error::ContextError::default(),
-        ));
-    }
-    *input = &input[1..];
-    let _ = skip_ws_and_comments(input)?;
-
-    let mut fields = Vec::new();
-    while !input.is_empty() && !input.starts_with('}') {
-        let field_name = match parse_single_identifier_str.parse_next(input) {
-            Ok(name) => name.to_string(),
-            Err(e) => {
-                *input = checkpoint;
-                return Err(e);
-            }
-        };
-
-        let _ = skip_ws_and_comments(input)?;
-        if !input.starts_with(':') {
-            *input = checkpoint;
-            return Err(winnow::error::ErrMode::Backtrack(
-                winnow::error::ContextError::default(),
-            ));
-        }
-        *input = &input[1..];
-        let _ = skip_ws_and_comments(input)?;
-
-        let val_expr = match parse_expression.parse_next(input) {
-            Ok(expr) => expr,
-            Err(e) => {
-                *input = checkpoint;
-                return Err(e);
-            }
-        };
-
-        fields.push((field_name, val_expr));
-
-        let _ = skip_ws_and_comments(input)?;
-        if input.starts_with(',') {
-            *input = &input[1..];
-            let _ = skip_ws_and_comments(input)?;
-        } else {
-            break;
-        }
-    }
-
-    let _ = skip_ws_and_comments(input)?;
-    if !input.starts_with('}') {
-        *input = checkpoint;
-        return Err(winnow::error::ErrMode::Backtrack(
-            winnow::error::ContextError::default(),
-        ));
-    }
-    *input = &input[1..];
-    let tok_end = *input;
-
-    Ok(Expression::StructInit {
-        name: struct_name,
-        fields,
-        span: get_span_between(tok_start, tok_end),
-    })
-}
-
+/// Parses a primary atomic expression (literals, identifiers, constructors, collections, parenthesized).
+///
+/// # Arguments
+///
+/// * `input` - The parser input slice.
+///
+/// # Returns
+///
+/// The parsed [`Expression`] node.
+///
+/// # Errors
+///
+/// Returns a [`winnow::error::ErrMode`] if no primary expression is matched.
 pub fn parse_primary_expression(input: &mut &str) -> ModalResult<Expression> {
     let _ = skip_ws_and_comments(input)?;
     alt((
@@ -251,231 +55,19 @@ pub fn parse_primary_expression(input: &mut &str) -> ModalResult<Expression> {
     .parse_next(input)
 }
 
-pub fn parse_multiplicative_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_postfix_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
-        if input.starts_with("*=") || input.starts_with("/=") || input.starts_with("%=") {
-            break;
-        }
-
-        let op = if input.starts_with('*') {
-            BinaryOp::Mul
-        } else if input.starts_with('/') {
-            BinaryOp::Div
-        } else if input.starts_with('%') {
-            BinaryOp::Mod
-        } else {
-            break;
-        };
-
-        *input = &input[1..];
-
-        let right = parse_postfix_expression.parse_next(input)?;
-        let start = left.span().start;
-        let end = right.span().end;
-        left = Expression::Binary {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-            span: Span::new(start, end),
-        };
-    }
-
-    Ok(left)
-}
-
-pub fn parse_additive_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_multiplicative_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
-        if input.starts_with("+=")
-            || input.starts_with("-=")
-            || input.starts_with("++")
-            || input.starts_with("--")
-        {
-            break;
-        }
-
-        let op = if input.starts_with('+') {
-            BinaryOp::Add
-        } else if input.starts_with('-') {
-            BinaryOp::Sub
-        } else {
-            break;
-        };
-
-        *input = &input[1..];
-
-        let right = parse_multiplicative_expression.parse_next(input)?;
-        let start = left.span().start;
-        let end = right.span().end;
-        left = Expression::Binary {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-            span: Span::new(start, end),
-        };
-    }
-
-    Ok(left)
-}
-
-pub fn parse_shift_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_additive_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
-        if input.starts_with("<<=") || input.starts_with(">>=") {
-            break;
-        }
-
-        let op = if input.starts_with("<<") {
-            BinaryOp::Shl
-        } else if input.starts_with(">>") {
-            BinaryOp::Shr
-        } else {
-            break;
-        };
-
-        *input = &input[2..];
-
-        let right = parse_additive_expression.parse_next(input)?;
-        let start = left.span().start;
-        let end = right.span().end;
-        left = Expression::Binary {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-            span: Span::new(start, end),
-        };
-    }
-
-    Ok(left)
-}
-
-pub fn parse_relational_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_shift_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
-        if input.starts_with("<<") || input.starts_with(">>") {
-            break;
-        }
-
-        let op = if input.starts_with("<=") {
-            BinaryOp::Lte
-        } else if input.starts_with(">=") {
-            BinaryOp::Gte
-        } else if input.starts_with('<') {
-            BinaryOp::Lt
-        } else if input.starts_with('>') {
-            BinaryOp::Gt
-        } else {
-            break;
-        };
-
-        match op {
-            BinaryOp::Lte | BinaryOp::Gte => *input = &input[2..],
-            _ => *input = &input[1..],
-        }
-
-        let right = parse_shift_expression.parse_next(input)?;
-        let start = left.span().start;
-        let end = right.span().end;
-        left = Expression::Binary {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-            span: Span::new(start, end),
-        };
-    }
-
-    Ok(left)
-}
-
-pub fn parse_equality_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_relational_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
-
-        let op = if input.starts_with("==") {
-            BinaryOp::Eq
-        } else if input.starts_with("!=") {
-            BinaryOp::Neq
-        } else {
-            break;
-        };
-
-        *input = &input[2..];
-
-        let right = parse_relational_expression.parse_next(input)?;
-        let start = left.span().start;
-        let end = right.span().end;
-        left = Expression::Binary {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-            span: Span::new(start, end),
-        };
-    }
-
-    Ok(left)
-}
-
-pub fn parse_logical_and_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_equality_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
-
-        if input.starts_with("&&") {
-            *input = &input[2..];
-            let right = parse_equality_expression.parse_next(input)?;
-            let start = left.span().start;
-            let end = right.span().end;
-            left = Expression::Binary {
-                op: BinaryOp::And,
-                left: Box::new(left),
-                right: Box::new(right),
-                span: Span::new(start, end),
-            };
-        } else {
-            break;
-        }
-    }
-
-    Ok(left)
-}
-
-pub fn parse_logical_or_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_logical_and_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
-
-        if input.starts_with("||") {
-            *input = &input[2..];
-            let right = parse_logical_and_expression.parse_next(input)?;
-            let start = left.span().start;
-            let end = right.span().end;
-            left = Expression::Binary {
-                op: BinaryOp::Or,
-                left: Box::new(left),
-                right: Box::new(right),
-                span: Span::new(start, end),
-            };
-        } else {
-            break;
-        }
-    }
-
-    Ok(left)
-}
-
+/// Parses a full expression using operator precedence climbing starting at logical OR.
+///
+/// # Arguments
+///
+/// * `input` - The parser input slice.
+///
+/// # Returns
+///
+/// The parsed [`Expression`] root node.
+///
+/// # Errors
+///
+/// Returns a [`winnow::error::ErrMode`] if syntax is malformed.
 pub fn parse_expression(input: &mut &str) -> ModalResult<Expression> {
     parse_logical_or_expression(input)
 }
