@@ -18,4 +18,5 @@ pub enum Type {
     Struct(String),
     Custom(String),
     Result(Box<Type>, Box<Type>),
+    Infer,
 }
