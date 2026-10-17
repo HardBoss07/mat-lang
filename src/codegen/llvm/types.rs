@@ -67,6 +67,9 @@ impl<'ctx> CodegenEngine<'ctx> {
 
                 self.context.i64_type().into()
             }
+            Type::Infer => panic!(
+                "Internal Compiler Error: Unresolved Type::Infer reached LLVM codegen. Type inference failed."
+            ),
         }
     }
 }

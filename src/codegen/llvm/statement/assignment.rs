@@ -93,7 +93,12 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         self.symbol_table
             .insert(name.to_string(), mat_ty.clone(), false);
 
-        let raw_val = self.compile_expression(value)?;
+        let raw_val = match (value, &mat_ty) {
+            (Expression::Call { callee, .. }, Type::Vector(elem_ty)) if callee == "Vec::new" => {
+                self.compile_builtin_vec_new(value, Some(elem_ty))?
+            }
+            _ => self.compile_expression(value)?,
+        };
         let val = coerce_val_to_type(self.engine, raw_val, &mat_ty)?;
         let llvm_ty = self.engine.llvm_type(&mat_ty);
 
@@ -111,7 +116,12 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
     ) -> Result<()> {
         let (ptr, mat_ty) = self.resolve_target_ptr(target)?;
 
-        let raw_val = self.compile_expression(value)?;
+        let raw_val = match (value, &mat_ty) {
+            (Expression::Call { callee, .. }, Type::Vector(elem_ty)) if callee == "Vec::new" => {
+                self.compile_builtin_vec_new(value, Some(elem_ty))?
+            }
+            _ => self.compile_expression(value)?,
+        };
         let val = coerce_val_to_type(self.engine, raw_val, &mat_ty)?;
 
         llvm_err(self.engine.builder.build_store(ptr, val))?;
