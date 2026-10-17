@@ -469,3 +469,26 @@ fn main() {
     let prog = parse(src);
     insta::assert_yaml_snapshot!("nested_loops_break_continue_ast", prog);
 }
+
+#[test]
+fn test_parser_vec_function_signatures() {
+    let src = r#"
+fn process_grid(g: Vec<int>) -> Vec<int> {
+    return g;
+}
+"#;
+    assert!(Parser::new("test.mat", src).parse_program().is_ok());
+}
+
+#[test]
+fn test_parser_multiline_2d_array_literal() {
+    let src = r#"
+fn main() {
+    let grid: [[int; 2]; 2] = [
+        [1, 2],
+        [3, 4],
+    ];
+}
+"#;
+    assert!(Parser::new("test.mat", src).parse_program().is_ok());
+}

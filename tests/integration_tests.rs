@@ -635,3 +635,22 @@ fn main() {
     // Target 999: not found -> -1
     assert_output(src, "206\n-1");
 }
+
+#[test]
+fn test_e2e_vec_of_structs_field_read() {
+    let src = r#"
+struct Item {
+    id: int,
+    val: f64,
+}
+
+fn main() {
+    let mut v: Vec<Item> = Vec::new();
+    v.push(Item { id: 42, val: 3.14 });
+    let item: Item = v[0];
+    println(item.id);
+    println(item.val);
+}
+"#;
+    assert_output(src, "42\n3.14");
+}
