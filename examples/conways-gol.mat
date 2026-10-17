@@ -1,0 +1,125 @@
+import std::io;
+
+fn main() {
+    io::println_str("========================================");
+    io::println_str("   CONWAY'S GAME OF LIFE (16x16 mat)   ");
+    io::println_str("========================================");
+
+    // 1. Initialize 16x16 Grid (256 cells) using 1D Vec<int>
+    let mut grid: Vec<int> = Vec::new();
+    fori (let i: int = 0; i < 256; i++) {
+        // Top Glider
+        if (i == 18 || i == 35 || i == 49 || i == 50 || i == 51) {
+            grid.push(1);
+        } 
+        // Middle Toad
+        else if (i == 105 || i == 106 || i == 107 || i == 120 || i == 121 || i == 122) {
+            grid.push(1);
+        } 
+        // Bottom Blinker
+        else if (i == 181 || i == 182 || i == 183) {
+            grid.push(1);
+        } 
+        else {
+            grid.push(0);
+        }
+    }
+
+    let mut gen: int = 0;
+
+    // 2. Interactive Simulation Loop
+    loop {
+        println("\n--- Generation {gen} ---");
+
+        // Render 16x16 grid as 8 terminal lines using UTF-8 half-blocks
+        let mut render_r: int = 0;
+        while render_r < 16 {
+            fori (let c: int = 0; c < 16; c++) {
+                let top_idx: int = render_r * 16 + c;
+                let bot_row: int = render_r + 1;
+                let bot_idx: int = bot_row * 16 + c;
+
+                let top: int = grid[top_idx];
+                let bot: int = grid[bot_idx];
+
+                if (top == 1 && bot == 1) {
+                    io::print_str("█");
+                } else if (top == 1 && bot == 0) {
+                    io::print_str("▀");
+                } else if (top == 0 && bot == 1) {
+                    io::print_str("▄");
+                } else {
+                    io::print_str("░");
+                }
+            }
+            println("");
+            render_r += 2;
+        }
+
+        // Compute next generation into a dynamic vector buffer
+        let mut next_grid: Vec<int> = Vec::new();
+
+        fori (let r: int = 0; r < 16; r++) {
+            fori (let c: int = 0; c < 16; c++) {
+                let mut neighbors: int = 0;
+
+                let mut dr: int = -1;
+                while dr < 2 {
+                    let mut dc: int = -1;
+                    while dc < 2 {
+                        if (dr == 0 && dc == 0) {
+                            dc++;
+                            continue;
+                        }
+
+                        let mut nr: int = r + dr;
+                        let mut nc: int = c + dc;
+
+                        // Toroidal boundary wrapping
+                        if nr < 0 {
+                            nr = 15;
+                        }
+                        if nr > 15 {
+                            nr = 0;
+                        }
+                        if nc < 0 {
+                            nc = 15;
+                        }
+                        if nc > 15 {
+                            nc = 0;
+                        }
+
+                        let n_idx: int = nr * 16 + nc;
+                        if grid[n_idx] == 1 {
+                            neighbors++;
+                        }
+
+                        dc++;
+                    }
+                    dr++;
+                }
+
+                let cell_idx: int = r * 16 + c;
+                let current_cell: int = grid[cell_idx];
+
+                if (current_cell == 1 && (neighbors == 2 || neighbors == 3)) {
+                    next_grid.push(1);
+                } else if (current_cell == 0 && neighbors == 3) {
+                    next_grid.push(1);
+                } else {
+                    next_grid.push(0);
+                }
+            }
+        }
+
+        grid = next_grid;
+        gen++;
+
+        io::print_str("\n[Press Enter to step, or type 'q' to quit]: ");
+        let user_input: String = io::read_console();
+        if user_input == "q" {
+            io::println_str("Exiting Game of Life.");
+            break;
+        }
+    }
+}

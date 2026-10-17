@@ -1,0 +1,256 @@
+import std::fs;
+import std::io;
+import std::math;
+
+// 1. Data Structures: Custom Structs & Enums
+struct Point {
+    x: int,
+    y: int,
+}
+
+struct SimulationMetrics {
+    generation: int,
+    active_count: int,
+    active_ratio: f64,
+    checksum_mask: int,
+}
+
+enum SystemEvent {
+    Initialized { width: int, height: int },
+    StepCompleted(SimulationMetrics),
+    ErrorLogged(i32, String),
+}
+
+// 2. Auxiliary Functions & Pattern Matching
+fn log_event(event: SystemEvent) {
+    match (event) {
+        SystemEvent::Initialized { width, height } => {
+            println("[EVENT] Initialized Grid Size: {width}x{height}");
+        }
+        SystemEvent::StepCompleted(metrics) => {
+            println("[STEP {metrics.generation}] Active: {metrics.active_count} | Ratio: {metrics.active_ratio} | Hex: {metrics.checksum_mask:hex} | Bin: {metrics.checksum_mask:bin}");
+        }
+        SystemEvent::ErrorLogged(code, msg) => {
+            println("[ERROR {code}] {msg}");
+        }
+    }
+}
+
+fn calculate_checksum(cell_flags: int, step: int) -> int {
+    let mut mask: int = cell_flags;
+    mask <<= 3;
+    mask += step * 31;
+    mask >>= 1;
+    return mask;
+}
+
+fn validate_ratio(ratio: f64) -> Result<f64, String> {
+    if ratio < 0.0 || ratio > 1.0 {
+        return Err("Ratio out of bounds");
+    }
+    return Ok(ratio);
+}
+
+// 3. Fallible File Stream Exporter
+fn export_simulation_report(file_path: String, history: Vec<SimulationMetrics>) -> Result<int, String> {
+    if history.len() == 0 {
+        return Err("Cannot export empty history");
+    }
+
+    let create_res: Result<fs::File, String> = fs::create(file_path);
+    match (create_res) {
+        Ok(file) => {
+            let mut total_bytes: int = 0;
+            let header: String = "========================================\nMAT SIMULATION ANALYTICS REPORT\n========================================\nGen | Active Cells | Active Ratio | Mask (Hex) | Mask (Bin)\n----------------------------------------\n";
+            let h_res: Result<int, String> = fs::write(file, header);
+            match (h_res) {
+                Ok(bytes) => { total_bytes += bytes; }
+                Err(e)    => { fs::close(file); return Err(e); }
+            }
+
+            for metric in history {
+                let line: String = "{metric.generation} | {metric.active_count} | {metric.active_ratio} | {metric.checksum_mask:hex} | {metric.checksum_mask:bin}\n";
+                let w_res: Result<int, String> = fs::write(file, line);
+                match (w_res) {
+                    Ok(bytes) => { total_bytes += bytes; }
+                    Err(e)    => { fs::close(file); return Err(e); }
+                }
+            }
+
+            fs::flush(file);
+            fs::close(file);
+            return Ok(total_bytes);
+        }
+        Err(err) => {
+            return Err(err);
+        }
+    }
+}
+
+// 4. Main Application Entrypoint
+fn main() {
+    io::println_str("========================================");
+    io::println_str("   MAT AUTOMATA & ANALYTICS PIPELINE");
+    io::println_str("========================================");
+
+    // Explicit Primitive Variable Bindings
+    let grid_width: int = 8;
+    let grid_height: int = 8;
+    let max_iterations: i32 = 100;
+    let status_code: i8 = 0b0000_0001;
+    let hex_mask: i32 = 0xA5;
+
+    // Explicitly Typed Tuples & Field Indexing (.0, .1, .2)
+    let config_tuple: (String, int, f64) = ("Automata-Engine", 8, 0.75);
+    println("Engine Name: {config_tuple.0}, Size: {config_tuple.1}, Threshold: {config_tuple.2}");
+
+    log_event(SystemEvent::Initialized { width: grid_width, height: grid_height });
+
+    // 2D Fixed Stack Array Grid
+    let mut grid: [[int; 8]; 8] = [
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0, 0, 0],
+        [0, 1, 1, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0]
+    ];
+
+    let mut metrics_history: Vec<SimulationMetrics> = Vec::new();
+    let mut points_vec: Vec<Point> = Vec::new();
+
+    // Loop Variant A: C-style Index Loop (fori) with literal integer bounds
+    fori (let gen: int = 0; gen < 5; gen++) {
+        let mut active_count: int = 0;
+        let mut active_f64: f64 = 0.0;
+
+        fori (let r: int = 0; r < 8; r++) {
+            fori (let c: int = 0; c < 8; c++) {
+                if grid[r][c] == 1 {
+                    active_count++;
+                    active_f64 += 1.0;
+                    let p = Point { x: r, y: c };
+                    points_vec.push(p);
+                }
+            }
+        }
+
+        let checksum: int = calculate_checksum(active_count, gen + 1);
+        
+        // Float division (f64 / f64) avoiding mixed-type binary operations
+        let raw_ratio: f64 = active_f64 / 64.0;
+        let clamped_ratio: f64 = math::clamp(raw_ratio, 0.0, 1.0);
+
+        let val_res: Result<f64, String> = validate_ratio(clamped_ratio);
+        match (val_res) {
+            Ok(v) => {
+                let current_metrics = SimulationMetrics {
+                    generation: gen + 1,
+                    active_count: active_count,
+                    active_ratio: v,
+                    checksum_mask: checksum,
+                };
+                metrics_history.push(current_metrics);
+                log_event(SystemEvent::StepCompleted(current_metrics));
+            }
+            Err(e) => {
+                log_event(SystemEvent::ErrorLogged(400, e));
+            }
+        }
+    }
+
+    // Standard Math Vector Operations
+    io::println_str("\n--- Vector Math Operations ---");
+    let mut v1: Vec<f64> = Vec::new();
+    v1.push(1.0, 2.0, 3.0);
+
+    let mut v2: Vec<f64> = Vec::new();
+    v2.push(4.0, 5.0, 6.0);
+
+    let add_res: Result<Vec<f64>, String> = math::vec_add(v1, v2);
+    match (add_res) {
+        Ok(v_sum) => {
+            println("Vector Sum Total: {math::vec_sum(v_sum)}");
+        }
+        Err(err) => {
+            println("Vector Add Failed: {err}");
+        }
+    }
+
+    let dot_res: Result<f64, String> = math::vec_dot(v1, v2);
+    match (dot_res) {
+        Ok(dot_val) => {
+            println("Vector Dot Product: {dot_val}");
+        }
+        Err(err) => {
+            println("Dot Product Failed: {err}");
+        }
+    }
+
+    // Loop Variant B: While Loop
+    io::println_str("\n--- Additional Control Flow Checks ---");
+    let mut while_counter: int = 0;
+    while while_counter < 3 {
+        while_counter++;
+        if while_counter == 2 {
+            continue;
+        }
+        println("While Loop Step: {while_counter}");
+    }
+
+    // Loop Variant C: Infinite Loop with Break
+    let mut loop_counter: int = 0;
+    loop {
+        loop_counter++;
+        if loop_counter >= 3 {
+            break;
+        }
+        println("Loop Iteration: {loop_counter}");
+    }
+
+    // Loop Variant D: Collection Iterator Loop (for in)
+    println("Iterating recorded active points:");
+    for pt in points_vec {
+        println("Point: ({pt.x}, {pt.y})");
+    }
+
+    // File Stream Handles & Disk I/O
+    let report_filename: String = "examples/output.txt";
+    io::println_str("\nWriting execution report to file disk...");
+
+    let export_result: Result<int, String> = export_simulation_report(report_filename, metrics_history);
+    match (export_result) {
+        Ok(bytes_written) => {
+            println("Successfully exported report! Total bytes written: {bytes_written}");
+        }
+        Err(err_msg) => {
+            log_event(SystemEvent::ErrorLogged(500, err_msg));
+        }
+    }
+
+    let read_handle: Result<fs::File, String> = fs::open(report_filename, "rb");
+    match (read_handle) {
+        Ok(file) => {
+            let content_res: Result<String, String> = fs::read_to_string(file);
+            match (content_res) {
+                Ok(text) => {
+                    io::println_str("\n--- Exported File Verification Output ---");
+                    io::println_str(text);
+                }
+                Err(read_err) => {
+                    log_event(SystemEvent::ErrorLogged(501, read_err));
+                }
+            }
+            fs::close(file);
+        }
+        Err(open_err) => {
+            log_event(SystemEvent::ErrorLogged(502, open_err));
+        }
+    }
+
+    io::println_str("========================================");
+    io::println_str("   PIPELINE EXECUTED SUCCESSFULLY");
+    io::println_str("========================================");
+}
