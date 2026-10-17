@@ -86,6 +86,18 @@ impl TypeChecker {
                     for stmt in &func.body {
                         self.check_statement(stmt, &func.return_type, symbols)?;
                     }
+
+                    symbols.verify_no_unresolved_infer_types(|var_name| {
+                        let span = func.body.last().map(|s| s.span()).unwrap_or_else(|| Span::new(0, 0));
+                        self.type_error(
+                            format!(
+                                "Type inference failed for variable '{}': explicit type annotation required",
+                                var_name
+                            ),
+                            span,
+                        )
+                    })?;
+
                     symbols.pop_scope();
                 }
                 Item::Struct(_) | Item::Enum(_) | Item::Import(_) => {}

@@ -1,4 +1,6 @@
 use crate::ast::{EnumVariantPayload, Type};
+use crate::error::{MatcError, Result};
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -42,7 +44,7 @@ pub struct EnumSymbol {
 
 #[derive(Debug, Clone, Default)]
 pub struct SymbolTable {
-    scopes: Vec<HashMap<String, Symbol>>,
+    scopes: RefCell<Vec<HashMap<String, Symbol>>>,
     functions: HashMap<String, FunctionSymbol>,
     structs: HashMap<String, StructSymbol>,
     enums: HashMap<String, EnumSymbol>,
@@ -51,7 +53,7 @@ pub struct SymbolTable {
 impl SymbolTable {
     pub fn new() -> Self {
         let mut table = Self {
-            scopes: vec![HashMap::new()],
+            scopes: RefCell::new(vec![HashMap::new()]),
             functions: HashMap::new(),
             structs: HashMap::new(),
             enums: HashMap::new(),
@@ -116,18 +118,19 @@ impl SymbolTable {
         self.insert_function("_mat_rt_round".into(), vec![Type::F64], Type::F64);
     }
 
-    pub fn push_scope(&mut self) {
-        self.scopes.push(HashMap::new());
+    pub fn push_scope(&self) {
+        self.scopes.borrow_mut().push(HashMap::new());
     }
 
-    pub fn pop_scope(&mut self) {
-        if self.scopes.len() > 1 {
-            self.scopes.pop();
+    pub fn pop_scope(&self) {
+        let mut scopes = self.scopes.borrow_mut();
+        if scopes.len() > 1 {
+            scopes.pop();
         }
     }
 
-    pub fn insert(&mut self, name: String, ty: Type, is_mutable: bool) {
-        if let Some(scope) = self.scopes.last_mut() {
+    pub fn insert(&self, name: String, ty: Type, is_mutable: bool) {
+        if let Some(scope) = self.scopes.borrow_mut().last_mut() {
             scope.insert(
                 name.clone(),
                 Symbol {
@@ -139,13 +142,37 @@ impl SymbolTable {
         }
     }
 
-    pub fn lookup(&self, name: &str) -> Option<&Symbol> {
-        for scope in self.scopes.iter().rev() {
+    pub fn update_type(&self, name: &str, new_ty: Type) -> bool {
+        for scope in self.scopes.borrow_mut().iter_mut().rev() {
+            if let Some(sym) = scope.get_mut(name) {
+                sym.ty = new_ty;
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn lookup(&self, name: &str) -> Option<Symbol> {
+        for scope in self.scopes.borrow().iter().rev() {
             if let Some(sym) = scope.get(name) {
-                return Some(sym);
+                return Some(sym.clone());
             }
         }
         None
+    }
+
+    pub fn verify_no_unresolved_infer_types<F>(&self, mut make_err: F) -> Result<()>
+    where
+        F: FnMut(&str) -> MatcError,
+    {
+        if let Some(scope) = self.scopes.borrow().last() {
+            for (name, sym) in scope {
+                if is_infer_type(&sym.ty) {
+                    return Err(make_err(name));
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn insert_function(&mut self, name: String, param_types: Vec<Type>, return_type: Type) {
@@ -272,5 +299,16 @@ impl SymbolTable {
             }
         }
         None
+    }
+}
+
+fn is_infer_type(ty: &Type) -> bool {
+    match ty {
+        Type::Infer => true,
+        Type::Vector(elem) => is_infer_type(elem),
+        Type::Array(elem, _) => is_infer_type(elem),
+        Type::Tuple(elems) => elems.iter().any(is_infer_type),
+        Type::Result(ok, err) => is_infer_type(ok) || is_infer_type(err),
+        _ => false,
     }
 }
