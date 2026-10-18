@@ -1,46 +1,74 @@
 import std::io;
 
 fn main() {
-    io::println_str("========================================");
-    io::println_str("   CONWAY'S GAME OF LIFE (16x16 mat)   ");
-    io::println_str("========================================");
+    // -----------------------------------------------------------------
+    // Configuration: Change grid size here
+    // -----------------------------------------------------------------
+    let width: int = 128;
+    let height: int = 32;
+    let total_cells: int = width * height;
 
-    // 1. Initialize 16x16 Grid (256 cells) using 1D Vec<int>
+    io::println_str("================================================================================================================================");
+    io::println_str("                                              CONWAY'S GAME OF LIFE (Dynamic)                                                   ");
+    io::println_str("================================================================================================================================");
+
+    // 1. Dynamic Grid Seeding
     let mut grid: Vec<int> = Vec::new();
-    fori (let i: int = 0; i < 256; i++) {
-        // Top Glider
-        if (i == 18 || i == 35 || i == 49 || i == 50 || i == 51) {
+
+    let mid_r: int = height / 2;
+    let mid_c: int = width / 2;
+    let lwss_r: int = height / 4;
+    let lwss_c: int = width / 6;
+
+    fori (let i: int = 0; i < total_cells; i++) {
+        let r: int = i / width;
+        let c: int = i % width;
+
+        // Pattern 1: Glider (Top-Left)
+        let is_glider: bool = (r == 1 && c == 2) || (r == 2 && c == 3) || (r == 3 && c == 1) || (r == 3 && c == 2) || (r == 3 && c == 3);
+
+        // Pattern 2: Toad Oscillator (Centered)
+        let is_toad: bool = (r == mid_r && c == mid_c) || (r == mid_r && c == mid_c + 1) || (r == mid_r && c == mid_c + 2) ||
+                            (r == mid_r + 1 && c == mid_c - 1) || (r == mid_r + 1 && c == mid_c) || (r == mid_r + 1 && c == mid_c + 1);
+
+        // Pattern 3: Lightweight Spaceship (Proportional Offset)
+        let is_lwss: bool = (r == lwss_r && c == lwss_c + 1) || (r == lwss_r && c == lwss_c + 4) ||
+                            (r == lwss_r + 1 && c == lwss_c) ||
+                            (r == lwss_r + 2 && c == lwss_c) || (r == lwss_r + 2 && c == lwss_c + 4) ||
+                            (r == lwss_r + 3 && c == lwss_c) || (r == lwss_r + 3 && c == lwss_c + 1) || (r == lwss_r + 3 && c == lwss_c + 2) || (r == lwss_r + 3 && c == lwss_c + 3);
+
+        if (is_glider || is_toad || is_lwss) {
             grid.push(1);
-        } 
-        // Middle Toad
-        else if (i == 105 || i == 106 || i == 107 || i == 120 || i == 121 || i == 122) {
-            grid.push(1);
-        } 
-        // Bottom Blinker
-        else if (i == 181 || i == 182 || i == 183) {
-            grid.push(1);
-        } 
-        else {
-            grid.push(0);
+        } else {
+            // Dynamic pseudo-random background noise (~20% fill density)
+            let hash: int = (r * 7919 + c * 104729 + (r * c) * 3137 + (r + c) * 17) % 100;
+            if (hash < 20) {
+                grid.push(1);
+            } else {
+                grid.push(0);
+            }
         }
     }
 
     let mut gen: int = 0;
 
-    // 2. Interactive Simulation Loop
+    // 2. Simulation Loop
     loop {
         println("\n--- Generation {gen} ---");
 
-        // Render 16x16 grid as 8 terminal lines using UTF-8 half-blocks
+        // Render grid dynamically (packing 2 vertical cells per line)
         let mut render_r: int = 0;
-        while render_r < 16 {
-            fori (let c: int = 0; c < 16; c++) {
-                let top_idx: int = render_r * 16 + c;
+        while render_r < height {
+            fori (let c: int = 0; c < width; c++) {
+                let top_idx: int = render_r * width + c;
                 let bot_row: int = render_r + 1;
-                let bot_idx: int = bot_row * 16 + c;
+                let bot_idx: int = bot_row * width + c;
 
                 let top: int = grid[top_idx];
-                let bot: int = grid[bot_idx];
+                let mut bot: int = 0;
+                if (bot_row < height) {
+                    bot = grid[bot_idx];
+                }
 
                 if (top == 1 && bot == 1) {
                     io::print_str("█");
@@ -49,18 +77,18 @@ fn main() {
                 } else if (top == 0 && bot == 1) {
                     io::print_str("▄");
                 } else {
-                    io::print_str("░");
+                    io::print_str(" ");
                 }
             }
             println("");
             render_r += 2;
         }
 
-        // Compute next generation into a dynamic vector buffer
+        // Compute next generation
         let mut next_grid: Vec<int> = Vec::new();
 
-        fori (let r: int = 0; r < 16; r++) {
-            fori (let c: int = 0; c < 16; c++) {
+        fori (let r: int = 0; r < height; r++) {
+            fori (let c: int = 0; c < width; c++) {
                 let mut neighbors: int = 0;
 
                 let mut dr: int = -1;
@@ -75,21 +103,21 @@ fn main() {
                         let mut nr: int = r + dr;
                         let mut nc: int = c + dc;
 
-                        // Toroidal boundary wrapping
+                        // Dynamic Toroidal boundary wrapping
                         if nr < 0 {
-                            nr = 15;
+                            nr = height - 1;
                         }
-                        if nr > 15 {
+                        if nr >= height {
                             nr = 0;
                         }
                         if nc < 0 {
-                            nc = 15;
+                            nc = width - 1;
                         }
-                        if nc > 15 {
+                        if nc >= width {
                             nc = 0;
                         }
 
-                        let n_idx: int = nr * 16 + nc;
+                        let n_idx: int = nr * width + nc;
                         if grid[n_idx] == 1 {
                             neighbors++;
                         }
@@ -99,7 +127,7 @@ fn main() {
                     dr++;
                 }
 
-                let cell_idx: int = r * 16 + c;
+                let cell_idx: int = r * width + c;
                 let current_cell: int = grid[cell_idx];
 
                 if (current_cell == 1 && (neighbors == 2 || neighbors == 3)) {
