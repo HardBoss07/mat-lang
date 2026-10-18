@@ -1,6 +1,5 @@
 use winnow::ModalResult;
 use winnow::Parser;
-use winnow::combinator::{delimited, separated};
 
 use super::super::parse_expression;
 use crate::ast::{Expression, Span};
@@ -78,17 +77,43 @@ pub fn parse_array_literal(input: &mut &str) -> ModalResult<Expression> {
             winnow::error::ContextError::default(),
         ));
     }
+    *input = &input[1..];
 
-    let arr_res: ModalResult<Vec<Expression>> =
-        delimited('[', separated(0.., parse_expression, ','), ']').parse_next(input);
-    if let Ok(elements) = arr_res {
-        return Ok(Expression::ArrayLiteral(elements, Span::new(0, 0)));
+    let mut elements = Vec::new();
+    loop {
+        let _ = skip_ws_and_comments(input)?;
+        if input.starts_with(']') {
+            *input = &input[1..];
+            return Ok(Expression::ArrayLiteral(elements, Span::new(0, 0)));
+        }
+
+        let expr = match parse_expression.parse_next(input) {
+            Ok(e) => e,
+            Err(e) => {
+                *input = checkpoint;
+                return Err(e);
+            }
+        };
+        elements.push(expr);
+
+        let _ = skip_ws_and_comments(input)?;
+        if input.starts_with(',') {
+            *input = &input[1..];
+            let _ = skip_ws_and_comments(input)?;
+            if input.starts_with(']') {
+                *input = &input[1..];
+                return Ok(Expression::ArrayLiteral(elements, Span::new(0, 0)));
+            }
+        } else if input.starts_with(']') {
+            *input = &input[1..];
+            return Ok(Expression::ArrayLiteral(elements, Span::new(0, 0)));
+        } else {
+            *input = checkpoint;
+            return Err(winnow::error::ErrMode::Backtrack(
+                winnow::error::ContextError::default(),
+            ));
+        }
     }
-
-    *input = checkpoint;
-    Err(winnow::error::ErrMode::Backtrack(
-        winnow::error::ContextError::default(),
-    ))
 }
 
 pub fn parse_vector_literal(input: &mut &str) -> ModalResult<Expression> {
@@ -100,15 +125,41 @@ pub fn parse_vector_literal(input: &mut &str) -> ModalResult<Expression> {
             winnow::error::ContextError::default(),
         ));
     }
+    *input = &input[1..];
 
-    let vec_res: ModalResult<Vec<Expression>> =
-        delimited('{', separated(0.., parse_expression, ','), '}').parse_next(input);
-    if let Ok(elements) = vec_res {
-        return Ok(Expression::VectorLiteral(elements, Span::new(0, 0)));
+    let mut elements = Vec::new();
+    loop {
+        let _ = skip_ws_and_comments(input)?;
+        if input.starts_with('}') {
+            *input = &input[1..];
+            return Ok(Expression::VectorLiteral(elements, Span::new(0, 0)));
+        }
+
+        let expr = match parse_expression.parse_next(input) {
+            Ok(e) => e,
+            Err(e) => {
+                *input = checkpoint;
+                return Err(e);
+            }
+        };
+        elements.push(expr);
+
+        let _ = skip_ws_and_comments(input)?;
+        if input.starts_with(',') {
+            *input = &input[1..];
+            let _ = skip_ws_and_comments(input)?;
+            if input.starts_with('}') {
+                *input = &input[1..];
+                return Ok(Expression::VectorLiteral(elements, Span::new(0, 0)));
+            }
+        } else if input.starts_with('}') {
+            *input = &input[1..];
+            return Ok(Expression::VectorLiteral(elements, Span::new(0, 0)));
+        } else {
+            *input = checkpoint;
+            return Err(winnow::error::ErrMode::Backtrack(
+                winnow::error::ContextError::default(),
+            ));
+        }
     }
-
-    *input = checkpoint;
-    Err(winnow::error::ErrMode::Backtrack(
-        winnow::error::ContextError::default(),
-    ))
 }
