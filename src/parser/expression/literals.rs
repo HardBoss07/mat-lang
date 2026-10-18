@@ -11,6 +11,19 @@ use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
     let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
+    let tok_start = *input;
+
+    let is_neg = if input.starts_with('-') && !input.starts_with("--") && !input.starts_with("-=") {
+        let rest = &input[1..];
+        if rest.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+            *input = rest;
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    };
 
     let remaining = *input;
     if remaining.starts_with("0b") || remaining.starts_with("0B") {
@@ -29,7 +42,10 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
             }
         }
         if !bin_str.is_empty() {
-            if let Ok(value) = i64::from_str_radix(&bin_str, 2) {
+            if let Ok(mut value) = i64::from_str_radix(&bin_str, 2) {
+                if is_neg {
+                    value = -value;
+                }
                 return Ok(Expression::IntLiteral(
                     value,
                     get_span_between(tok_start, *input),
@@ -59,7 +75,10 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
             }
         }
         if !hex_str.is_empty() {
-            if let Ok(value) = i64::from_str_radix(&hex_str, 16) {
+            if let Ok(mut value) = i64::from_str_radix(&hex_str, 16) {
+                if is_neg {
+                    value = -value;
+                }
                 return Ok(Expression::IntLiteral(
                     value,
                     get_span_between(tok_start, *input),
@@ -73,7 +92,6 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
         ));
     }
 
-    let tok_start = *input;
     let mut dec_str = String::new();
     let mut count = 0;
     while !input.is_empty() {
@@ -89,7 +107,10 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
         }
     }
     if !dec_str.is_empty() {
-        if let Ok(val) = dec_str.parse::<i64>() {
+        if let Ok(mut val) = dec_str.parse::<i64>() {
+            if is_neg {
+                val = -val;
+            }
             return Ok(Expression::IntLiteral(
                 val,
                 get_span_between(tok_start, *input),
@@ -107,9 +128,25 @@ pub fn parse_float_literal(input: &mut &str) -> ModalResult<Expression> {
     let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
     let tok_start = *input;
+
+    let is_neg = if input.starts_with('-') && !input.starts_with("--") && !input.starts_with("-=") {
+        let rest = &input[1..];
+        if rest.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+            *input = rest;
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
     let float_res: ModalResult<&str> = (digit1, '.', digit1).take().parse_next(input);
     if let Ok(float_str) = float_res {
-        if let Ok(val) = float_str.parse::<f64>() {
+        if let Ok(mut val) = float_str.parse::<f64>() {
+            if is_neg {
+                val = -val;
+            }
             return Ok(Expression::FloatLiteral(
                 val,
                 get_span_between(tok_start, *input),

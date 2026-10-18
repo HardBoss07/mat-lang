@@ -49,10 +49,14 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         }
 
         if callee == "Vec::new" {
+            let span = arguments
+                .first()
+                .map(|a| a.span())
+                .unwrap_or_else(|| Span::new(0, 0));
             let synth_call = Expression::Call {
                 callee: callee.to_string(),
                 arguments: arguments.to_vec(),
-                span: Span::new(0, 0),
+                span,
             };
             return self.compile_builtin_vec_new(&synth_call, None);
         }

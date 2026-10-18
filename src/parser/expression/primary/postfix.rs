@@ -1,12 +1,50 @@
 use winnow::ModalResult;
 use winnow::Parser;
 use winnow::ascii::digit1;
-use winnow::combinator::{delimited, separated};
 
 use super::super::parse_expression;
 use super::parse_primary_expression;
 use crate::ast::Expression;
 use crate::parser::utils::{get_span_between_ptrs, skip_ws_and_comments};
+
+pub fn parse_call_arguments(input: &mut &str) -> ModalResult<Vec<Expression>> {
+    let _ = skip_ws_and_comments(input)?;
+    if !input.starts_with('(') {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ));
+    }
+    *input = &input[1..];
+
+    let mut args = Vec::new();
+    loop {
+        let _ = skip_ws_and_comments(input)?;
+        if input.starts_with(')') {
+            *input = &input[1..];
+            return Ok(args);
+        }
+
+        let arg = parse_expression.parse_next(input)?;
+        args.push(arg);
+
+        let _ = skip_ws_and_comments(input)?;
+        if input.starts_with(',') {
+            *input = &input[1..];
+            let _ = skip_ws_and_comments(input)?;
+            if input.starts_with(')') {
+                *input = &input[1..];
+                return Ok(args);
+            }
+        } else if input.starts_with(')') {
+            *input = &input[1..];
+            return Ok(args);
+        } else {
+            return Err(winnow::error::ErrMode::Backtrack(
+                winnow::error::ContextError::default(),
+            ));
+        }
+    }
+}
 
 pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
     let mut expr = parse_primary_expression.parse_next(input)?;
@@ -19,9 +57,7 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
                 _ => break,
             };
             let start_offset = expr.span().start;
-            let args_res: ModalResult<Vec<Expression>> =
-                delimited('(', separated(0.., parse_expression, ','), ')').parse_next(input);
-            if let Ok(args) = args_res {
+            if let Ok(args) = parse_call_arguments.parse_next(input) {
                 expr = Expression::Call {
                     callee: callee_name,
                     arguments: args,
@@ -54,10 +90,7 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
                 let mut after_ident = ident_checkpoint;
                 let _ = skip_ws_and_comments(&mut after_ident)?;
                 if after_ident.starts_with('(') {
-                    let args_res: ModalResult<Vec<Expression>> =
-                        delimited('(', separated(0.., parse_expression, ','), ')')
-                            .parse_next(&mut after_ident);
-                    if let Ok(args) = args_res {
+                    if let Ok(args) = parse_call_arguments.parse_next(&mut after_ident) {
                         *input = after_ident;
                         expr = Expression::MethodCall {
                             receiver: Box::new(expr),

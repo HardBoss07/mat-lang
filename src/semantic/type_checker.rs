@@ -88,7 +88,7 @@ impl TypeChecker {
                     }
 
                     symbols.verify_no_unresolved_infer_types(|var_name| {
-                        let span = func.body.last().map(|s| s.span()).unwrap_or_else(|| Span::new(0, 0));
+                        let span = func.body.last().map(|s| s.span()).unwrap_or(func.span);
                         self.type_error(
                             format!(
                                 "Type inference failed for variable '{}': explicit type annotation required",

@@ -124,8 +124,13 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         &mut self,
         elements: &[Expression],
     ) -> Result<BasicValueEnum<'ctx>> {
+        let span = elements
+            .first()
+            .map(|e| e.span())
+            .unwrap_or_else(|| crate::ast::Span::new(0, 0));
+
         let vec_mat_ty = self.type_checker.synthesize_expr(
-            &Expression::VectorLiteral(elements.to_vec(), crate::ast::Span::new(0, 0)),
+            &Expression::VectorLiteral(elements.to_vec(), span),
             &self.symbol_table,
         )?;
 
