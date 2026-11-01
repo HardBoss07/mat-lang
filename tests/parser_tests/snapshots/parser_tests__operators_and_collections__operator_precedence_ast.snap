@@ -1,5 +1,5 @@
 ---
-source: tests/parser_tests.rs
+source: tests/parser_tests/operators_and_collections.rs
 expression: prog
 ---
 items:

@@ -1,5 +1,5 @@
 ---
-source: tests/parser_tests.rs
+source: tests/parser_tests/structs_and_enums.rs
 expression: prog
 ---
 items:

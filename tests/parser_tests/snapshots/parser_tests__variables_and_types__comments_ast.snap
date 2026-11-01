@@ -1,5 +1,5 @@
 ---
-source: tests/parser_tests.rs
+source: tests/parser_tests/variables_and_types.rs
 expression: prog
 ---
 items:
