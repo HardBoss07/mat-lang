@@ -1,4 +1,4 @@
-﻿// tests/common/mod.rs
+// tests/common/mod.rs
 // Shared test helpers for the mat-lang integration test suite.
 
 #![allow(dead_code)]
