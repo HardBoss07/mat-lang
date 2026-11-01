@@ -1,5 +1,5 @@
 ---
-source: tests/codegen_tests.rs
+source: tests/codegen_tests/operators_and_calls.rs
 expression: ir
 ---
 
@@ -77,35 +77,25 @@ declare i64 @_mat_rt_abs_int(i64)
 
 define i32 @main() {
 entry:
-  %elem = alloca i64, align 8
-  %arr_access_tmp = alloca [3 x i64], align 8
-  %arr = alloca [3 x i64], align 8
-  %arr_tmp = alloca [3 x i64], align 8
-  %x = alloca i64, align 8
-  %t = alloca { i64, i1 }, align 8
-  %tuple_tmp = alloca { i64, i1 }, align 8
+  %div = alloca double, align 8
+  %mul = alloca double, align 8
+  %add = alloca double, align 8
+  %b = alloca double, align 8
+  %a = alloca double, align 8
   call void @_mat_rt_init()
-  %tuple_gep = getelementptr inbounds { i64, i1 }, ptr %tuple_tmp, i32 0, i32 0
-  store i64 42, ptr %tuple_gep, align 4
-  %tuple_gep1 = getelementptr inbounds { i64, i1 }, ptr %tuple_tmp, i32 0, i32 1
-  store i1 true, ptr %tuple_gep1, align 1
-  %tuple_val = load { i64, i1 }, ptr %tuple_tmp, align 4
-  store { i64, i1 } %tuple_val, ptr %t, align 4
-  %t2 = load { i64, i1 }, ptr %t, align 4
-  %tuple_extract = extractvalue { i64, i1 } %t2, 0
-  store i64 %tuple_extract, ptr %x, align 4
-  %arr_gep = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 0
-  store i64 1, ptr %arr_gep, align 4
-  %arr_gep3 = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 1
-  store i64 2, ptr %arr_gep3, align 4
-  %arr_gep4 = getelementptr [3 x i64], ptr %arr_tmp, i32 0, i32 2
-  store i64 3, ptr %arr_gep4, align 4
-  %arr_val = load [3 x i64], ptr %arr_tmp, align 4
-  store [3 x i64] %arr_val, ptr %arr, align 4
-  %arr5 = load [3 x i64], ptr %arr, align 4
-  store [3 x i64] %arr5, ptr %arr_access_tmp, align 4
-  %arr_elem_gep = getelementptr [3 x i64], ptr %arr_access_tmp, i32 0, i64 1
-  %arr_elem_val = load i64, ptr %arr_elem_gep, align 4
-  store i64 %arr_elem_val, ptr %elem, align 4
+  store double 3.140000e+00, ptr %a, align 8
+  store double 2.000000e+00, ptr %b, align 8
+  %a1 = load double, ptr %a, align 8
+  %b2 = load double, ptr %b, align 8
+  %addtmp = fadd double %a1, %b2
+  store double %addtmp, ptr %add, align 8
+  %a3 = load double, ptr %a, align 8
+  %b4 = load double, ptr %b, align 8
+  %multmp = fmul double %a3, %b4
+  store double %multmp, ptr %mul, align 8
+  %a5 = load double, ptr %a, align 8
+  %b6 = load double, ptr %b, align 8
+  %divtmp = fdiv double %a5, %b6
+  store double %divtmp, ptr %div, align 8
   ret i32 0
 }

@@ -1,5 +1,5 @@
 ---
-source: tests/codegen_tests.rs
+source: tests/codegen_tests/data_structures_ir.rs
 expression: ir
 ---
 

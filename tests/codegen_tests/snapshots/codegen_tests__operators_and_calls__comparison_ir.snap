@@ -1,5 +1,5 @@
 ---
-source: tests/codegen_tests.rs
+source: tests/codegen_tests/operators_and_calls.rs
 expression: ir
 ---
 

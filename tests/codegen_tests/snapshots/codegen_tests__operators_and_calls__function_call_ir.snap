@@ -1,5 +1,5 @@
 ---
-source: tests/codegen_tests.rs
+source: tests/codegen_tests/operators_and_calls.rs
 expression: ir
 ---
 
@@ -75,20 +75,22 @@ declare double @_mat_rt_pow(double, double)
 
 declare i64 @_mat_rt_abs_int(i64)
 
+define i64 @_mat_double(i64 %0) {
+entry:
+  %n = alloca i64, align 8
+  store i64 %0, ptr %n, align 4
+  %n1 = load i64, ptr %n, align 4
+  %multmp = mul i64 %n1, 2
+  ret i64 %multmp
+
+after_return:                                     ; No predecessors!
+}
+
 define i32 @main() {
 entry:
-  %shifted = alloca i64, align 8
-  %mask = alloca i64, align 8
+  %r = alloca i64, align 8
   call void @_mat_rt_init()
-  store i64 1, ptr %mask, align 4
-  %mask1 = load i64, ptr %mask, align 4
-  %shltmp = shl i64 %mask1, 3
-  store i64 %shltmp, ptr %mask, align 4
-  %mask2 = load i64, ptr %mask, align 4
-  %shrtmp = ashr i64 %mask2, 1
-  store i64 %shrtmp, ptr %mask, align 4
-  %mask3 = load i64, ptr %mask, align 4
-  %shltmp4 = shl i64 %mask3, 2
-  store i64 %shltmp4, ptr %shifted, align 4
+  %calltmp = call i64 @_mat_double(i64 21)
+  store i64 %calltmp, ptr %r, align 4
   ret i32 0
 }

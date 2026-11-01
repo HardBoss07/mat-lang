@@ -1,7 +1,9 @@
 ---
-source: tests/codegen_tests.rs
+source: tests/codegen_tests/data_structures_ir.rs
 expression: ir
 ---
+
+%Point = type { i64, i64 }
 
 declare void @_mat_rt_init()
 
@@ -75,24 +77,20 @@ declare double @_mat_rt_pow(double, double)
 
 declare i64 @_mat_rt_abs_int(i64)
 
-define double @_mat_sqrt(double %0) {
-entry:
-  %x = alloca double, align 8
-  store double %0, ptr %x, align 8
-  %x1 = load double, ptr %x, align 8
-  ret double %x1
-
-after_return:                                     ; No predecessors!
-}
-
 define i32 @main() {
 entry:
-  %s = alloca double, align 8
-  %val = alloca double, align 8
+  %px = alloca i64, align 8
+  %p = alloca %Point, align 8
+  %struct_tmp = alloca %Point, align 8
   call void @_mat_rt_init()
-  store double 9.000000e+00, ptr %val, align 8
-  %val1 = load double, ptr %val, align 8
-  %calltmp = call double @_mat_sqrt(double %val1)
-  store double %calltmp, ptr %s, align 8
+  %field_init_gep = getelementptr inbounds %Point, ptr %struct_tmp, i32 0, i32 0
+  store i64 10, ptr %field_init_gep, align 4
+  %field_init_gep1 = getelementptr inbounds %Point, ptr %struct_tmp, i32 0, i32 1
+  store i64 20, ptr %field_init_gep1, align 4
+  %struct_val = load %Point, ptr %struct_tmp, align 4
+  store %Point %struct_val, ptr %p, align 4
+  %field_gep = getelementptr inbounds %Point, ptr %p, i32 0, i32 0
+  %field_val = load i64, ptr %field_gep, align 4
+  store i64 %field_val, ptr %px, align 4
   ret i32 0
 }

@@ -1,5 +1,5 @@
 ---
-source: tests/codegen_tests.rs
+source: tests/codegen_tests/control_flow_ir.rs
 expression: ir
 ---
 
@@ -77,35 +77,28 @@ declare i64 @_mat_rt_abs_int(i64)
 
 define i32 @main() {
 entry:
-  %rem = alloca i64, align 8
-  %div = alloca i64, align 8
-  %mul = alloca i64, align 8
-  %sub = alloca i64, align 8
-  %add = alloca i64, align 8
-  %b = alloca i64, align 8
-  %a = alloca i64, align 8
+  %x = alloca i64, align 8
+  %i = alloca i64, align 8
   call void @_mat_rt_init()
-  store i64 10, ptr %a, align 4
-  store i64 3, ptr %b, align 4
-  %a1 = load i64, ptr %a, align 4
-  %b2 = load i64, ptr %b, align 4
-  %addtmp = add i64 %a1, %b2
-  store i64 %addtmp, ptr %add, align 4
-  %a3 = load i64, ptr %a, align 4
-  %b4 = load i64, ptr %b, align 4
-  %subtmp = sub i64 %a3, %b4
-  store i64 %subtmp, ptr %sub, align 4
-  %a5 = load i64, ptr %a, align 4
-  %b6 = load i64, ptr %b, align 4
-  %multmp = mul i64 %a5, %b6
-  store i64 %multmp, ptr %mul, align 4
-  %a7 = load i64, ptr %a, align 4
-  %b8 = load i64, ptr %b, align 4
-  %divtmp = sdiv i64 %a7, %b8
-  store i64 %divtmp, ptr %div, align 4
-  %a9 = load i64, ptr %a, align 4
-  %b10 = load i64, ptr %b, align 4
-  %modtmp = srem i64 %a9, %b10
-  store i64 %modtmp, ptr %rem, align 4
+  store i64 0, ptr %i, align 4
+  br label %for_cond
+
+for_cond:                                         ; preds = %for_step, %entry
+  %i1 = load i64, ptr %i, align 4
+  %lttmp = icmp slt i64 %i1, 5
+  br i1 %lttmp, label %for_body, label %for_after
+
+for_body:                                         ; preds = %for_cond
+  %i2 = load i64, ptr %i, align 4
+  store i64 %i2, ptr %x, align 4
+  br label %for_step
+
+for_step:                                         ; preds = %for_body
+  %i3 = load i64, ptr %i, align 4
+  %inc = add i64 %i3, 1
+  store i64 %inc, ptr %i, align 4
+  br label %for_cond
+
+for_after:                                        ; preds = %for_cond
   ret i32 0
 }
