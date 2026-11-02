@@ -1,3 +1,8 @@
+//! Floating-point and string binary operation code generation.
+//!
+//! Handles floating-point arithmetic and comparisons, as well as string pointer
+//! equality checks via the runtime `strcmp` symbol.
+
 use super::super::super::function::FunctionCompiler;
 use super::super::super::util::llvm_err;
 use crate::ast::BinaryOp;
@@ -6,6 +11,22 @@ use inkwell::values::{AsValueRef, BasicValueEnum};
 use inkwell::{FloatPredicate, IntPredicate};
 
 impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
+    /// Compiles a binary operation between two floating-point operands.
+    ///
+    /// # Arguments
+    ///
+    /// * `op` - The binary operator to apply.
+    /// * `left_val` - Left float operand.
+    /// * `right_val` - Right float operand.
+    ///
+    /// # Returns
+    ///
+    /// The resulting LLVM float or boolean [`BasicValueEnum`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`MatcError::CodegenError`] if the operator is unsupported for floats,
+    /// or if LLVM instruction construction fails.
     pub(crate) fn compile_float_binary(
         &self,
         op: &BinaryOp,
@@ -15,35 +36,35 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         let left_float = left_val.into_float_value();
         let right_float = right_val.into_float_value();
         let result: BasicValueEnum<'ctx> = match op {
-            BinaryOp::Add => llvm_err(
-                self.engine
-                    .builder
-                    .build_float_add(left_float, right_float, "addtmp"),
-            )?
+            BinaryOp::Add => llvm_err(self.engine.builder.build_float_add(
+                left_float,
+                right_float,
+                "addtmp",
+            ))?
             .into(),
-            BinaryOp::Sub => llvm_err(
-                self.engine
-                    .builder
-                    .build_float_sub(left_float, right_float, "subtmp"),
-            )?
+            BinaryOp::Sub => llvm_err(self.engine.builder.build_float_sub(
+                left_float,
+                right_float,
+                "subtmp",
+            ))?
             .into(),
-            BinaryOp::Mul => llvm_err(
-                self.engine
-                    .builder
-                    .build_float_mul(left_float, right_float, "multmp"),
-            )?
+            BinaryOp::Mul => llvm_err(self.engine.builder.build_float_mul(
+                left_float,
+                right_float,
+                "multmp",
+            ))?
             .into(),
-            BinaryOp::Div => llvm_err(
-                self.engine
-                    .builder
-                    .build_float_div(left_float, right_float, "divtmp"),
-            )?
+            BinaryOp::Div => llvm_err(self.engine.builder.build_float_div(
+                left_float,
+                right_float,
+                "divtmp",
+            ))?
             .into(),
-            BinaryOp::Mod => llvm_err(
-                self.engine
-                    .builder
-                    .build_float_rem(left_float, right_float, "modtmp"),
-            )?
+            BinaryOp::Mod => llvm_err(self.engine.builder.build_float_rem(
+                left_float,
+                right_float,
+                "modtmp",
+            ))?
             .into(),
             BinaryOp::Eq => llvm_err(self.engine.builder.build_float_compare(
                 FloatPredicate::OEQ,
@@ -96,6 +117,22 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         Ok(result)
     }
 
+    /// Compiles a comparison operation between two string pointers using `strcmp`.
+    ///
+    /// # Arguments
+    ///
+    /// * `op` - Comparison operator (`==` or `!=`).
+    /// * `left_val` - Left string pointer.
+    /// * `right_val` - Right string pointer.
+    ///
+    /// # Returns
+    ///
+    /// An LLVM boolean [`BasicValueEnum`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`MatcError::CodegenError`] if the operator is not an equality check
+    /// or if LLVM call construction fails.
     pub(crate) fn compile_string_binary(
         &self,
         op: &BinaryOp,

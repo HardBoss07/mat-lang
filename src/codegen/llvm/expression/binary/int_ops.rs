@@ -1,11 +1,31 @@
+//! Integer and boolean binary operation code generation.
+//!
+//! Handles arithmetic, bitwise shifts, comparisons, and logical boolean operations
+//! on LLVM integer values.
+
 use super::super::super::function::FunctionCompiler;
 use super::super::super::util::llvm_err;
 use crate::ast::BinaryOp;
 use crate::error::Result;
-use inkwell::values::BasicValueEnum;
 use inkwell::IntPredicate;
+use inkwell::values::BasicValueEnum;
 
 impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
+    /// Compiles a binary operation between two integer or boolean operands.
+    ///
+    /// # Arguments
+    ///
+    /// * `op` - The binary operator to apply.
+    /// * `left_val` - Left integer operand.
+    /// * `right_val` - Right integer operand.
+    ///
+    /// # Returns
+    ///
+    /// The resulting LLVM integer or boolean [`BasicValueEnum`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::error::MatcError`] if LLVM instruction construction fails.
     pub(crate) fn compile_int_binary(
         &self,
         op: &BinaryOp,
@@ -15,15 +35,24 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         let left_int = left_val.into_int_value();
         let right_int = right_val.into_int_value();
         let result: BasicValueEnum<'ctx> = match op {
-            BinaryOp::Add => {
-                llvm_err(self.engine.builder.build_int_add(left_int, right_int, "addtmp"))?.into()
-            }
-            BinaryOp::Sub => {
-                llvm_err(self.engine.builder.build_int_sub(left_int, right_int, "subtmp"))?.into()
-            }
-            BinaryOp::Mul => {
-                llvm_err(self.engine.builder.build_int_mul(left_int, right_int, "multmp"))?.into()
-            }
+            BinaryOp::Add => llvm_err(
+                self.engine
+                    .builder
+                    .build_int_add(left_int, right_int, "addtmp"),
+            )?
+            .into(),
+            BinaryOp::Sub => llvm_err(
+                self.engine
+                    .builder
+                    .build_int_sub(left_int, right_int, "subtmp"),
+            )?
+            .into(),
+            BinaryOp::Mul => llvm_err(
+                self.engine
+                    .builder
+                    .build_int_mul(left_int, right_int, "multmp"),
+            )?
+            .into(),
             BinaryOp::Div => llvm_err(
                 self.engine
                     .builder
@@ -36,10 +65,12 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                     .build_int_signed_rem(left_int, right_int, "modtmp"),
             )?
             .into(),
-            BinaryOp::Shl => {
-                llvm_err(self.engine.builder.build_left_shift(left_int, right_int, "shltmp"))?
-                    .into()
-            }
+            BinaryOp::Shl => llvm_err(
+                self.engine
+                    .builder
+                    .build_left_shift(left_int, right_int, "shltmp"),
+            )?
+            .into(),
             BinaryOp::Shr => llvm_err(
                 self.engine
                     .builder

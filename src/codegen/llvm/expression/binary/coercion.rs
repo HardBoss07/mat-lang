@@ -1,9 +1,33 @@
+//! Implicit operand type coercion for binary operations.
+//!
+//! Handles integer width widening, integer-to-float promotion, and float precision
+//! extension prior to instruction generation.
+
 use super::super::super::function::FunctionCompiler;
 use super::super::super::util::llvm_err;
 use crate::error::Result;
 use inkwell::values::BasicValueEnum;
 
 impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
+    /// Coerces binary operands to matching types according to Mat-Lang promotion semantics.
+    ///
+    /// - If both operands are integers of differing widths, sign-extends the narrower integer.
+    /// - If one operand is an integer and the other is a float, converts the integer to float.
+    /// - If both operands are floats of differing precision, extends to 64-bit float (`f64`).
+    /// - Otherwise, returns operands unmodified.
+    ///
+    /// # Arguments
+    ///
+    /// * `left_val` - The left operand's evaluated LLVM value.
+    /// * `right_val` - The right operand's evaluated LLVM value.
+    ///
+    /// # Returns
+    ///
+    /// A tuple `(coerced_left, coerced_right)` of matching LLVM values.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::error::MatcError`] if LLVM cast instruction construction fails.
     pub(crate) fn coerce_binary_operands(
         &self,
         left_val: BasicValueEnum<'ctx>,
