@@ -1,10 +1,25 @@
-use super::super::function::{FunctionCompiler, LoopBlocks};
+//! Control flow statement code generation.
+//!
+//! Compiles function returns, branching `if`/`else` structures, and lexical scope management into LLVM IR.
+//! Loop execution (`loop`, `while`, `break`, `continue`) is delegated to the [`loops`] submodule.
+
+pub mod loops;
+
+#[allow(unused_imports)]
+pub(crate) use loops::*;
+
+use super::super::function::FunctionCompiler;
 use super::super::util::{branch_if_unterminated, coerce_val_to_type, llvm_err};
 use crate::ast::{Expression, Statement, Type};
-use crate::error::{MatcError, Result};
+use crate::error::Result;
 use std::collections::HashMap;
 
 impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
+    /// Pushes a new lexical scope into the symbol table and snapshots existing local variables.
+    ///
+    /// # Returns
+    ///
+    /// The saved local variable map to be restored upon popping the scope.
     pub(crate) fn push_scope(
         &mut self,
     ) -> HashMap<String, (inkwell::values::PointerValue<'ctx>, Type)> {
@@ -12,6 +27,11 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         self.local_vars.clone()
     }
 
+    /// Pops the top lexical scope and restores the local variable environment snapshot.
+    ///
+    /// # Arguments
+    ///
+    /// * `prev_local_vars` - The local variable state prior to entering the scope.
     pub(crate) fn pop_scope(
         &mut self,
         prev_local_vars: HashMap<String, (inkwell::values::PointerValue<'ctx>, Type)>,
@@ -20,6 +40,16 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         self.local_vars = prev_local_vars;
     }
 
+    /// Compiles a `return` statement, coercing the return value to the function's signature
+    /// and emitting an unreachable basic block to absorb any dead code following the return.
+    ///
+    /// # Arguments
+    ///
+    /// * `opt_expr` - Optional return expression (empty for void functions).
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::error::MatcError`] if LLVM instruction creation fails.
     pub(crate) fn compile_return_stmt(&mut self, opt_expr: &Option<Expression>) -> Result<()> {
         if let Some(expr) = opt_expr {
             let raw_val = self.compile_expression(expr)?;
@@ -37,6 +67,17 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         Ok(())
     }
 
+    /// Compiles an `if` or `if-else` branching statement into conditional and merge basic blocks.
+    ///
+    /// # Arguments
+    ///
+    /// * `condition` - Expression evaluating to a boolean value.
+    /// * `then_branch` - Statements to execute if condition is true.
+    /// * `else_branch` - Optional statements to execute if condition is false.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::error::MatcError`] if LLVM branch construction fails.
     pub(crate) fn compile_if_stmt(
         &mut self,
         condition: &Expression,
@@ -54,15 +95,11 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             .context
             .append_basic_block(self.fn_value, "if_after");
 
-        let if_else = if else_branch.is_some() {
-            Some(
-                self.engine
-                    .context
-                    .append_basic_block(self.fn_value, "if_else"),
-            )
-        } else {
-            None
-        };
+        let if_else = else_branch.as_ref().map(|_| {
+            self.engine
+                .context
+                .append_basic_block(self.fn_value, "if_else")
+        });
 
         let false_target = if_else.unwrap_or(if_after);
 
@@ -72,135 +109,30 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                 .build_conditional_branch(cond_val, if_then, false_target),
         )?;
 
-        self.engine.builder.position_at_end(if_then);
-        let saved_vars = self.push_scope();
-        for stmt in then_branch {
-            self.compile_statement(stmt)?;
-        }
-        self.pop_scope(saved_vars);
-        branch_if_unterminated(self.engine, if_after)?;
+        self.emit_branch_block(if_then, then_branch, if_after)?;
 
         if let (Some(else_block), Some(else_stmts)) = (if_else, else_branch) {
-            self.engine.builder.position_at_end(else_block);
-            let saved_vars = self.push_scope();
-            for stmt in else_stmts {
-                self.compile_statement(stmt)?;
-            }
-            self.pop_scope(saved_vars);
-            branch_if_unterminated(self.engine, if_after)?;
+            self.emit_branch_block(else_block, else_stmts, if_after)?;
         }
 
         self.engine.builder.position_at_end(if_after);
         Ok(())
     }
 
-    pub(crate) fn compile_loop_stmt(&mut self, body: &[Statement]) -> Result<()> {
-        let loop_body = self
-            .engine
-            .context
-            .append_basic_block(self.fn_value, "loop_body");
-        let loop_after = self
-            .engine
-            .context
-            .append_basic_block(self.fn_value, "loop_after");
-
-        llvm_err(self.engine.builder.build_unconditional_branch(loop_body))?;
-
-        self.engine.builder.position_at_end(loop_body);
-        self.loop_stack.push(LoopBlocks {
-            continue_target: loop_body,
-            break_target: loop_after,
-        });
-
-        let saved_vars = self.push_scope();
-        for stmt in body {
-            self.compile_statement(stmt)?;
-        }
-        self.pop_scope(saved_vars);
-        self.loop_stack.pop();
-
-        branch_if_unterminated(self.engine, loop_body)?;
-
-        self.engine.builder.position_at_end(loop_after);
-        Ok(())
-    }
-
-    pub(crate) fn compile_while_stmt(
+    /// Emits statements inside a conditional branch block within an isolated scope.
+    fn emit_branch_block(
         &mut self,
-        condition: &Expression,
-        body: &[Statement],
+        block: inkwell::basic_block::BasicBlock<'ctx>,
+        statements: &[Statement],
+        after_block: inkwell::basic_block::BasicBlock<'ctx>,
     ) -> Result<()> {
-        let while_cond = self
-            .engine
-            .context
-            .append_basic_block(self.fn_value, "while_cond");
-        let while_body = self
-            .engine
-            .context
-            .append_basic_block(self.fn_value, "while_body");
-        let while_after = self
-            .engine
-            .context
-            .append_basic_block(self.fn_value, "while_after");
-
-        llvm_err(self.engine.builder.build_unconditional_branch(while_cond))?;
-
-        self.engine.builder.position_at_end(while_cond);
-        let cond_val = self.compile_expression(condition)?.into_int_value();
-        llvm_err(
-            self.engine
-                .builder
-                .build_conditional_branch(cond_val, while_body, while_after),
-        )?;
-
-        self.engine.builder.position_at_end(while_body);
-        self.loop_stack.push(LoopBlocks {
-            continue_target: while_cond,
-            break_target: while_after,
-        });
-
+        self.engine.builder.position_at_end(block);
         let saved_vars = self.push_scope();
-        for stmt in body {
+        for stmt in statements {
             self.compile_statement(stmt)?;
         }
         self.pop_scope(saved_vars);
-        self.loop_stack.pop();
-
-        branch_if_unterminated(self.engine, while_cond)?;
-
-        self.engine.builder.position_at_end(while_after);
-        Ok(())
-    }
-
-    pub(crate) fn compile_break_stmt(&mut self) -> Result<()> {
-        let loop_blocks = self
-            .loop_stack
-            .last()
-            .ok_or_else(|| MatcError::CodegenError("break outside of loop".to_string()))?;
-        let target = loop_blocks.break_target;
-        llvm_err(self.engine.builder.build_unconditional_branch(target))?;
-
-        let dead_block = self
-            .engine
-            .context
-            .append_basic_block(self.fn_value, "after_break");
-        self.engine.builder.position_at_end(dead_block);
-        Ok(())
-    }
-
-    pub(crate) fn compile_continue_stmt(&mut self) -> Result<()> {
-        let loop_blocks = self
-            .loop_stack
-            .last()
-            .ok_or_else(|| MatcError::CodegenError("continue outside of loop".to_string()))?;
-        let target = loop_blocks.continue_target;
-        llvm_err(self.engine.builder.build_unconditional_branch(target))?;
-
-        let dead_block = self
-            .engine
-            .context
-            .append_basic_block(self.fn_value, "after_continue");
-        self.engine.builder.position_at_end(dead_block);
+        branch_if_unterminated(self.engine, after_block)?;
         Ok(())
     }
 }
