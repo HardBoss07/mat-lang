@@ -1,3 +1,9 @@
+//! Assignment and mutation statement parsing.
+//!
+//! This module provides parsers for simple assignment (`x = expr`),
+//! compound assignment (`x += expr`, `x <<= expr`, etc.),
+//! increment (`x++`), and decrement (`x--`) statements.
+
 use winnow::ModalResult;
 use winnow::Parser;
 
@@ -6,6 +12,14 @@ use crate::parser::expression::parse_expression;
 use crate::parser::expression::primary::parse_single_identifier_str;
 use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 
+/// Parses a dotted or scoped assignment target (e.g. `foo.bar`, `Mod::var`).
+///
+/// Supports chained field access (`.field`), tuple index (`.0`),
+/// and module scoping (`::name`).
+///
+/// # Errors
+///
+/// Returns a [`winnow::error::ErrMode`] if the initial identifier is invalid.
 pub fn parse_assignment_target<'a>(input: &mut &'a str) -> ModalResult<String> {
     let _ = skip_ws_and_comments(input)?;
     let start = *input;
@@ -38,6 +52,12 @@ pub fn parse_assignment_target<'a>(input: &mut &'a str) -> ModalResult<String> {
     Ok(start[..len].to_string())
 }
 
+/// Parses a simple assignment statement: `target = value;`.
+///
+/// # Errors
+///
+/// Returns a backtrack [`winnow::error::ErrMode`] if the input does not
+/// contain a valid `=` (non-`==`) operator or is missing a semicolon.
 pub fn parse_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
@@ -71,6 +91,14 @@ pub fn parse_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
     })
 }
 
+/// Parses a compound assignment statement: `target op= value;`.
+///
+/// Supported operators: `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`.
+///
+/// # Errors
+///
+/// Returns a backtrack [`winnow::error::ErrMode`] if no compound operator
+/// is found or the semicolon is missing.
 pub fn parse_compound_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
@@ -78,25 +106,7 @@ pub fn parse_compound_assignment_statement(input: &mut &str) -> ModalResult<Stat
     let target = parse_assignment_target(input)?;
     let _ = skip_ws_and_comments(input)?;
 
-    let (op, op_len) = if input.starts_with("<<=") {
-        (BinaryOp::Shl, 3)
-    } else if input.starts_with(">>=") {
-        (BinaryOp::Shr, 3)
-    } else if input.starts_with("+=") {
-        (BinaryOp::Add, 2)
-    } else if input.starts_with("-=") {
-        (BinaryOp::Sub, 2)
-    } else if input.starts_with("*=") {
-        (BinaryOp::Mul, 2)
-    } else if input.starts_with("/=") {
-        (BinaryOp::Div, 2)
-    } else if input.starts_with("%=") {
-        (BinaryOp::Mod, 2)
-    } else {
-        return Err(winnow::error::ErrMode::Backtrack(
-            winnow::error::ContextError::default(),
-        ));
-    };
+    let (op, op_len) = parse_compound_operator(input)?;
 
     *input = &input[op_len..];
     let _ = skip_ws_and_comments(input)?;
@@ -120,6 +130,35 @@ pub fn parse_compound_assignment_statement(input: &mut &str) -> ModalResult<Stat
     })
 }
 
+/// Recognizes a compound assignment operator and returns the corresponding
+/// [`BinaryOp`] and the byte length of the operator token.
+fn parse_compound_operator(input: &str) -> ModalResult<(BinaryOp, usize)> {
+    if input.starts_with("<<=") {
+        Ok((BinaryOp::Shl, 3))
+    } else if input.starts_with(">>=") {
+        Ok((BinaryOp::Shr, 3))
+    } else if input.starts_with("+=") {
+        Ok((BinaryOp::Add, 2))
+    } else if input.starts_with("-=") {
+        Ok((BinaryOp::Sub, 2))
+    } else if input.starts_with("*=") {
+        Ok((BinaryOp::Mul, 2))
+    } else if input.starts_with("/=") {
+        Ok((BinaryOp::Div, 2))
+    } else if input.starts_with("%=") {
+        Ok((BinaryOp::Mod, 2))
+    } else {
+        Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::default(),
+        ))
+    }
+}
+
+/// Parses a postfix increment statement: `target++;`.
+///
+/// # Errors
+///
+/// Returns a backtrack [`winnow::error::ErrMode`] if `++` or semicolon is missing.
 pub fn parse_increment_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
@@ -149,6 +188,11 @@ pub fn parse_increment_statement(input: &mut &str) -> ModalResult<Statement> {
     })
 }
 
+/// Parses a postfix decrement statement: `target--;`.
+///
+/// # Errors
+///
+/// Returns a backtrack [`winnow::error::ErrMode`] if `--` or semicolon is missing.
 pub fn parse_decrement_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
