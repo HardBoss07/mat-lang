@@ -1,14 +1,52 @@
 //! Binary operator expression hierarchy and precedence climbing.
 //!
 //! This module provides parsers for multiplicative, additive, shift, relational,
-//! equality, and logical expressions.
+//! equality, and logical expressions using a precedence climbing structure.
 
 use winnow::ModalResult;
-use winnow::Parser;
 
 use super::postfix::parse_postfix_expression;
 use crate::ast::{BinaryOp, Expression, Span};
 use crate::parser::utils::skip_ws_and_comments;
+
+/// Combines a left expression and a right expression into a [`Expression::Binary`] with combined span.
+#[inline]
+fn make_binary_expr(op: BinaryOp, left: Expression, right: Expression) -> Expression {
+    let start = left.span().start;
+    let end = right.span().end;
+    Expression::Binary {
+        op,
+        left: Box::new(left),
+        right: Box::new(right),
+        span: Span::new(start, end),
+    }
+}
+
+/// Helper that repeats parsing binary operators and right-hand expressions for a given precedence level.
+fn parse_binary_climbing<'a, F, G>(
+    input: &mut &'a str,
+    mut parse_operand: F,
+    mut match_op: G,
+) -> ModalResult<Expression>
+where
+    F: FnMut(&mut &'a str) -> ModalResult<Expression>,
+    G: FnMut(&mut &'a str) -> ModalResult<Option<BinaryOp>>,
+{
+    let mut left = parse_operand(input)?;
+
+    loop {
+        let _ = skip_ws_and_comments(input)?;
+        match match_op(input)? {
+            Some(op) => {
+                let right = parse_operand(input)?;
+                left = make_binary_expr(op, left, right);
+            }
+            None => break,
+        }
+    }
+
+    Ok(left)
+}
 
 /// Parses multiplicative expressions (`*`, `/`, `%`).
 ///
@@ -24,12 +62,9 @@ use crate::parser::utils::skip_ws_and_comments;
 ///
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed.
 pub fn parse_multiplicative_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_postfix_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
+    parse_binary_climbing(input, parse_postfix_expression, |input| {
         if input.starts_with("*=") || input.starts_with("/=") || input.starts_with("%=") {
-            break;
+            return Ok(None);
         }
 
         let op = if input.starts_with('*') {
@@ -39,23 +74,12 @@ pub fn parse_multiplicative_expression(input: &mut &str) -> ModalResult<Expressi
         } else if input.starts_with('%') {
             BinaryOp::Mod
         } else {
-            break;
+            return Ok(None);
         };
 
         *input = &input[1..];
-
-        let right = parse_postfix_expression.parse_next(input)?;
-        let start = left.span().start;
-        let end = right.span().end;
-        left = Expression::Binary {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-            span: Span::new(start, end),
-        };
-    }
-
-    Ok(left)
+        Ok(Some(op))
+    })
 }
 
 /// Parses additive expressions (`+`, `-`).
@@ -72,16 +96,13 @@ pub fn parse_multiplicative_expression(input: &mut &str) -> ModalResult<Expressi
 ///
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed.
 pub fn parse_additive_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_multiplicative_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
+    parse_binary_climbing(input, parse_multiplicative_expression, |input| {
         if input.starts_with("+=")
             || input.starts_with("-=")
             || input.starts_with("++")
             || input.starts_with("--")
         {
-            break;
+            return Ok(None);
         }
 
         let op = if input.starts_with('+') {
@@ -89,23 +110,12 @@ pub fn parse_additive_expression(input: &mut &str) -> ModalResult<Expression> {
         } else if input.starts_with('-') {
             BinaryOp::Sub
         } else {
-            break;
+            return Ok(None);
         };
 
         *input = &input[1..];
-
-        let right = parse_multiplicative_expression.parse_next(input)?;
-        let start = left.span().start;
-        let end = right.span().end;
-        left = Expression::Binary {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-            span: Span::new(start, end),
-        };
-    }
-
-    Ok(left)
+        Ok(Some(op))
+    })
 }
 
 /// Parses bitwise shift expressions (`<<`, `>>`).
@@ -122,12 +132,9 @@ pub fn parse_additive_expression(input: &mut &str) -> ModalResult<Expression> {
 ///
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed.
 pub fn parse_shift_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_additive_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
+    parse_binary_climbing(input, parse_additive_expression, |input| {
         if input.starts_with("<<=") || input.starts_with(">>=") {
-            break;
+            return Ok(None);
         }
 
         let op = if input.starts_with("<<") {
@@ -135,23 +142,12 @@ pub fn parse_shift_expression(input: &mut &str) -> ModalResult<Expression> {
         } else if input.starts_with(">>") {
             BinaryOp::Shr
         } else {
-            break;
+            return Ok(None);
         };
 
         *input = &input[2..];
-
-        let right = parse_additive_expression.parse_next(input)?;
-        let start = left.span().start;
-        let end = right.span().end;
-        left = Expression::Binary {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-            span: Span::new(start, end),
-        };
-    }
-
-    Ok(left)
+        Ok(Some(op))
+    })
 }
 
 /// Parses relational comparison expressions (`<`, `>`, `<=`, `>=`).
@@ -168,43 +164,26 @@ pub fn parse_shift_expression(input: &mut &str) -> ModalResult<Expression> {
 ///
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed.
 pub fn parse_relational_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_shift_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
+    parse_binary_climbing(input, parse_shift_expression, |input| {
         if input.starts_with("<<") || input.starts_with(">>") {
-            break;
+            return Ok(None);
         }
 
-        let op = if input.starts_with("<=") {
-            BinaryOp::Lte
+        let (op, advance) = if input.starts_with("<=") {
+            (BinaryOp::Lte, 2)
         } else if input.starts_with(">=") {
-            BinaryOp::Gte
+            (BinaryOp::Gte, 2)
         } else if input.starts_with('<') {
-            BinaryOp::Lt
+            (BinaryOp::Lt, 1)
         } else if input.starts_with('>') {
-            BinaryOp::Gt
+            (BinaryOp::Gt, 1)
         } else {
-            break;
+            return Ok(None);
         };
 
-        match op {
-            BinaryOp::Lte | BinaryOp::Gte => *input = &input[2..],
-            _ => *input = &input[1..],
-        }
-
-        let right = parse_shift_expression.parse_next(input)?;
-        let start = left.span().start;
-        let end = right.span().end;
-        left = Expression::Binary {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-            span: Span::new(start, end),
-        };
-    }
-
-    Ok(left)
+        *input = &input[advance..];
+        Ok(Some(op))
+    })
 }
 
 /// Parses equality expressions (`==`, `!=`).
@@ -221,33 +200,18 @@ pub fn parse_relational_expression(input: &mut &str) -> ModalResult<Expression> 
 ///
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed.
 pub fn parse_equality_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_relational_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
-
+    parse_binary_climbing(input, parse_relational_expression, |input| {
         let op = if input.starts_with("==") {
             BinaryOp::Eq
         } else if input.starts_with("!=") {
             BinaryOp::Neq
         } else {
-            break;
+            return Ok(None);
         };
 
         *input = &input[2..];
-
-        let right = parse_relational_expression.parse_next(input)?;
-        let start = left.span().start;
-        let end = right.span().end;
-        left = Expression::Binary {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-            span: Span::new(start, end),
-        };
-    }
-
-    Ok(left)
+        Ok(Some(op))
+    })
 }
 
 /// Parses logical AND expressions (`&&`).
@@ -264,28 +228,14 @@ pub fn parse_equality_expression(input: &mut &str) -> ModalResult<Expression> {
 ///
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed.
 pub fn parse_logical_and_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_equality_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
-
+    parse_binary_climbing(input, parse_equality_expression, |input| {
         if input.starts_with("&&") {
             *input = &input[2..];
-            let right = parse_equality_expression.parse_next(input)?;
-            let start = left.span().start;
-            let end = right.span().end;
-            left = Expression::Binary {
-                op: BinaryOp::And,
-                left: Box::new(left),
-                right: Box::new(right),
-                span: Span::new(start, end),
-            };
+            Ok(Some(BinaryOp::And))
         } else {
-            break;
+            Ok(None)
         }
-    }
-
-    Ok(left)
+    })
 }
 
 /// Parses logical OR expressions (`||`).
@@ -302,26 +252,12 @@ pub fn parse_logical_and_expression(input: &mut &str) -> ModalResult<Expression>
 ///
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed.
 pub fn parse_logical_or_expression(input: &mut &str) -> ModalResult<Expression> {
-    let mut left = parse_logical_and_expression.parse_next(input)?;
-
-    loop {
-        let _ = skip_ws_and_comments(input)?;
-
+    parse_binary_climbing(input, parse_logical_and_expression, |input| {
         if input.starts_with("||") {
             *input = &input[2..];
-            let right = parse_logical_and_expression.parse_next(input)?;
-            let start = left.span().start;
-            let end = right.span().end;
-            left = Expression::Binary {
-                op: BinaryOp::Or,
-                left: Box::new(left),
-                right: Box::new(right),
-                span: Span::new(start, end),
-            };
+            Ok(Some(BinaryOp::Or))
         } else {
-            break;
+            Ok(None)
         }
-    }
-
-    Ok(left)
+    })
 }
