@@ -1,11 +1,23 @@
-use inkwell::OptimizationLevel;
+//! Primary LLVM code generation orchestrator.
+//!
+//! Owns the Inkwell context, module, and IR builder. Coordinates passes for
+//! nominal types, global variables, function prototypes, and function body codegen.
+
+pub mod nominal_types;
+pub mod target_output;
+
+#[allow(unused_imports)]
+pub(crate) use nominal_types::*;
+#[allow(unused_imports)]
+pub(crate) use target_output::*;
+
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::targets::{
-    CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine,
-};
+use inkwell::targets::FileType;
 use inkwell::types::BasicType;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::Path;
 
 use super::function::FunctionCompiler;
@@ -15,18 +27,22 @@ use crate::codegen::runtime::declare_runtime_symbols;
 use crate::error::{MatcError, Result};
 use crate::semantic::SymbolTable;
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-
+/// Central LLVM IR compiler engine maintaining module state and nominal type tables.
 pub struct CodegenEngine<'ctx> {
+    /// LLVM global context.
     pub context: &'ctx Context,
+    /// Current translation unit LLVM module.
     pub module: Module<'ctx>,
+    /// Instruction builder.
     pub builder: Builder<'ctx>,
+    /// Struct LLVM types mapped by identifier.
     pub struct_types: RefCell<HashMap<String, inkwell::types::StructType<'ctx>>>,
+    /// Enum LLVM types mapped by identifier.
     pub enum_types: RefCell<HashMap<String, inkwell::types::StructType<'ctx>>>,
 }
 
 impl<'ctx> CodegenEngine<'ctx> {
+    /// Constructs a new [`CodegenEngine`] within the given LLVM context.
     pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
@@ -42,71 +58,27 @@ impl<'ctx> CodegenEngine<'ctx> {
         }
     }
 
+    /// Compiles an entire AST [`Program`] into LLVM IR across three coordinated passes:
+    /// 1. Nominal type registration and layout finalization.
+    /// 2. Global variable and function prototype declarations.
+    /// 3. Function body statement lowering.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MatcError`] if any function body fails lowering.
     pub fn compile_program(&self, program: &Program) -> Result<()> {
         let mut global_symbols = SymbolTable::new();
 
-        // Pass 0: Register all struct & enum declarations
-        for item in &program.items {
-            match item {
-                Item::Struct(struct_decl) => {
-                    let fields = struct_decl
-                        .fields
-                        .iter()
-                        .map(|f| crate::semantic::symbol_table::StructFieldSymbol {
-                            is_pub: f.is_pub,
-                            name: f.name.clone(),
-                            ty: f.ty.clone(),
-                        })
-                        .collect();
-                    global_symbols.insert_struct(struct_decl.name.clone(), fields);
+        self.register_nominal_declarations(program, &mut global_symbols);
+        self.build_nominal_type_bodies(program);
+        self.declare_globals_and_prototypes(program, &mut global_symbols);
+        self.compile_all_function_bodies(program, &global_symbols)?;
 
-                    let struct_type = self.context.opaque_struct_type(&struct_decl.name);
-                    self.struct_types
-                        .borrow_mut()
-                        .insert(struct_decl.name.clone(), struct_type);
-                }
-                Item::Enum(enum_decl) => {
-                    let variants = enum_decl
-                        .variants
-                        .iter()
-                        .map(|v| crate::semantic::symbol_table::EnumVariantSymbol {
-                            name: v.name.clone(),
-                            payload: v.payload.clone(),
-                        })
-                        .collect();
-                    global_symbols.insert_enum(enum_decl.name.clone(), variants);
+        Ok(())
+    }
 
-                    let enum_type = self.context.opaque_struct_type(&enum_decl.name);
-                    self.enum_types
-                        .borrow_mut()
-                        .insert(enum_decl.name.clone(), enum_type);
-                }
-                _ => {}
-            }
-        }
-
-        // Set struct & enum bodies now that types are registered
-        for item in &program.items {
-            if let Item::Struct(struct_decl) = item {
-                let field_types: Vec<inkwell::types::BasicTypeEnum<'ctx>> = struct_decl
-                    .fields
-                    .iter()
-                    .map(|f| self.llvm_type(&f.ty))
-                    .collect();
-                if let Some(struct_type) = self.struct_types.borrow().get(&struct_decl.name) {
-                    struct_type.set_body(&field_types, false);
-                }
-            } else if let Item::Enum(enum_decl) = item {
-                // Tagged union in LLVM: { i32 tag, [64 x i8] payload }
-                let tag_type = self.context.i32_type().as_basic_type_enum();
-                let payload_bytes = self.context.i8_type().array_type(64).as_basic_type_enum();
-                if let Some(enum_type) = self.enum_types.borrow().get(&enum_decl.name) {
-                    enum_type.set_body(&[tag_type, payload_bytes], false);
-                }
-            }
-        }
-
-        // Pass 1: Declare global variables and function prototypes
+    /// Pass 1: Declares global variables and adds function prototypes to the module.
+    fn declare_globals_and_prototypes(&self, program: &Program, global_symbols: &mut SymbolTable) {
         for item in &program.items {
             match item {
                 Item::GlobalLet(global_let) => {
@@ -132,17 +104,23 @@ impl<'ctx> CodegenEngine<'ctx> {
                 Item::Struct(_) | Item::Enum(_) | Item::Import(_) => {}
             }
         }
+    }
 
-        // Pass 2: Compile function bodies
+    /// Pass 2: Lowers each declared function's body into basic blocks.
+    fn compile_all_function_bodies(
+        &self,
+        program: &Program,
+        global_symbols: &SymbolTable,
+    ) -> Result<()> {
         for item in &program.items {
-            match item {
-                Item::Function(func) => self.compile_function_body(func, &global_symbols)?,
-                _ => {}
+            if let Item::Function(func) = item {
+                self.compile_function_body(func, global_symbols)?;
             }
         }
         Ok(())
     }
 
+    /// Declares an LLVM function prototype from its AST signature.
     fn declare_function_prototype(
         &self,
         func: &FunctionDeclaration,
@@ -173,6 +151,7 @@ impl<'ctx> CodegenEngine<'ctx> {
         }
     }
 
+    /// Lowers a single function declaration body into LLVM IR.
     fn compile_function_body(
         &self,
         func: &FunctionDeclaration,
@@ -247,47 +226,25 @@ impl<'ctx> CodegenEngine<'ctx> {
         Ok(())
     }
 
+    /// Emits the module's textual LLVM IR assembly string.
     pub fn emit_llvm_ir(&self) -> String {
         self.module.print_to_string().to_string()
     }
 
+    /// Writes the textual LLVM IR to a file on disk.
     pub fn write_llvm_ir_to_file(&self, path: &Path) -> Result<()> {
         self.module
             .print_to_file(path)
             .map_err(|e| MatcError::CodegenError(e.to_string()))
     }
 
+    /// Writes the compiled module to a native object file.
     pub fn write_object_to_file(&self, path: &Path) -> Result<()> {
         self.write_native_file(FileType::Object, path)
     }
 
+    /// Writes the compiled module to a native assembly file.
     pub fn write_assembly_to_file(&self, path: &Path) -> Result<()> {
         self.write_native_file(FileType::Assembly, path)
-    }
-
-    fn write_native_file(&self, file_type: FileType, path: &Path) -> Result<()> {
-        Target::initialize_native(&InitializationConfig::default())
-            .map_err(|e| MatcError::CodegenError(e.to_string()))?;
-
-        let triple = TargetMachine::get_default_triple();
-        let target =
-            Target::from_triple(&triple).map_err(|e| MatcError::CodegenError(e.to_string()))?;
-
-        let target_machine = target
-            .create_target_machine(
-                &triple,
-                "generic",
-                "",
-                OptimizationLevel::None,
-                RelocMode::Default,
-                CodeModel::Default,
-            )
-            .ok_or_else(|| {
-                MatcError::CodegenError("Failed to create LLVM Target Machine".to_string())
-            })?;
-
-        target_machine
-            .write_to_file(&self.module, file_type, path)
-            .map_err(|e| MatcError::CodegenError(e.to_string()))
     }
 }
