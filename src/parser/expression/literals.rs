@@ -1,101 +1,99 @@
+//! Literal expression parsing.
+//!
+//! Parses numeric literals (integers with `0b`/`0x` support, floats), boolean constants (`tru`, `fal`),
+//! and delegates string literal and interpolation parsing to the [`string_interpolation`] submodule.
+
+pub mod string_interpolation;
+
+#[allow(unused_imports)]
+pub use string_interpolation::*;
+
 use winnow::ModalResult;
 use winnow::Parser;
 use winnow::ascii::digit1;
 use winnow::combinator::alt;
 use winnow::token::literal;
 
-use super::primary::parse_expression;
-use crate::ast::{Expression, FormatSpecifier};
+use crate::ast::Expression;
 use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 
+/// Checks whether the input begins with a negative sign prefix and advances the input if so.
+fn check_and_consume_negative_sign(input: &mut &str) -> bool {
+    if input.starts_with('-') && !input.starts_with("--") && !input.starts_with("-=") {
+        let rest = &input[1..];
+        if rest.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+            *input = rest;
+            return true;
+        }
+    }
+    false
+}
+
+/// Parses an explicit radix integer literal (`0b...` or `0x...`).
+fn parse_radix_int(
+    input: &mut &str,
+    prefix: &str,
+    radix: u32,
+    is_digit: fn(char) -> bool,
+) -> Option<i64> {
+    if input.len() < prefix.len() || !input[..prefix.len()].eq_ignore_ascii_case(prefix) {
+        return None;
+    }
+    let mut digits = String::new();
+    let mut rest = &input[prefix.len()..];
+    while let Some(c) = rest.chars().next() {
+        if is_digit(c) {
+            digits.push(c);
+            rest = &rest[c.len_utf8()..];
+        } else if c == '_' {
+            rest = &rest[1..];
+        } else {
+            break;
+        }
+    }
+    if digits.is_empty() {
+        return None;
+    }
+    let value = i64::from_str_radix(&digits, radix).ok()?;
+    *input = rest;
+    Some(value)
+}
+
+/// Parses an integer literal in decimal, hexadecimal (`0x`), or binary (`0b`) format.
+///
+/// # Arguments
+///
+/// * `input` - Input stream slice.
+///
+/// # Errors
+///
+/// Returns [`winnow::error::ErrMode::Backtrack`] if not an integer literal.
 pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
     let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
     let tok_start = *input;
 
-    let is_neg = if input.starts_with('-') && !input.starts_with("--") && !input.starts_with("-=") {
-        let rest = &input[1..];
-        if rest.chars().next().map_or(false, |c| c.is_ascii_digit()) {
-            *input = rest;
-            true
-        } else {
-            false
-        }
-    } else {
-        false
-    };
+    let is_neg = check_and_consume_negative_sign(input);
 
-    let remaining = *input;
-    if remaining.starts_with("0b") || remaining.starts_with("0B") {
-        let tok_start = *input;
-        *input = &remaining[2..];
-        let mut bin_str = String::new();
-        while !input.is_empty() {
-            let c = input.chars().next().unwrap();
-            if c == '0' || c == '1' {
-                bin_str.push(c);
-                *input = &input[1..];
-            } else if c == '_' {
-                *input = &input[1..];
-            } else {
-                break;
-            }
-        }
-        if !bin_str.is_empty() {
-            if let Ok(mut value) = i64::from_str_radix(&bin_str, 2) {
-                if is_neg {
-                    value = -value;
-                }
-                return Ok(Expression::IntLiteral(
-                    value,
-                    get_span_between(tok_start, *input),
-                ));
-            }
-        }
-
-        *input = start_input;
-        return Err(winnow::error::ErrMode::Backtrack(
-            winnow::error::ContextError::default(),
+    if let Some(val) = parse_radix_int(input, "0b", 2, |c| c == '0' || c == '1') {
+        let final_val = if is_neg { -val } else { val };
+        return Ok(Expression::IntLiteral(
+            final_val,
+            get_span_between(tok_start, *input),
         ));
     }
 
-    if remaining.starts_with("0x") || remaining.starts_with("0X") {
-        let tok_start = *input;
-        *input = &remaining[2..];
-        let mut hex_str = String::new();
-        while !input.is_empty() {
-            let c = input.chars().next().unwrap();
-            if c.is_ascii_hexdigit() {
-                hex_str.push(c);
-                *input = &input[1..];
-            } else if c == '_' {
-                *input = &input[1..];
-            } else {
-                break;
-            }
-        }
-        if !hex_str.is_empty() {
-            if let Ok(mut value) = i64::from_str_radix(&hex_str, 16) {
-                if is_neg {
-                    value = -value;
-                }
-                return Ok(Expression::IntLiteral(
-                    value,
-                    get_span_between(tok_start, *input),
-                ));
-            }
-        }
-
-        *input = start_input;
-        return Err(winnow::error::ErrMode::Backtrack(
-            winnow::error::ContextError::default(),
+    if let Some(val) = parse_radix_int(input, "0x", 16, |c| c.is_ascii_hexdigit()) {
+        let final_val = if is_neg { -val } else { val };
+        return Ok(Expression::IntLiteral(
+            final_val,
+            get_span_between(tok_start, *input),
         ));
     }
 
     let mut dec_str = String::new();
     let mut count = 0;
-    while !input.is_empty() {
-        let c = input.chars().next().unwrap();
+    while let Some(c) = input.chars().next() {
         if c.is_ascii_digit() {
             dec_str.push(c);
             *input = &input[1..];
@@ -106,6 +104,7 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
             break;
         }
     }
+
     if !dec_str.is_empty() {
         if let Ok(mut val) = dec_str.parse::<i64>() {
             if is_neg {
@@ -124,22 +123,21 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
     ))
 }
 
+/// Parses a 64-bit floating-point literal (e.g. `3.14159`).
+///
+/// # Arguments
+///
+/// * `input` - Input stream slice.
+///
+/// # Errors
+///
+/// Returns [`winnow::error::ErrMode::Backtrack`] if not a float literal.
 pub fn parse_float_literal(input: &mut &str) -> ModalResult<Expression> {
     let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
     let tok_start = *input;
 
-    let is_neg = if input.starts_with('-') && !input.starts_with("--") && !input.starts_with("-=") {
-        let rest = &input[1..];
-        if rest.chars().next().map_or(false, |c| c.is_ascii_digit()) {
-            *input = rest;
-            true
-        } else {
-            false
-        }
-    } else {
-        false
-    };
+    let is_neg = check_and_consume_negative_sign(input);
 
     let float_res: ModalResult<&str> = (digit1, '.', digit1).take().parse_next(input);
     if let Ok(float_str) = float_res {
@@ -159,6 +157,15 @@ pub fn parse_float_literal(input: &mut &str) -> ModalResult<Expression> {
     ))
 }
 
+/// Parses a boolean literal (`tru` or `fal`).
+///
+/// # Arguments
+///
+/// * `input` - Input stream slice.
+///
+/// # Errors
+///
+/// Returns [`winnow::error::ErrMode::Backtrack`] if not a bool literal.
 pub fn parse_bool_literal(input: &mut &str) -> ModalResult<Expression> {
     let start_input = *input;
     let _ = skip_ws_and_comments(input)?;
@@ -175,117 +182,4 @@ pub fn parse_bool_literal(input: &mut &str) -> ModalResult<Expression> {
     Err(winnow::error::ErrMode::Backtrack(
         winnow::error::ContextError::default(),
     ))
-}
-
-pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression> {
-    let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
-    let tok_start = *input;
-
-    if !input.starts_with('"') {
-        *input = start_input;
-        return Err(winnow::error::ErrMode::Backtrack(
-            winnow::error::ContextError::default(),
-        ));
-    }
-
-    *input = &input[1..];
-
-    let mut parts: Vec<(Expression, FormatSpecifier)> = Vec::new();
-    let mut current_text = String::new();
-    let mut escaped = false;
-
-    while !input.is_empty() {
-        let c = input.chars().next().unwrap();
-        *input = &input[c.len_utf8()..];
-
-        if escaped {
-            match c {
-                'n' => current_text.push('\n'),
-                't' => current_text.push('\t'),
-                '\\' => current_text.push('\\'),
-                '"' => current_text.push('"'),
-                '\'' => current_text.push('\''),
-                other => {
-                    current_text.push('\\');
-                    current_text.push(other);
-                }
-            }
-            escaped = false;
-        } else if c == '\\' {
-            escaped = true;
-        } else if c == '"' {
-            break;
-        } else if c == '{' {
-            if !current_text.is_empty() {
-                parts.push((
-                    Expression::StringLiteral(
-                        current_text.clone(),
-                        get_span_between(tok_start, *input),
-                    ),
-                    FormatSpecifier::None,
-                ));
-                current_text.clear();
-            }
-
-            let mut expr_str = String::new();
-            let mut in_brace_escaped = false;
-
-            while !input.is_empty() {
-                let inner_c = input.chars().next().unwrap();
-                *input = &input[inner_c.len_utf8()..];
-
-                if in_brace_escaped {
-                    expr_str.push(inner_c);
-                    in_brace_escaped = false;
-                } else if inner_c == '\\' {
-                    in_brace_escaped = true;
-                    expr_str.push(inner_c);
-                } else if inner_c == '}' {
-                    break;
-                } else {
-                    expr_str.push(inner_c);
-                }
-            }
-
-            let trimmed = expr_str.trim();
-            let (expr_part, specifier) = if trimmed.ends_with(":bin") {
-                (&trimmed[..trimmed.len() - 4], FormatSpecifier::Bin)
-            } else if trimmed.ends_with(":b") {
-                (&trimmed[..trimmed.len() - 2], FormatSpecifier::Bin)
-            } else if trimmed.ends_with(":hex") {
-                (&trimmed[..trimmed.len() - 4], FormatSpecifier::Hex)
-            } else if trimmed.ends_with(":x") {
-                (&trimmed[..trimmed.len() - 2], FormatSpecifier::Hex)
-            } else {
-                (trimmed, FormatSpecifier::None)
-            };
-
-            let mut expr_slice = expr_part.trim();
-            if let Ok(parsed_expr) = parse_expression.parse_next(&mut expr_slice) {
-                parts.push((parsed_expr, specifier));
-            }
-        } else {
-            current_text.push(c);
-        }
-    }
-
-    let tok_end = *input;
-
-    if !current_text.is_empty() {
-        parts.push((
-            Expression::StringLiteral(current_text, get_span_between(tok_start, tok_end)),
-            FormatSpecifier::None,
-        ));
-    }
-
-    let full_span = get_span_between(tok_start, tok_end);
-
-    if parts.len() == 1 {
-        if let (Expression::StringLiteral(s, _), FormatSpecifier::None) = &parts[0] {
-            return Ok(Expression::StringLiteral(s.clone(), full_span));
-        }
-    }
-
-    Ok(Expression::InterpolatedString(parts, full_span))
 }
