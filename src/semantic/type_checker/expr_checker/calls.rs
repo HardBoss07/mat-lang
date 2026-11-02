@@ -1,7 +1,15 @@
-//! Call and access expression type synthesis.
+//! Call and invocation expression type synthesis.
 //!
-//! This module provides synthesis routines for function invocations, runtime built-ins,
-//! tuple-variant enum calls, array indexing, tuple indexing, and field accesses.
+//! Coordinates user function invocations, runtime built-ins, tuple-variant enum calls,
+//! and member accesses by delegating to specialized submodules.
+
+pub mod access;
+pub mod intrinsics;
+
+#[allow(unused_imports)]
+pub(crate) use access::*;
+#[allow(unused_imports)]
+pub(crate) use intrinsics::*;
 
 use crate::ast::{EnumVariantPayload, Expression, Span, Type};
 use crate::error::Result;
@@ -10,6 +18,17 @@ use crate::semantic::type_checker::TypeChecker;
 
 impl TypeChecker {
     /// Synthesizes the type of a function or variant call expression.
+    ///
+    /// # Arguments
+    ///
+    /// * `callee` - Callee identifier or path.
+    /// * `arguments` - Call argument expressions.
+    /// * `span` - Source span of the call.
+    /// * `symbols` - Active symbol table.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::MatcError`] if the callee is unknown or arguments violate parameter types.
     pub(crate) fn synthesize_call_expr(
         &self,
         callee: &str,
@@ -47,19 +66,7 @@ impl TypeChecker {
         Err(self.undefined_function(callee, span))
     }
 
-    /// Synthesizes print/println built-in calls.
-    fn synthesize_print_call(
-        &self,
-        arguments: &[Expression],
-        symbols: &SymbolTable,
-    ) -> Result<Type> {
-        for argument in arguments {
-            self.synthesize_expr(argument, symbols)?;
-        }
-        Ok(Type::Void)
-    }
-
-    /// Synthesizes user-defined function calls.
+    /// Synthesizes user-defined function calls, validating parameter count and individual argument types.
     fn synthesize_user_function_call(
         &self,
         callee: &str,
@@ -88,34 +95,6 @@ impl TypeChecker {
         Ok(return_type.clone())
     }
 
-    /// Synthesizes MAT runtime library calls.
-    fn synthesize_runtime_call(
-        &self,
-        callee: &str,
-        arguments: &[Expression],
-        symbols: &SymbolTable,
-    ) -> Result<Type> {
-        for argument in arguments {
-            self.synthesize_expr(argument, symbols)?;
-        }
-
-        if callee.contains("read_line") || callee.contains("read_to_string") {
-            Ok(Type::String)
-        } else if callee.contains("open")
-            || callee.contains("write")
-            || callee.contains("seek")
-            || callee.contains("abs_int")
-        {
-            Ok(Type::Int)
-        } else if callee.contains("flush") || callee.contains("close") {
-            Ok(Type::Bool)
-        } else if callee.contains("print") {
-            Ok(Type::Void)
-        } else {
-            Ok(Type::F64)
-        }
-    }
-
     /// Synthesizes enum tuple-variant constructor calls.
     fn synthesize_enum_tuple_call(
         &self,
@@ -124,147 +103,73 @@ impl TypeChecker {
         span: Span,
         symbols: &SymbolTable,
     ) -> Result<Type> {
-        let parts: Vec<&str> = callee.split("::").collect();
-        let enum_name = parts[..parts.len() - 1].join("::");
-        let variant_name = parts.last().unwrap();
-
-        if let Some(enum_def) = symbols.lookup_enum(&enum_name).cloned() {
-            if let Some(variant) = enum_def.variants.iter().find(|v| v.name == *variant_name) {
-                match &variant.payload {
-                    EnumVariantPayload::Tuple(expected_types) => {
-                        if arguments.len() != expected_types.len() {
-                            return Err(self.type_error(
-                                format!(
-                                    "Enum variant '{}::{}' expects {} arguments, got {}",
-                                    enum_name,
-                                    variant_name,
-                                    expected_types.len(),
-                                    arguments.len()
-                                ),
-                                span,
-                            ));
-                        }
-                        for (argument, expected_ty) in arguments.iter().zip(expected_types.iter()) {
-                            self.check_expr(argument, expected_ty, symbols)?;
-                        }
-                    }
-                    EnumVariantPayload::Unit => {
-                        if !arguments.is_empty() {
-                            return Err(self.type_error(
-                                format!(
-                                    "Unit enum variant '{}::{}' takes 0 arguments",
-                                    enum_name, variant_name
-                                ),
-                                span,
-                            ));
-                        }
-                    }
-                    EnumVariantPayload::Struct(_) => {}
-                }
-                return Ok(Type::Custom(enum_name));
-            }
-        }
-
-        Err(self.undefined_function(callee, span))
-    }
-
-    /// Synthesizes field access expressions on struct instances.
-    pub(crate) fn synthesize_field_access(
-        &self,
-        expr: &Expression,
-        field: &str,
-        span: Span,
-        symbols: &SymbolTable,
-    ) -> Result<Type> {
-        let expr_ty = self.synthesize_expr(expr, symbols)?;
-        let struct_name = match &expr_ty {
-            Type::Struct(name) | Type::Custom(name) => name,
-            other => {
-                return Err(self.type_error(
-                    format!(
-                        "Cannot access field '{}' on non-struct type {:?}",
-                        field, other
-                    ),
-                    expr.span(),
-                ));
-            }
+        let (enum_name, variant_name) = match callee.rfind("::") {
+            Some(idx) => (&callee[..idx], &callee[idx + 2..]),
+            None => return Err(self.undefined_function(callee, span)),
         };
 
-        let struct_def = symbols
-            .lookup_struct(struct_name)
-            .ok_or_else(|| self.type_error(format!("Undefined struct '{}'", struct_name), span))?;
+        let enum_def = match symbols.lookup_enum(enum_name).cloned() {
+            Some(def) => def,
+            None => return Err(self.undefined_function(callee, span)),
+        };
 
-        let field_symbol = struct_def
-            .fields
-            .iter()
-            .find(|f| f.name == field)
-            .ok_or_else(|| {
-                self.type_error(
-                    format!("Struct '{}' has no field '{}'", struct_name, field),
-                    span,
-                )
-            })?;
+        let variant = match enum_def.variants.iter().find(|v| v.name == variant_name) {
+            Some(v) => v,
+            None => return Err(self.undefined_function(callee, span)),
+        };
 
-        if struct_name.contains("::") && !field_symbol.is_pub {
-            return Err(self.type_error(
-                format!(
-                    "Undefined private field '{}' on struct '{}'",
-                    field, struct_name
-                ),
-                span,
-            ));
-        }
-
-        Ok(field_symbol.ty.clone())
+        self.validate_enum_variant_arguments(
+            enum_name,
+            variant_name,
+            &variant.payload,
+            arguments,
+            span,
+            symbols,
+        )?;
+        Ok(Type::Custom(enum_name.to_string()))
     }
 
-    /// Synthesizes array and vector indexing expressions.
-    pub(crate) fn synthesize_array_access(
+    /// Validates arguments against an enum variant's expected payload structure.
+    fn validate_enum_variant_arguments(
         &self,
-        expr: &Expression,
-        index: &Expression,
+        enum_name: &str,
+        variant_name: &str,
+        payload: &EnumVariantPayload,
+        arguments: &[Expression],
         span: Span,
         symbols: &SymbolTable,
-    ) -> Result<Type> {
-        let expr_ty = self.synthesize_expr(expr, symbols)?;
-        let index_ty = self.synthesize_expr(index, symbols)?;
-        if index_ty != Type::Int && index_ty != Type::I32 {
-            return Err(self.type_error(
-                format!("Array index must be an integer, got {:?}", index_ty),
-                index.span(),
-            ));
+    ) -> Result<()> {
+        match payload {
+            EnumVariantPayload::Tuple(expected_types) => {
+                if arguments.len() != expected_types.len() {
+                    return Err(self.type_error(
+                        format!(
+                            "Enum variant '{}::{}' expects {} arguments, got {}",
+                            enum_name,
+                            variant_name,
+                            expected_types.len(),
+                            arguments.len()
+                        ),
+                        span,
+                    ));
+                }
+                for (argument, expected_ty) in arguments.iter().zip(expected_types.iter()) {
+                    self.check_expr(argument, expected_ty, symbols)?;
+                }
+            }
+            EnumVariantPayload::Unit => {
+                if !arguments.is_empty() {
+                    return Err(self.type_error(
+                        format!(
+                            "Unit enum variant '{}::{}' takes 0 arguments",
+                            enum_name, variant_name
+                        ),
+                        span,
+                    ));
+                }
+            }
+            EnumVariantPayload::Struct(_) => {}
         }
-        match expr_ty {
-            Type::Array(elem_ty, _) => Ok(*elem_ty),
-            Type::Vector(elem_ty) => Ok(*elem_ty),
-            other => Err(self.type_error(format!("Cannot index non-array type {:?}", other), span)),
-        }
-    }
-
-    /// Synthesizes tuple indexing expressions.
-    pub(crate) fn synthesize_tuple_access(
-        &self,
-        expr: &Expression,
-        index: usize,
-        span: Span,
-        symbols: &SymbolTable,
-    ) -> Result<Type> {
-        let expr_ty = self.synthesize_expr(expr, symbols)?;
-        match expr_ty {
-            Type::Tuple(types) => types.get(index).cloned().ok_or_else(|| {
-                self.type_error(
-                    format!(
-                        "Tuple index {} out of bounds for tuple length {}",
-                        index,
-                        types.len()
-                    ),
-                    span,
-                )
-            }),
-            other => Err(self.type_error(
-                format!("Cannot access tuple index on non-tuple type {:?}", other),
-                expr.span(),
-            )),
-        }
+        Ok(())
     }
 }
