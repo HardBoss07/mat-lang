@@ -1,10 +1,24 @@
+//! Tuple, array, vector, and struct field access code generation.
+//!
+//! Compiles member reads (`tuple.0`, `array[i]`, `vector[i]`, and `struct.field`) into LLVM instructions.
+
 use super::super::function::FunctionCompiler;
 use super::super::util::llvm_err;
 use crate::ast::{Expression, Type};
 use crate::error::{MatcError, Result};
-use inkwell::values::{AsValueRef, BasicValueEnum};
+use inkwell::values::{AsValueRef, BasicValueEnum, IntValue, PointerValue};
 
 impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
+    /// Compiles positional tuple field extraction (`tuple.0`).
+    ///
+    /// # Arguments
+    ///
+    /// * `expr` - Expression yielding a tuple struct value.
+    /// * `index` - Zero-based index of the element to extract.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MatcError::CodegenError`] if the expression does not evaluate to a struct.
     pub(crate) fn compile_tuple_access(
         &mut self,
         expr: &Expression,
@@ -25,6 +39,16 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         }
     }
 
+    /// Compiles index-based access on arrays or vectors (`collection[index]`).
+    ///
+    /// # Arguments
+    ///
+    /// * `expr` - Expression yielding an array or heap-allocated vector.
+    /// * `index` - Index expression evaluating to an integer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MatcError::CodegenError`] if `expr` is not an array or vector.
     pub(crate) fn compile_array_access(
         &mut self,
         expr: &Expression,
@@ -34,8 +58,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             .type_checker
             .synthesize_expr(expr, &self.symbol_table)?;
         let elem_mat_ty = match &array_mat_ty {
-            Type::Array(elem, _) => *elem.clone(),
-            Type::Vector(elem) => *elem.clone(),
+            Type::Array(elem, _) | Type::Vector(elem) => *elem.clone(),
             _ => {
                 return Err(MatcError::CodegenError(
                     "Expected array or vector type".to_string(),
@@ -46,35 +69,47 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         let elem_llvm_ty = self.engine.llvm_type(&elem_mat_ty);
 
         if let Type::Vector(_) = array_mat_ty {
-            let vec_val = self.compile_expression(expr)?;
-            let index_val = self.compile_expression(index)?.into_int_value();
-            let i64_index = if index_val.get_type().get_bit_width() < 64 {
-                llvm_err(self.engine.builder.build_int_s_extend(
-                    index_val,
-                    self.engine.context.i64_type(),
-                    "idx_ext",
-                ))?
-            } else {
-                index_val
-            };
-
-            let get_fn = self.engine.module.get_function("_mat_rt_vec_get").unwrap();
-            let call_res = llvm_err(self.engine.builder.build_call(
-                get_fn,
-                &[vec_val.into(), i64_index.into()],
-                "call_vec_get",
-            ))?;
-            let elem_ptr = unsafe { inkwell::values::BasicValueEnum::new(call_res.as_value_ref()) }
-                .into_pointer_value();
-            let loaded = llvm_err(self.engine.builder.build_load(
-                elem_llvm_ty,
-                elem_ptr,
-                "vec_elem_val",
-            ))?;
-            return Ok(loaded);
+            return self.compile_vector_index_access(expr, index, elem_llvm_ty);
         }
 
-        let array_llvm_ty = self.engine.llvm_type(&array_mat_ty);
+        self.compile_fixed_array_index_access(expr, index, &array_mat_ty, elem_llvm_ty)
+    }
+
+    /// Compiles vector indexing via runtime call `_mat_rt_vec_get`.
+    fn compile_vector_index_access(
+        &mut self,
+        expr: &Expression,
+        index: &Expression,
+        elem_llvm_ty: inkwell::types::BasicTypeEnum<'ctx>,
+    ) -> Result<BasicValueEnum<'ctx>> {
+        let vec_val = self.compile_expression(expr)?;
+        let index_val = self.compile_expression(index)?.into_int_value();
+        let i64_index = self.widen_to_i64(index_val)?;
+
+        let get_fn = self.engine.module.get_function("_mat_rt_vec_get").unwrap();
+        let call_res = llvm_err(self.engine.builder.build_call(
+            get_fn,
+            &[vec_val.into(), i64_index.into()],
+            "call_vec_get",
+        ))?;
+        let elem_ptr = unsafe { BasicValueEnum::new(call_res.as_value_ref()) }.into_pointer_value();
+        let loaded = llvm_err(self.engine.builder.build_load(
+            elem_llvm_ty,
+            elem_ptr,
+            "vec_elem_val",
+        ))?;
+        Ok(loaded)
+    }
+
+    /// Compiles fixed-size stack/buffer array indexing via LLVM GEP.
+    fn compile_fixed_array_index_access(
+        &mut self,
+        expr: &Expression,
+        index: &Expression,
+        array_mat_ty: &Type,
+        elem_llvm_ty: inkwell::types::BasicTypeEnum<'ctx>,
+    ) -> Result<BasicValueEnum<'ctx>> {
+        let array_llvm_ty = self.engine.llvm_type(array_mat_ty);
         let array_val = self.compile_expression(expr)?;
         let index_val = self.compile_expression(index)?.into_int_value();
 
@@ -99,6 +134,29 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         Ok(loaded)
     }
 
+    /// Widens an integer value to 64-bit width if narrower.
+    fn widen_to_i64(&self, val: IntValue<'ctx>) -> Result<IntValue<'ctx>> {
+        if val.get_type().get_bit_width() < 64 {
+            llvm_err(self.engine.builder.build_int_s_extend(
+                val,
+                self.engine.context.i64_type(),
+                "idx_ext",
+            ))
+        } else {
+            Ok(val)
+        }
+    }
+
+    /// Compiles struct field access (`instance.field`).
+    ///
+    /// # Arguments
+    ///
+    /// * `expr` - Expression yielding a struct or identifier of a struct variable.
+    /// * `field` - Named field to access.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MatcError`] if the type is not a struct or the field is missing.
     pub(crate) fn compile_field_access(
         &mut self,
         expr: &Expression,
@@ -127,7 +185,7 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
             .fields
             .iter()
             .enumerate()
-            .find(|(_, f)| f.name == *field)
+            .find(|(_, f)| f.name == field)
             .ok_or_else(|| {
                 MatcError::CodegenError(format!("Field '{}' not found on '{}'", field, struct_name))
             })?;
@@ -138,18 +196,12 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
 
         if let Expression::Identifier(var_name, _) = expr {
             if let Some((ptr, _)) = self.local_vars.get(var_name).cloned() {
-                let field_ptr = llvm_err(self.engine.builder.build_struct_gep(
+                return self.load_struct_field_from_ptr(
                     struct_llvm_ty.into_struct_type(),
                     ptr,
                     field_idx as u32,
-                    "field_gep",
-                ))?;
-                let loaded = llvm_err(self.engine.builder.build_load(
                     field_llvm_ty,
-                    field_ptr,
-                    "field_val",
-                ))?;
-                return Ok(loaded);
+                );
             }
         }
 
@@ -164,18 +216,34 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         } else {
             let alloca = self.create_entry_block_alloca(struct_llvm_ty, "struct_acc_tmp")?;
             llvm_err(self.engine.builder.build_store(alloca, struct_val))?;
-            let field_ptr = llvm_err(self.engine.builder.build_struct_gep(
+            self.load_struct_field_from_ptr(
                 struct_llvm_ty.into_struct_type(),
                 alloca,
                 field_idx as u32,
-                "field_gep",
-            ))?;
-            let loaded = llvm_err(self.engine.builder.build_load(
                 field_llvm_ty,
-                field_ptr,
-                "field_val",
-            ))?;
-            Ok(loaded)
+            )
         }
+    }
+
+    /// Loads a struct field from an LLVM pointer via `build_struct_gep`.
+    fn load_struct_field_from_ptr(
+        &self,
+        struct_ty: inkwell::types::StructType<'ctx>,
+        ptr: PointerValue<'ctx>,
+        field_idx: u32,
+        field_llvm_ty: inkwell::types::BasicTypeEnum<'ctx>,
+    ) -> Result<BasicValueEnum<'ctx>> {
+        let field_ptr = llvm_err(self.engine.builder.build_struct_gep(
+            struct_ty,
+            ptr,
+            field_idx,
+            "field_gep",
+        ))?;
+        let loaded = llvm_err(self.engine.builder.build_load(
+            field_llvm_ty,
+            field_ptr,
+            "field_val",
+        ))?;
+        Ok(loaded)
     }
 }
