@@ -1,3 +1,9 @@
+//! Match statement compilation dispatch.
+//!
+//! Routes match expressions to the appropriate handler based on the
+//! matched expression's type: result matches for `Result<Ok, Err>` types
+//! and enum matches for custom/struct nominal types.
+
 mod enum_match;
 mod result_match;
 
@@ -6,6 +12,12 @@ use crate::ast::{Expression, MatchArm, Type};
 use crate::error::Result;
 
 impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
+    /// Compiles a match statement by dispatching to the correct handler.
+    ///
+    /// Synthesizes the matched expression's type, compiles it to an LLVM value,
+    /// then delegates to [`compile_result_match`](Self::compile_result_match) for
+    /// `Result` types or [`compile_enum_match`](Self::compile_enum_match) for
+    /// enum/struct types.
     pub(crate) fn compile_match_stmt(
         &mut self,
         expr: &Expression,

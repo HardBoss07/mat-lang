@@ -1,3 +1,9 @@
+//! Result match statement code generation.
+//!
+//! Compiles match expressions branching on `Ok`/`Err` result variants,
+//! extracting the success or error payload into local scope variables
+//! and generating the conditional LLVM IR branch structure.
+
 use super::super::super::function::FunctionCompiler;
 use super::super::super::util::{branch_if_unterminated, llvm_err};
 use crate::ast::{MatchArm, MatchPattern, Type};
@@ -7,6 +13,13 @@ use inkwell::types::StructType;
 use inkwell::values::{BasicValueEnum, PointerValue};
 
 impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
+    /// Compiles a `match` statement over a `Result<Ok, Err>` value.
+    ///
+    /// Emits LLVM IR that stores the compiled result expression into a local
+    /// alloca, extracts the boolean tag (index 0) to determine Ok vs Err,
+    /// creates two basic blocks, and delegates compilation of each arm to
+    /// [`compile_ok_arm`](Self::compile_ok_arm) or
+    /// [`compile_err_arm`](Self::compile_err_arm).
     pub(crate) fn compile_result_match(
         &mut self,
         ok_mat_ty: &Type,
@@ -71,6 +84,9 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         Ok(())
     }
 
+    /// Loads the boolean tag (field index 0) from a result struct alloca.
+    ///
+    /// The tag is an `i1` where `true` indicates `Ok` and `false` indicates `Err`.
     fn load_tag_i1(
         &self,
         struct_ty: StructType<'ctx>,
@@ -90,6 +106,11 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         Ok(tag_val)
     }
 
+    /// Compiles the `Ok(var)` arm of a result match.
+    ///
+    /// Extracts the Ok payload value from struct field index 1, stores it in
+    /// a new local variable binding, compiles the arm body, then branches to
+    /// the merge block.
     fn compile_ok_arm(
         &mut self,
         var_name: &str,
@@ -127,6 +148,11 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         Ok(())
     }
 
+    /// Compiles the `Err(var)` arm of a result match.
+    ///
+    /// Extracts the Err payload value from struct field index 2, stores it in
+    /// a new local variable binding, compiles the arm body, then branches to
+    /// the merge block.
     fn compile_err_arm(
         &mut self,
         var_name: &str,
