@@ -1,59 +1,80 @@
+//! Semantic analysis symbol table and environment scopes.
+//!
+//! Stores variable bindings, function signatures, struct layouts, and enum variant definitions
+//! with lexical scoping support and qualified path lookup.
+
+pub mod scope_tree;
+
+#[allow(unused_imports)]
+pub use scope_tree::*;
+
 use crate::ast::{EnumVariantPayload, Type};
 use crate::error::{MatcError, Result};
-use std::cell::RefCell;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
-pub struct Symbol {
-    pub name: String,
-    pub ty: Type,
-    pub is_mutable: bool,
-}
-
+/// Representation of a function declaration symbol.
 #[derive(Debug, Clone)]
 pub struct FunctionSymbol {
+    /// Function name or qualified identifier.
     pub name: String,
+    /// Parameter types in declaration order.
     pub param_types: Vec<Type>,
+    /// Function return type.
     pub return_type: Type,
 }
 
+/// Representation of a single struct field.
 #[derive(Debug, Clone)]
 pub struct StructFieldSymbol {
+    /// Field visibility modifier.
     pub is_pub: bool,
+    /// Field name.
     pub name: String,
+    /// Field type.
     pub ty: Type,
 }
 
+/// Representation of a struct declaration symbol.
 #[derive(Debug, Clone)]
 pub struct StructSymbol {
+    /// Struct name.
     pub name: String,
+    /// Ordered sequence of fields.
     pub fields: Vec<StructFieldSymbol>,
 }
 
+/// Representation of an enum variant with unit, tuple, or struct payload.
 #[derive(Debug, Clone)]
 pub struct EnumVariantSymbol {
+    /// Variant name.
     pub name: String,
+    /// Variant payload structure.
     pub payload: EnumVariantPayload,
 }
 
+/// Representation of an enum declaration symbol.
 #[derive(Debug, Clone)]
 pub struct EnumSymbol {
+    /// Enum name.
     pub name: String,
+    /// List of variants.
     pub variants: Vec<EnumVariantSymbol>,
 }
 
+/// Lexically scoped symbol table for semantic analysis and code generation.
 #[derive(Debug, Clone, Default)]
 pub struct SymbolTable {
-    scopes: RefCell<Vec<HashMap<String, Symbol>>>,
+    scope_tree: ScopeTree,
     functions: HashMap<String, FunctionSymbol>,
     structs: HashMap<String, StructSymbol>,
     enums: HashMap<String, EnumSymbol>,
 }
 
 impl SymbolTable {
+    /// Constructs a new symbol table with the global scope and runtime intrinsics initialized.
     pub fn new() -> Self {
         let mut table = Self {
-            scopes: RefCell::new(vec![HashMap::new()]),
+            scope_tree: ScopeTree::new(),
             functions: HashMap::new(),
             structs: HashMap::new(),
             enums: HashMap::new(),
@@ -62,6 +83,7 @@ impl SymbolTable {
         table
     }
 
+    /// Registers built-in console, file I/O, and mathematical runtime intrinsics.
     pub fn register_runtime_intrinsics(&mut self) {
         // Console I/O Intrinsics
         self.insert_function("_mat_rt_print_str".into(), vec![Type::String], Type::Void);
@@ -118,63 +140,46 @@ impl SymbolTable {
         self.insert_function("_mat_rt_round".into(), vec![Type::F64], Type::F64);
     }
 
+    /// Pushes a new lexical scope.
+    #[inline]
     pub fn push_scope(&self) {
-        self.scopes.borrow_mut().push(HashMap::new());
+        self.scope_tree.push_scope();
     }
 
+    /// Pops the outermost scope if more than one scope exists.
+    #[inline]
     pub fn pop_scope(&self) {
-        let mut scopes = self.scopes.borrow_mut();
-        if scopes.len() > 1 {
-            scopes.pop();
-        }
+        self.scope_tree.pop_scope();
     }
 
+    /// Inserts a variable symbol into the current scope.
+    #[inline]
     pub fn insert(&self, name: String, ty: Type, is_mutable: bool) {
-        if let Some(scope) = self.scopes.borrow_mut().last_mut() {
-            scope.insert(
-                name.clone(),
-                Symbol {
-                    name,
-                    ty,
-                    is_mutable,
-                },
-            );
-        }
+        self.scope_tree.insert(name, ty, is_mutable);
     }
 
+    /// Updates the type of an existing symbol in the innermost scope containing it.
+    #[inline]
     pub fn update_type(&self, name: &str, new_ty: Type) -> bool {
-        for scope in self.scopes.borrow_mut().iter_mut().rev() {
-            if let Some(sym) = scope.get_mut(name) {
-                sym.ty = new_ty;
-                return true;
-            }
-        }
-        false
+        self.scope_tree.update_type(name, new_ty)
     }
 
+    /// Looks up a variable symbol traversing scopes from innermost to outermost.
+    #[inline]
     pub fn lookup(&self, name: &str) -> Option<Symbol> {
-        for scope in self.scopes.borrow().iter().rev() {
-            if let Some(sym) = scope.get(name) {
-                return Some(sym.clone());
-            }
-        }
-        None
+        self.scope_tree.lookup(name)
     }
 
-    pub fn verify_no_unresolved_infer_types<F>(&self, mut make_err: F) -> Result<()>
+    /// Verifies that no variables in the current scope retain an unresolved `Type::Infer`.
+    #[inline]
+    pub fn verify_no_unresolved_infer_types<F>(&self, make_err: F) -> Result<()>
     where
         F: FnMut(&str) -> MatcError,
     {
-        if let Some(scope) = self.scopes.borrow().last() {
-            for (name, sym) in scope {
-                if is_infer_type(&sym.ty) {
-                    return Err(make_err(name));
-                }
-            }
-        }
-        Ok(())
+        self.scope_tree.verify_no_unresolved_infer_types(make_err)
     }
 
+    /// Inserts a function declaration.
     pub fn insert_function(&mut self, name: String, param_types: Vec<Type>, return_type: Type) {
         self.functions.insert(
             name.clone(),
@@ -186,6 +191,7 @@ impl SymbolTable {
         );
     }
 
+    /// Looks up a function symbol by exact name, runtime intrinsic alias, or module path suffix.
     pub fn lookup_function(&self, name: &str) -> Option<&FunctionSymbol> {
         if let Some(f) = self.functions.get(name) {
             return Some(f);
@@ -196,119 +202,66 @@ impl SymbolTable {
             return Some(f);
         }
 
-        if name.contains("::") {
-            let suffix = format!("::{}", name);
-            for (key, f) in &self.functions {
-                if key.ends_with(&suffix) {
-                    return Some(f);
-                }
-            }
-            if let Some(short_name) = name.split("::").last() {
-                if let Some(f) = self.functions.get(short_name) {
-                    return Some(f);
-                }
-                let short_suffix = format!("::{}", short_name);
-                for (key, f) in &self.functions {
-                    if key.ends_with(&short_suffix) {
-                        return Some(f);
-                    }
-                }
-            }
-        } else {
-            let suffix = format!("::{}", name);
-            for (key, f) in &self.functions {
-                if key == short_name || key.ends_with(&suffix) {
-                    return Some(f);
-                }
-            }
-        }
-        None
+        Self::lookup_by_suffix(&self.functions, name, short_name)
     }
 
+    /// Inserts a struct declaration.
     pub fn insert_struct(&mut self, name: String, fields: Vec<StructFieldSymbol>) {
         self.structs
             .insert(name.clone(), StructSymbol { name, fields });
     }
 
+    /// Looks up a struct symbol by exact name or module path suffix.
     pub fn lookup_struct(&self, name: &str) -> Option<&StructSymbol> {
         if let Some(s) = self.structs.get(name) {
             return Some(s);
         }
-        if name.contains("::") {
-            let suffix = format!("::{}", name);
-            for (key, s) in &self.structs {
-                if key.ends_with(&suffix) {
-                    return Some(s);
-                }
-            }
-            if let Some(short_name) = name.split("::").last() {
-                if let Some(s) = self.structs.get(short_name) {
-                    return Some(s);
-                }
-                let short_suffix = format!("::{}", short_name);
-                for (key, s) in &self.structs {
-                    if key.ends_with(&short_suffix) {
-                        return Some(s);
-                    }
-                }
-            }
-        } else {
-            let suffix = format!("::{}", name);
-            for (key, s) in &self.structs {
-                if key.ends_with(&suffix) {
-                    return Some(s);
-                }
-            }
-        }
-        None
+        let short_name = name.split("::").last().unwrap_or(name);
+        Self::lookup_by_suffix(&self.structs, name, short_name)
     }
 
+    /// Inserts an enum declaration.
     pub fn insert_enum(&mut self, name: String, variants: Vec<EnumVariantSymbol>) {
         self.enums
             .insert(name.clone(), EnumSymbol { name, variants });
     }
 
+    /// Looks up an enum symbol by exact name or module path suffix.
     pub fn lookup_enum(&self, name: &str) -> Option<&EnumSymbol> {
         if let Some(e) = self.enums.get(name) {
             return Some(e);
         }
+        let short_name = name.split("::").last().unwrap_or(name);
+        Self::lookup_by_suffix(&self.enums, name, short_name)
+    }
+
+    /// Shared helper looking up entries by qualified suffix or short name (Rule E: DRY).
+    fn lookup_by_suffix<'m, T>(
+        map: &'m HashMap<String, T>,
+        name: &str,
+        short_name: &str,
+    ) -> Option<&'m T> {
         if name.contains("::") {
             let suffix = format!("::{}", name);
-            for (key, e) in &self.enums {
-                if key.ends_with(&suffix) {
-                    return Some(e);
-                }
+            if let Some(entry) = map
+                .iter()
+                .find(|(k, _)| k.ends_with(&suffix))
+                .map(|(_, v)| v)
+            {
+                return Some(entry);
             }
-            if let Some(short_name) = name.split("::").last() {
-                if let Some(e) = self.enums.get(short_name) {
-                    return Some(e);
-                }
-                let short_suffix = format!("::{}", short_name);
-                for (key, e) in &self.enums {
-                    if key.ends_with(&short_suffix) {
-                        return Some(e);
-                    }
-                }
+            if let Some(entry) = map.get(short_name) {
+                return Some(entry);
             }
+            let short_suffix = format!("::{}", short_name);
+            map.iter()
+                .find(|(k, _)| k.ends_with(&short_suffix))
+                .map(|(_, v)| v)
         } else {
             let suffix = format!("::{}", name);
-            for (key, e) in &self.enums {
-                if key.ends_with(&suffix) {
-                    return Some(e);
-                }
-            }
+            map.iter()
+                .find(|(k, _)| k.as_str() == short_name || k.ends_with(&suffix))
+                .map(|(_, v)| v)
         }
-        None
-    }
-}
-
-fn is_infer_type(ty: &Type) -> bool {
-    match ty {
-        Type::Infer => true,
-        Type::Vector(elem) => is_infer_type(elem),
-        Type::Array(elem, _) => is_infer_type(elem),
-        Type::Tuple(elems) => elems.iter().any(is_infer_type),
-        Type::Result(ok, err) => is_infer_type(ok) || is_infer_type(err),
-        _ => false,
     }
 }
