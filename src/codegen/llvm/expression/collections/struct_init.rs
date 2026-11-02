@@ -120,27 +120,15 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         &self,
         enum_name: &str,
     ) -> Result<inkwell::types::StructType<'ctx>> {
-        let short_e_name = enum_name.split("::").last().unwrap_or(enum_name);
+        let short_name = enum_name.split("::").last().unwrap_or(enum_name);
         let map = self.engine.enum_types.borrow();
-        let mut enum_struct_ty = map
-            .get(enum_name)
-            .or_else(|| map.get(short_e_name))
-            .copied();
-        if enum_struct_ty.is_none() {
-            let suffix = format!("::{}", short_e_name);
-            for (k, &ty) in map.iter() {
-                if k.ends_with(&suffix) {
-                    enum_struct_ty = Some(ty);
-                    break;
-                }
-            }
-        }
-        enum_struct_ty.ok_or_else(|| {
-            MatcError::CodegenError(format!(
-                "LLVM struct type for enum '{}' not found",
-                enum_name
-            ))
-        })
+        self.find_struct_in_map(&map, enum_name, short_name)
+            .ok_or_else(|| {
+                MatcError::CodegenError(format!(
+                    "LLVM struct type for enum '{}' not found",
+                    enum_name
+                ))
+            })
     }
 
     /// Stores struct fields into the enum variant's payload buffer.
@@ -200,51 +188,16 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
 
         let short_name = name.split("::").last().unwrap_or(name);
         let struct_map = self.engine.struct_types.borrow();
-        let mut struct_ty = struct_map
-            .get(name)
-            .or_else(|| struct_map.get(short_name))
-            .copied();
-        if struct_ty.is_none() {
-            let suffix = format!("::{}", short_name);
-            for (k, &ty) in struct_map.iter() {
-                if k.ends_with(&suffix) {
-                    struct_ty = Some(ty);
-                    break;
-                }
-            }
-        }
-
-        let struct_ty = struct_ty.ok_or_else(|| {
-            MatcError::CodegenError(format!("LLVM struct type '{}' not found", name))
-        })?;
+        let struct_ty = self
+            .find_struct_in_map(&struct_map, name, short_name)
+            .ok_or_else(|| {
+                MatcError::CodegenError(format!("LLVM struct type '{}' not found", name))
+            })?;
 
         let alloca = self.create_entry_block_alloca(struct_ty.into(), "struct_tmp")?;
 
         for (field_name, field_expr) in fields {
-            let (field_idx, field_sym) = struct_def
-                .fields
-                .iter()
-                .enumerate()
-                .find(|(_, f)| f.name == *field_name)
-                .ok_or_else(|| {
-                    MatcError::CodegenError(format!(
-                        "Field '{}' not found in struct '{}'",
-                        field_name, name
-                    ))
-                })?;
-
-            let field_ty = &field_sym.ty;
-            let raw_val = self.compile_expression(field_expr)?;
-            let val =
-                super::super::super::util::coerce_val_to_type(self.engine, raw_val, field_ty)?;
-
-            let field_ptr = llvm_err(self.engine.builder.build_struct_gep(
-                struct_ty,
-                alloca,
-                field_idx as u32,
-                "field_init_gep",
-            ))?;
-            llvm_err(self.engine.builder.build_store(field_ptr, val))?;
+            self.store_single_struct_field(struct_ty, alloca, &struct_def, field_name, field_expr)?;
         }
 
         let loaded = llvm_err(
@@ -253,5 +206,58 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
                 .build_load(struct_ty, alloca, "struct_val"),
         )?;
         Ok(loaded)
+    }
+
+    /// Evaluates and stores a single struct field into the target allocation.
+    fn store_single_struct_field(
+        &mut self,
+        struct_ty: inkwell::types::StructType<'ctx>,
+        alloca: inkwell::values::PointerValue<'ctx>,
+        struct_def: &crate::semantic::symbol_table::StructSymbol,
+        field_name: &str,
+        field_expr: &Expression,
+    ) -> Result<()> {
+        let (field_idx, field_sym) = struct_def
+            .fields
+            .iter()
+            .enumerate()
+            .find(|(_, f)| f.name == field_name)
+            .ok_or_else(|| {
+                MatcError::CodegenError(format!(
+                    "Field '{}' not found in struct '{}'",
+                    field_name, struct_def.name
+                ))
+            })?;
+
+        let field_ty = &field_sym.ty;
+        let raw_val = self.compile_expression(field_expr)?;
+        let val = super::super::super::util::coerce_val_to_type(self.engine, raw_val, field_ty)?;
+
+        let field_ptr = llvm_err(self.engine.builder.build_struct_gep(
+            struct_ty,
+            alloca,
+            field_idx as u32,
+            "field_init_gep",
+        ))?;
+        llvm_err(self.engine.builder.build_store(field_ptr, val))?;
+        Ok(())
+    }
+
+    /// Helper looking up a struct type by full name, short name, or `::` suffix.
+    fn find_struct_in_map(
+        &self,
+        map: &std::collections::HashMap<String, inkwell::types::StructType<'ctx>>,
+        full_name: &str,
+        short_name: &str,
+    ) -> Option<inkwell::types::StructType<'ctx>> {
+        map.get(full_name)
+            .or_else(|| map.get(short_name))
+            .copied()
+            .or_else(|| {
+                let suffix = format!("::{}", short_name);
+                map.iter()
+                    .find(|(k, _)| k.ends_with(&suffix))
+                    .map(|(_, &ty)| ty)
+            })
     }
 }

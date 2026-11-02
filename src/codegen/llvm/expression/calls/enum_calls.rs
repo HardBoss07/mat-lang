@@ -81,7 +81,13 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
     }
 
     /// Resolves the LLVM struct type for a given enum name.
-    fn resolve_enum_llvm_type(&self, enum_name: &str) -> Result<inkwell::types::StructType<'ctx>> {
+    ///
+    /// Tries exact match, then basename match, then suffix match in the
+    /// engine's `enum_types` map.
+    pub(crate) fn resolve_enum_llvm_type(
+        &self,
+        enum_name: &str,
+    ) -> Result<inkwell::types::StructType<'ctx>> {
         let short_e_name = enum_name.split("::").last().unwrap_or(enum_name);
         let map = self.engine.enum_types.borrow();
         let mut enum_struct_ty = map
