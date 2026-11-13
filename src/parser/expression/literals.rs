@@ -21,7 +21,7 @@ use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 fn check_and_consume_negative_sign(input: &mut &str) -> bool {
     if input.starts_with('-') && !input.starts_with("--") && !input.starts_with("-=") {
         let rest = &input[1..];
-        if rest.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+        if rest.chars().next().is_some_and(|c| c.is_ascii_digit()) {
             *input = rest;
             return true;
         }
@@ -70,7 +70,7 @@ fn parse_radix_int(
 /// Returns [`winnow::error::ErrMode::Backtrack`] if not an integer literal.
 pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     let tok_start = *input;
 
     let is_neg = check_and_consume_negative_sign(input);
@@ -79,7 +79,7 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
         let final_val = if is_neg { -val } else { val };
         return Ok(Expression::IntLiteral(
             final_val,
-            get_span_between(tok_start, *input),
+            get_span_between(tok_start, input),
         ));
     }
 
@@ -87,7 +87,7 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
         let final_val = if is_neg { -val } else { val };
         return Ok(Expression::IntLiteral(
             final_val,
-            get_span_between(tok_start, *input),
+            get_span_between(tok_start, input),
         ));
     }
 
@@ -105,16 +105,16 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
         }
     }
 
-    if !dec_str.is_empty() {
-        if let Ok(mut val) = dec_str.parse::<i64>() {
-            if is_neg {
-                val = -val;
-            }
-            return Ok(Expression::IntLiteral(
-                val,
-                get_span_between(tok_start, *input),
-            ));
+    if !dec_str.is_empty()
+        && let Ok(mut val) = dec_str.parse::<i64>()
+    {
+        if is_neg {
+            val = -val;
         }
+        return Ok(Expression::IntLiteral(
+            val,
+            get_span_between(tok_start, input),
+        ));
     }
 
     *input = start_input;
@@ -134,22 +134,22 @@ pub fn parse_int_literal(input: &mut &str) -> ModalResult<Expression> {
 /// Returns [`winnow::error::ErrMode::Backtrack`] if not a float literal.
 pub fn parse_float_literal(input: &mut &str) -> ModalResult<Expression> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     let tok_start = *input;
 
     let is_neg = check_and_consume_negative_sign(input);
 
     let float_res: ModalResult<&str> = (digit1, '.', digit1).take().parse_next(input);
-    if let Ok(float_str) = float_res {
-        if let Ok(mut val) = float_str.parse::<f64>() {
-            if is_neg {
-                val = -val;
-            }
-            return Ok(Expression::FloatLiteral(
-                val,
-                get_span_between(tok_start, *input),
-            ));
+    if let Ok(float_str) = float_res
+        && let Ok(mut val) = float_str.parse::<f64>()
+    {
+        if is_neg {
+            val = -val;
         }
+        return Ok(Expression::FloatLiteral(
+            val,
+            get_span_between(tok_start, input),
+        ));
     }
     *input = start_input;
     Err(winnow::error::ErrMode::Backtrack(
@@ -168,14 +168,14 @@ pub fn parse_float_literal(input: &mut &str) -> ModalResult<Expression> {
 /// Returns [`winnow::error::ErrMode::Backtrack`] if not a bool literal.
 pub fn parse_bool_literal(input: &mut &str) -> ModalResult<Expression> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     let tok_start = *input;
     let bool_res: ModalResult<bool> =
         alt((literal("tru").map(|_| true), literal("fal").map(|_| false))).parse_next(input);
     if let Ok(val) = bool_res {
         return Ok(Expression::BoolLiteral(
             val,
-            get_span_between(tok_start, *input),
+            get_span_between(tok_start, input),
         ));
     }
     *input = start_input;

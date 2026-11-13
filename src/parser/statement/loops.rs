@@ -14,10 +14,10 @@ use crate::parser::utils::{get_span_between, keyword, skip_ws_and_comments, symb
 
 fn parse_step_statement(input: &mut &str) -> ModalResult<Statement> {
     let checkpoint = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let target = parse_identifier_str.parse_next(input)?.to_string();
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if input.starts_with("++") {
         *input = &input[2..];
@@ -67,7 +67,7 @@ pub fn parse_loop_statement(input: &mut &str) -> ModalResult<Statement> {
 pub fn parse_while_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
     let _ = keyword("while").parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let condition = parse_expression.parse_next(input)?;
     let body = parse_block(input)?;
@@ -91,7 +91,7 @@ pub fn parse_fori_statement(input: &mut &str) -> ModalResult<Statement> {
         parse_assignment_statement,
     ))
     .parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let condition = parse_expression.parse_next(input)?;
     let _ = symbol(";").parse_next(input)?;
@@ -113,7 +113,7 @@ pub fn parse_fori_statement(input: &mut &str) -> ModalResult<Statement> {
 
 pub fn parse_for_in_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with("for") || input.starts_with("fori") {
         *input = start_input;
@@ -122,11 +122,11 @@ pub fn parse_for_in_statement(input: &mut &str) -> ModalResult<Statement> {
         ));
     }
     let _ = keyword("for").parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let var_name = parse_identifier_str.parse_next(input)?.to_string();
     let _ = keyword("in").parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let iterable = parse_expression.parse_next(input)?;
     let body = parse_block(input)?;

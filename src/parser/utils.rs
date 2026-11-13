@@ -95,7 +95,7 @@ where
     F: FnMut(&mut &'a str) -> ModalResult<O>,
 {
     move |input: &mut &'a str| {
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         inner.parse_next(input)
     }
 }
@@ -103,7 +103,7 @@ where
 pub fn keyword<'a>(kw: &'static str) -> impl FnMut(&mut &'a str) -> ModalResult<&'a str> {
     move |input: &mut &'a str| {
         let checkpoint = *input;
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         if !input.starts_with(kw) {
             *input = checkpoint;
             return Err(winnow::error::ErrMode::Backtrack(
@@ -114,7 +114,7 @@ pub fn keyword<'a>(kw: &'static str) -> impl FnMut(&mut &'a str) -> ModalResult<
         if after
             .chars()
             .next()
-            .map_or(false, |c| c.is_alphanumeric() || c == '_')
+            .is_some_and(|c| c.is_alphanumeric() || c == '_')
         {
             *input = checkpoint;
             return Err(winnow::error::ErrMode::Backtrack(
@@ -129,7 +129,7 @@ pub fn keyword<'a>(kw: &'static str) -> impl FnMut(&mut &'a str) -> ModalResult<
 pub fn symbol<'a>(sym: &'static str) -> impl FnMut(&mut &'a str) -> ModalResult<&'a str> {
     move |input: &mut &'a str| {
         let checkpoint = *input;
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         if !input.starts_with(sym) {
             *input = checkpoint;
             return Err(winnow::error::ErrMode::Backtrack(

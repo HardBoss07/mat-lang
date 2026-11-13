@@ -39,7 +39,7 @@ use crate::parser::utils::skip_ws_and_comments;
 ///
 /// Returns a [`winnow::error::ErrMode`] if no primary expression is matched.
 pub fn parse_primary_expression(input: &mut &str) -> ModalResult<Expression> {
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     alt((
         parse_string_or_interpolated,
         parse_bool_literal,

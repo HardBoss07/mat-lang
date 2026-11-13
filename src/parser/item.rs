@@ -37,7 +37,7 @@ use crate::parser::utils::skip_ws_and_comments;
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed or no item matches.
 pub fn parse_item(input: &mut &str) -> ModalResult<Item> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if input.is_empty() {
         return Err(winnow::error::ErrMode::Backtrack(

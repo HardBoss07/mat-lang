@@ -12,17 +12,17 @@ use crate::parser::utils::{get_span_between, keyword, skip_ws_and_comments, symb
 pub fn parse_let_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
     let _ = keyword("let").parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let is_mutable = opt(literal("mut")).parse_next(input)?.is_some();
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let name = parse_identifier_str.parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let ty = if opt(literal(':')).parse_next(input)?.is_some() {
         let parsed_ty = parse_type.parse_next(input)?;
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         Some(parsed_ty)
     } else {
         None

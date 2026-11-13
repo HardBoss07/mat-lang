@@ -62,12 +62,11 @@ impl TypeChecker {
         span: Span,
         symbols: &SymbolTable,
     ) -> Result<Type> {
-        if name.contains("::") {
-            if let Some(enum_ty) =
+        if name.contains("::")
+            && let Some(enum_ty) =
                 self.try_synthesize_enum_struct_variant(name, fields, span, symbols)?
-            {
-                return Ok(enum_ty);
-            }
+        {
+            return Ok(enum_ty);
         }
 
         let struct_def = symbols
@@ -117,42 +116,41 @@ impl TypeChecker {
         let enum_name = parts[..parts.len() - 1].join("::");
         let variant_name = parts.last().unwrap();
 
-        if let Some(enum_def) = symbols.lookup_enum(&enum_name).cloned() {
-            if let Some(variant) = enum_def.variants.iter().find(|v| v.name == *variant_name) {
-                if let EnumVariantPayload::Struct(expected_fields) = &variant.payload {
-                    if fields.len() != expected_fields.len() {
-                        return Err(self.type_error(
-                            format!(
-                                "Enum variant '{}::{}' expects {} fields, got {}",
-                                enum_name,
-                                variant_name,
-                                expected_fields.len(),
-                                fields.len()
-                            ),
-                            span,
-                        ));
-                    }
-
-                    for (field_name, field_expr) in fields {
-                        let expected_field_ty = expected_fields
-                            .iter()
-                            .find(|field| field.name == *field_name)
-                            .map(|field| &field.ty)
-                            .ok_or_else(|| {
-                                self.type_error(
-                                    format!(
-                                        "Unknown field '{}' on enum variant '{}::{}'",
-                                        field_name, enum_name, variant_name
-                                    ),
-                                    field_expr.span(),
-                                )
-                            })?;
-                        self.check_expr(field_expr, expected_field_ty, symbols)?;
-                    }
-
-                    return Ok(Some(Type::Custom(enum_name)));
-                }
+        if let Some(enum_def) = symbols.lookup_enum(&enum_name).cloned()
+            && let Some(variant) = enum_def.variants.iter().find(|v| v.name == *variant_name)
+            && let EnumVariantPayload::Struct(expected_fields) = &variant.payload
+        {
+            if fields.len() != expected_fields.len() {
+                return Err(self.type_error(
+                    format!(
+                        "Enum variant '{}::{}' expects {} fields, got {}",
+                        enum_name,
+                        variant_name,
+                        expected_fields.len(),
+                        fields.len()
+                    ),
+                    span,
+                ));
             }
+
+            for (field_name, field_expr) in fields {
+                let expected_field_ty = expected_fields
+                    .iter()
+                    .find(|field| field.name == *field_name)
+                    .map(|field| &field.ty)
+                    .ok_or_else(|| {
+                        self.type_error(
+                            format!(
+                                "Unknown field '{}' on enum variant '{}::{}'",
+                                field_name, enum_name, variant_name
+                            ),
+                            field_expr.span(),
+                        )
+                    })?;
+                self.check_expr(field_expr, expected_field_ty, symbols)?;
+            }
+
+            return Ok(Some(Type::Custom(enum_name)));
         }
         Ok(None)
     }

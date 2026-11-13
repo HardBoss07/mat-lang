@@ -85,20 +85,18 @@ impl TypeChecker {
         symbols: &SymbolTable,
     ) {
         let short_variant = variant.split("::").last().unwrap_or(variant);
-        if let Some(enum_def) = symbols.lookup_enum(enum_name).cloned() {
-            if let Some(variant_def) = enum_def
+        if let Some(enum_def) = symbols.lookup_enum(enum_name).cloned()
+            && let Some(variant_def) = enum_def
                 .variants
                 .iter()
                 .find(|v| v.name == short_variant || v.name == variant)
-            {
-                if let EnumVariantPayload::Tuple(tys) = &variant_def.payload {
-                    for (i, var) in vars.iter().enumerate() {
-                        let ty = tys.get(i).cloned().unwrap_or(Type::Int);
-                        symbols.insert(var.clone(), ty, false);
-                    }
-                    return;
-                }
+            && let EnumVariantPayload::Tuple(tys) = &variant_def.payload
+        {
+            for (i, var) in vars.iter().enumerate() {
+                let ty = tys.get(i).cloned().unwrap_or(Type::Int);
+                symbols.insert(var.clone(), ty, false);
             }
+            return;
         }
         for var in vars {
             symbols.insert(var.clone(), Type::Int, false);
@@ -114,24 +112,22 @@ impl TypeChecker {
         symbols: &SymbolTable,
     ) {
         let short_variant = variant.split("::").last().unwrap_or(variant);
-        if let Some(enum_def) = symbols.lookup_enum(enum_name).cloned() {
-            if let Some(variant_def) = enum_def
+        if let Some(enum_def) = symbols.lookup_enum(enum_name).cloned()
+            && let Some(variant_def) = enum_def
                 .variants
                 .iter()
                 .find(|v| v.name == short_variant || v.name == variant)
-            {
-                if let EnumVariantPayload::Struct(flds) = &variant_def.payload {
-                    for (field_name, var) in fields {
-                        let ty = flds
-                            .iter()
-                            .find(|f| f.name == *field_name)
-                            .map(|f| f.ty.clone())
-                            .unwrap_or(Type::Int);
-                        symbols.insert(var.clone(), ty, false);
-                    }
-                    return;
-                }
+            && let EnumVariantPayload::Struct(flds) = &variant_def.payload
+        {
+            for (field_name, var) in fields {
+                let ty = flds
+                    .iter()
+                    .find(|f| f.name == *field_name)
+                    .map(|f| f.ty.clone())
+                    .unwrap_or(Type::Int);
+                symbols.insert(var.clone(), ty, false);
             }
+            return;
         }
         for (_field_name, var) in fields {
             symbols.insert(var.clone(), Type::Int, false);

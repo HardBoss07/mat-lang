@@ -8,7 +8,7 @@ use crate::ast::Expression;
 use crate::parser::utils::{get_span_between_ptrs, skip_ws_and_comments};
 
 pub fn parse_call_arguments(input: &mut &str) -> ModalResult<Vec<Expression>> {
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     if !input.starts_with('(') {
         return Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::default(),
@@ -18,7 +18,7 @@ pub fn parse_call_arguments(input: &mut &str) -> ModalResult<Vec<Expression>> {
 
     let mut args = Vec::new();
     loop {
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         if input.starts_with(')') {
             *input = &input[1..];
             return Ok(args);
@@ -27,10 +27,10 @@ pub fn parse_call_arguments(input: &mut &str) -> ModalResult<Vec<Expression>> {
         let arg = parse_expression.parse_next(input)?;
         args.push(arg);
 
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         if input.starts_with(',') {
             *input = &input[1..];
-            let _ = skip_ws_and_comments(input)?;
+            skip_ws_and_comments(input)?;
             if input.starts_with(')') {
                 *input = &input[1..];
                 return Ok(args);
@@ -50,7 +50,7 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
     let mut expr = parse_primary_expression.parse_next(input)?;
 
     loop {
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         if input.starts_with('(') {
             let callee_name = match &expr {
                 Expression::Identifier(name, _) => name.clone(),
@@ -61,7 +61,7 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
                 expr = Expression::Call {
                     callee: callee_name,
                     arguments: args,
-                    span: get_span_between_ptrs(start_offset, *input),
+                    span: get_span_between_ptrs(start_offset, input),
                 };
                 continue;
             }
@@ -77,7 +77,7 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
                 expr = Expression::TupleAccess {
                     expr: Box::new(expr),
                     index,
-                    span: get_span_between_ptrs(start_offset, *input),
+                    span: get_span_between_ptrs(start_offset, input),
                 };
                 continue;
             }
@@ -88,7 +88,7 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
             if let Ok(name) = ident_res {
                 let member_name = name.to_string();
                 let mut after_ident = ident_checkpoint;
-                let _ = skip_ws_and_comments(&mut after_ident)?;
+                skip_ws_and_comments(&mut after_ident)?;
                 if after_ident.starts_with('(') {
                     if let Ok(args) = parse_call_arguments.parse_next(&mut after_ident) {
                         *input = after_ident;
@@ -96,7 +96,7 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
                             receiver: Box::new(expr),
                             method: member_name,
                             args,
-                            span: get_span_between_ptrs(start_offset, *input),
+                            span: get_span_between_ptrs(start_offset, input),
                         };
                         continue;
                     }
@@ -105,7 +105,7 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
                     expr = Expression::FieldAccess {
                         expr: Box::new(expr),
                         field: member_name,
-                        span: get_span_between_ptrs(start_offset, *input),
+                        span: get_span_between_ptrs(start_offset, input),
                     };
                     continue;
                 }
@@ -116,14 +116,14 @@ pub fn parse_postfix_expression(input: &mut &str) -> ModalResult<Expression> {
             let mut checkpoint = *input;
             checkpoint = &checkpoint[1..];
             if let Ok(index) = parse_expression.parse_next(&mut checkpoint) {
-                let _ = skip_ws_and_comments(&mut checkpoint)?;
+                skip_ws_and_comments(&mut checkpoint)?;
                 if checkpoint.starts_with(']') {
                     checkpoint = &checkpoint[1..];
                     *input = checkpoint;
                     expr = Expression::ArrayAccess {
                         expr: Box::new(expr),
                         index: Box::new(index),
-                        span: get_span_between_ptrs(start_offset, *input),
+                        span: get_span_between_ptrs(start_offset, input),
                     };
                     continue;
                 }

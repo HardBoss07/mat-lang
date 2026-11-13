@@ -24,7 +24,7 @@ use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 ///
 /// Returns a [`winnow::error::ErrMode`] if no valid identifier begins at the current position.
 pub fn parse_single_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     let checkpoint = *input;
 
     if input.is_empty() {
@@ -58,7 +58,7 @@ pub fn parse_single_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a s
 ///
 /// Returns a [`winnow::error::ErrMode`] if no valid initial identifier is found.
 pub fn parse_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     let start = *input;
     let _ = parse_single_identifier_str(input)?;
 
@@ -90,12 +90,12 @@ pub fn parse_identifier_str<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
 /// Returns a [`winnow::error::ErrMode`] if identifier parsing fails.
 pub fn parse_identifier(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     let tok_start = *input;
     match parse_identifier_str.parse_next(input) {
         Ok(name) => Ok(Expression::Identifier(
             name.to_string(),
-            get_span_between(tok_start, *input),
+            get_span_between(tok_start, input),
         )),
         Err(err) => {
             *input = checkpoint;

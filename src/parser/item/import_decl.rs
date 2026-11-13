@@ -34,7 +34,7 @@ pub(crate) fn parse_import_with_start(
     input: &mut &str,
     start_input: &str,
 ) -> ModalResult<ImportDeclaration> {
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with("import") {
         return Err(winnow::error::ErrMode::Cut(
@@ -43,12 +43,12 @@ pub(crate) fn parse_import_with_start(
     }
     let _ = literal("import").parse_next(input)?;
     let _ = multispace1.parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let is_std = parse_import_std_prefix(input);
     let path = parse_import_segments(input)?;
 
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     if !input.starts_with(';') {
         return Err(winnow::error::ErrMode::Cut(
             winnow::error::ContextError::default(),
@@ -85,7 +85,7 @@ fn parse_import_segments(input: &mut &str) -> ModalResult<Vec<String>> {
 
     while input.starts_with("::") {
         *input = &input[2..];
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         let segment = parse_single_identifier_str
             .parse_next(input)
             .map_err(|_| winnow::error::ErrMode::Cut(winnow::error::ContextError::default()))?

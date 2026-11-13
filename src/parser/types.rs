@@ -10,7 +10,7 @@ use crate::parser::utils::skip_ws_and_comments;
 
 pub fn parse_type(input: &mut &str) -> ModalResult<Type> {
     let checkpoint = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if input.starts_with('(') {
         let tuple_res: ModalResult<Vec<Type>> =
@@ -28,19 +28,19 @@ pub fn parse_type(input: &mut &str) -> ModalResult<Type> {
         let mut inner_cp = *input;
         inner_cp = &inner_cp[1..];
         if let Ok(elem_type) = parse_type.parse_next(&mut inner_cp) {
-            let _ = skip_ws_and_comments(&mut inner_cp)?;
+            skip_ws_and_comments(&mut inner_cp)?;
             if inner_cp.starts_with(';') {
                 inner_cp = &inner_cp[1..];
-                let _ = skip_ws_and_comments(&mut inner_cp)?;
+                skip_ws_and_comments(&mut inner_cp)?;
                 let len_res: ModalResult<&str> = digit1.parse_next(&mut inner_cp);
-                if let Ok(len_str) = len_res {
-                    if let Ok(len) = len_str.parse::<usize>() {
-                        let _ = skip_ws_and_comments(&mut inner_cp)?;
-                        if inner_cp.starts_with(']') {
-                            inner_cp = &inner_cp[1..];
-                            *input = inner_cp;
-                            return Ok(Type::Array(Box::new(elem_type), len));
-                        }
+                if let Ok(len_str) = len_res
+                    && let Ok(len) = len_str.parse::<usize>()
+                {
+                    skip_ws_and_comments(&mut inner_cp)?;
+                    if inner_cp.starts_with(']') {
+                        inner_cp = &inner_cp[1..];
+                        *input = inner_cp;
+                        return Ok(Type::Array(Box::new(elem_type), len));
                     }
                 }
             }
@@ -63,12 +63,12 @@ pub fn parse_type(input: &mut &str) -> ModalResult<Type> {
             "String" => return Ok(Type::String),
             "void" => return Ok(Type::Void),
             "Vec" => {
-                let _ = skip_ws_and_comments(input)?;
+                skip_ws_and_comments(input)?;
                 if input.starts_with('<') {
                     *input = &input[1..];
-                    let _ = skip_ws_and_comments(input)?;
+                    skip_ws_and_comments(input)?;
                     let elem_ty = parse_type.parse_next(input)?;
-                    let _ = skip_ws_and_comments(input)?;
+                    skip_ws_and_comments(input)?;
                     if !input.starts_with('>') {
                         *input = checkpoint;
                         return Err(winnow::error::ErrMode::Backtrack(
@@ -85,12 +85,12 @@ pub fn parse_type(input: &mut &str) -> ModalResult<Type> {
                 }
             }
             "Result" => {
-                let _ = skip_ws_and_comments(input)?;
+                skip_ws_and_comments(input)?;
                 if input.starts_with('<') {
                     *input = &input[1..];
-                    let _ = skip_ws_and_comments(input)?;
+                    skip_ws_and_comments(input)?;
                     let ok_ty = parse_type.parse_next(input)?;
-                    let _ = skip_ws_and_comments(input)?;
+                    skip_ws_and_comments(input)?;
                     if !input.starts_with(',') {
                         *input = checkpoint;
                         return Err(winnow::error::ErrMode::Backtrack(
@@ -98,9 +98,9 @@ pub fn parse_type(input: &mut &str) -> ModalResult<Type> {
                         ));
                     }
                     *input = &input[1..];
-                    let _ = skip_ws_and_comments(input)?;
+                    skip_ws_and_comments(input)?;
                     let err_ty = parse_type.parse_next(input)?;
-                    let _ = skip_ws_and_comments(input)?;
+                    skip_ws_and_comments(input)?;
                     if !input.starts_with('>') {
                         *input = checkpoint;
                         return Err(winnow::error::ErrMode::Backtrack(

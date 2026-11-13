@@ -28,7 +28,7 @@ use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 /// Returns a [`winnow::error::ErrMode`] if parameter syntax is invalid.
 pub fn parse_param(input: &mut &str) -> ModalResult<Param> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let is_mutable = parse_param_mut_prefix(input)?;
 
@@ -39,7 +39,7 @@ pub fn parse_param(input: &mut &str) -> ModalResult<Param> {
             return Err(err);
         }
     };
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with(':') {
         return Err(winnow::error::ErrMode::Cut(
@@ -47,7 +47,7 @@ pub fn parse_param(input: &mut &str) -> ModalResult<Param> {
         ));
     }
     *input = &input[1..];
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let ty = parse_type.parse_next(input)?;
     let end_input = *input;
@@ -67,10 +67,10 @@ fn parse_param_mut_prefix(input: &mut &str) -> ModalResult<bool> {
         if after_mut
             .chars()
             .next()
-            .map_or(false, |c| c.is_whitespace() || c == '_')
+            .is_some_and(|c| c.is_whitespace() || c == '_')
         {
             let _ = literal("mut").parse_next(input)?;
-            let _ = skip_ws_and_comments(input)?;
+            skip_ws_and_comments(input)?;
             return Ok(true);
         }
     }
@@ -92,7 +92,7 @@ fn parse_param_mut_prefix(input: &mut &str) -> ModalResult<bool> {
 /// Returns a [`winnow::error::ErrMode`] if function syntax is invalid.
 pub fn parse_function(input: &mut &str) -> ModalResult<FunctionDeclaration> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let is_pub = parse_function_pub_prefix(input)?;
     parse_function_with_pub(input, is_pub, start_input)
@@ -103,7 +103,7 @@ fn parse_function_pub_prefix(input: &mut &str) -> ModalResult<bool> {
     if input.starts_with("pub") {
         let _ = literal("pub").parse_next(input)?;
         let _ = multispace1.parse_next(input)?;
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         Ok(true)
     } else {
         Ok(false)
@@ -123,19 +123,19 @@ pub(crate) fn parse_function_with_pub(
     }
     let _ = literal("fn").parse_next(input)?;
     let _ = multispace1.parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let name = parse_single_identifier_str
         .parse_next(input)
         .map_err(|_| winnow::error::ErrMode::Cut(winnow::error::ContextError::default()))?
         .to_string();
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let params = parse_function_param_list(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let return_type = parse_function_return_type(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let body = parse_block(input)?;
     let end_input = *input;
@@ -158,17 +158,17 @@ fn parse_function_param_list(input: &mut &str) -> ModalResult<Vec<Param>> {
         ));
     }
     *input = &input[1..];
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let mut params = Vec::new();
     if !input.starts_with(')') {
         while !input.is_empty() {
             let param = parse_param.parse_next(input)?;
             params.push(param);
-            let _ = skip_ws_and_comments(input)?;
+            skip_ws_and_comments(input)?;
             if input.starts_with(',') {
                 *input = &input[1..];
-                let _ = skip_ws_and_comments(input)?;
+                skip_ws_and_comments(input)?;
                 if input.starts_with(')') {
                     break;
                 }
@@ -191,7 +191,7 @@ fn parse_function_param_list(input: &mut &str) -> ModalResult<Vec<Param>> {
 fn parse_function_return_type(input: &mut &str) -> ModalResult<Type> {
     if input.starts_with("->") {
         *input = &input[2..];
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         parse_type.parse_next(input)
     } else {
         Ok(Type::Void)

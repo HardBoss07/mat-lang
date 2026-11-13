@@ -28,7 +28,7 @@ use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed.
 pub fn parse_global_let(input: &mut &str) -> ModalResult<GlobalLetDeclaration> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let is_pub = parse_global_let_pub_prefix(input)?;
     parse_global_let_with_pub(input, is_pub, start_input)
@@ -39,7 +39,7 @@ fn parse_global_let_pub_prefix(input: &mut &str) -> ModalResult<bool> {
     if input.starts_with("pub") {
         let _ = literal("pub").parse_next(input)?;
         let _ = multispace1.parse_next(input)?;
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         Ok(true)
     } else {
         Ok(false)
@@ -59,7 +59,7 @@ pub(crate) fn parse_global_let_with_pub(
     }
     let _ = literal("let").parse_next(input)?;
     let _ = multispace1.parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let is_mutable = parse_optional_mut(input)?;
 
@@ -67,10 +67,10 @@ pub(crate) fn parse_global_let_with_pub(
         .parse_next(input)
         .map_err(|_| winnow::error::ErrMode::Cut(winnow::error::ContextError::default()))?
         .to_string();
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let ty = parse_optional_type_annotation(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with('=') {
         return Err(winnow::error::ErrMode::Cut(
@@ -78,10 +78,10 @@ pub(crate) fn parse_global_let_with_pub(
         ));
     }
     *input = &input[1..];
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let value = parse_expression(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with(';') {
         return Err(winnow::error::ErrMode::Cut(
@@ -106,7 +106,7 @@ fn parse_optional_mut(input: &mut &str) -> ModalResult<bool> {
     if input.starts_with("mut") {
         let _ = literal("mut").parse_next(input)?;
         let _ = multispace1.parse_next(input)?;
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         Ok(true)
     } else {
         Ok(false)
@@ -117,7 +117,7 @@ fn parse_optional_mut(input: &mut &str) -> ModalResult<bool> {
 fn parse_optional_type_annotation(input: &mut &str) -> ModalResult<Option<crate::ast::Type>> {
     if input.starts_with(':') {
         *input = &input[1..];
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         Ok(Some(parse_type.parse_next(input)?))
     } else {
         Ok(None)

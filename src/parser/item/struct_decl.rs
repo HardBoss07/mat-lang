@@ -28,7 +28,7 @@ use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed.
 pub fn parse_struct_field(input: &mut &str) -> ModalResult<StructField> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let is_pub = parse_optional_pub(input)?;
 
@@ -36,7 +36,7 @@ pub fn parse_struct_field(input: &mut &str) -> ModalResult<StructField> {
         .parse_next(input)
         .map_err(|_| winnow::error::ErrMode::Cut(winnow::error::ContextError::default()))?
         .to_string();
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with(':') {
         return Err(winnow::error::ErrMode::Cut(
@@ -44,7 +44,7 @@ pub fn parse_struct_field(input: &mut &str) -> ModalResult<StructField> {
         ));
     }
     *input = &input[1..];
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let ty = parse_type.parse_next(input)?;
     let end_input = *input;
@@ -72,7 +72,7 @@ pub fn parse_struct_field(input: &mut &str) -> ModalResult<StructField> {
 /// Returns a [`winnow::error::ErrMode`] if the struct syntax is invalid.
 pub fn parse_struct(input: &mut &str) -> ModalResult<StructDeclaration> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let is_pub = parse_struct_pub_prefix(input)?;
     parse_struct_with_pub(input, is_pub, start_input)
@@ -83,7 +83,7 @@ fn parse_struct_pub_prefix(input: &mut &str) -> ModalResult<bool> {
     if input.starts_with("pub") {
         let _ = literal("pub").parse_next(input)?;
         let _ = multispace1.parse_next(input)?;
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         Ok(true)
     } else {
         Ok(false)
@@ -103,13 +103,13 @@ pub(crate) fn parse_struct_with_pub(
     }
     let _ = literal("struct").parse_next(input)?;
     let _ = multispace1.parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let name = parse_single_identifier_str
         .parse_next(input)
         .map_err(|_| winnow::error::ErrMode::Cut(winnow::error::ContextError::default()))?
         .to_string();
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let fields = parse_struct_field_list(input)?;
     let end_input = *input;
@@ -130,22 +130,22 @@ fn parse_struct_field_list(input: &mut &str) -> ModalResult<Vec<StructField>> {
         ));
     }
     *input = &input[1..];
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let mut fields = Vec::new();
     while !input.is_empty() && !input.starts_with('}') {
         let field = parse_struct_field.parse_next(input)?;
         fields.push(field);
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         if input.starts_with(',') {
             *input = &input[1..];
-            let _ = skip_ws_and_comments(input)?;
+            skip_ws_and_comments(input)?;
         } else {
             break;
         }
     }
 
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     if !input.starts_with('}') {
         return Err(winnow::error::ErrMode::Cut(
             winnow::error::ContextError::default(),

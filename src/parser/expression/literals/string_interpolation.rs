@@ -80,7 +80,7 @@ fn parse_interpolation_hole(input: &mut &str) -> Option<(Expression, FormatSpeci
 /// Returns [`winnow::error::ErrMode::Backtrack`] if not a string literal.
 pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     let tok_start = *input;
 
     if !input.starts_with('"') {
@@ -111,7 +111,7 @@ pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression>
                 parts.push((
                     Expression::StringLiteral(
                         current_text.clone(),
-                        get_span_between(tok_start, *input),
+                        get_span_between(tok_start, input),
                     ),
                     FormatSpecifier::None,
                 ));
@@ -137,10 +137,10 @@ pub fn parse_string_or_interpolated(input: &mut &str) -> ModalResult<Expression>
 
     let full_span = get_span_between(tok_start, tok_end);
 
-    if parts.len() == 1 {
-        if let (Expression::StringLiteral(s, _), FormatSpecifier::None) = &parts[0] {
-            return Ok(Expression::StringLiteral(s.clone(), full_span));
-        }
+    if parts.len() == 1
+        && let (Expression::StringLiteral(s, _), FormatSpecifier::None) = &parts[0]
+    {
+        return Ok(Expression::StringLiteral(s.clone(), full_span));
     }
 
     Ok(Expression::InterpolatedString(parts, full_span))

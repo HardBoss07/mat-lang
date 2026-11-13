@@ -93,10 +93,10 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         if let Some(last_colon) = name.rfind("::") {
             let enum_name = &name[..last_colon];
             let variant_name = &name[last_colon + 2..];
-            if let Some(enum_sym) = self.symbol_table.lookup_enum(enum_name) {
-                if enum_sym.variants.iter().any(|v| v.name == variant_name) {
-                    return self.compile_enum_init(Some(enum_name), variant_name, None);
-                }
+            if let Some(enum_sym) = self.symbol_table.lookup_enum(enum_name)
+                && enum_sym.variants.iter().any(|v| v.name == variant_name)
+            {
+                return self.compile_enum_init(Some(enum_name), variant_name, None);
             }
         }
 

@@ -194,15 +194,15 @@ impl<'a, 'ctx> FunctionCompiler<'a, 'ctx> {
         let struct_llvm_ty = self.engine.llvm_type(&struct_mat_ty);
         let field_llvm_ty = self.engine.llvm_type(field_ty);
 
-        if let Expression::Identifier(var_name, _) = expr {
-            if let Some((ptr, _)) = self.local_vars.get(var_name).cloned() {
-                return self.load_struct_field_from_ptr(
-                    struct_llvm_ty.into_struct_type(),
-                    ptr,
-                    field_idx as u32,
-                    field_llvm_ty,
-                );
-            }
+        if let Expression::Identifier(var_name, _) = expr
+            && let Some((ptr, _)) = self.local_vars.get(var_name).cloned()
+        {
+            return self.load_struct_field_from_ptr(
+                struct_llvm_ty.into_struct_type(),
+                ptr,
+                field_idx as u32,
+                field_llvm_ty,
+            );
         }
 
         let struct_val = self.compile_expression(expr)?;

@@ -35,7 +35,7 @@ where
     let mut left = parse_operand(input)?;
 
     loop {
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         match match_op(input)? {
             Some(op) => {
                 let right = parse_operand(input)?;

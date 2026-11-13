@@ -209,17 +209,16 @@ impl<'ctx> CodegenEngine<'ctx> {
             .unwrap()
             .get_terminator()
             .is_none()
+            && func.return_type == Type::Void
         {
-            if func.return_type == Type::Void {
-                if symbol_name == "main" {
-                    self.builder
-                        .build_return(Some(&self.context.i32_type().const_int(0, false)))
-                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
-                } else {
-                    self.builder
-                        .build_return(None)
-                        .map_err(|e| MatcError::CodegenError(e.to_string()))?;
-                }
+            if symbol_name == "main" {
+                self.builder
+                    .build_return(Some(&self.context.i32_type().const_int(0, false)))
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
+            } else {
+                self.builder
+                    .build_return(None)
+                    .map_err(|e| MatcError::CodegenError(e.to_string()))?;
             }
         }
 

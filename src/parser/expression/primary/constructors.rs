@@ -26,7 +26,7 @@ use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed or not matched.
 pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     let tok_start = *input;
 
     let is_ok = match check_result_constructor_tag(input, checkpoint)? {
@@ -63,19 +63,21 @@ pub fn parse_ok_or_err_expression(input: &mut &str) -> ModalResult<Expression> {
 
 /// Checks whether the prefix matches `Ok` or `Err` with valid identifier boundaries.
 fn check_result_constructor_tag(input: &str, _checkpoint: &str) -> ModalResult<Option<bool>> {
-    if input.starts_with("Ok") {
-        let after = &input[2..];
-        if after.chars().next().map_or(false, |character| {
-            character.is_alphanumeric() || character == '_'
-        }) {
+    if let Some(after) = input.strip_prefix("Ok") {
+        if after
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_alphanumeric() || character == '_')
+        {
             return Ok(None);
         }
         Ok(Some(true))
-    } else if input.starts_with("Err") {
-        let after = &input[3..];
-        if after.chars().next().map_or(false, |character| {
-            character.is_alphanumeric() || character == '_'
-        }) {
+    } else if let Some(after) = input.strip_prefix("Err") {
+        if after
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_alphanumeric() || character == '_')
+        {
             return Ok(None);
         }
         Ok(Some(false))
@@ -89,7 +91,7 @@ fn parse_enclosed_result_argument<'a>(
     input: &mut &'a str,
     checkpoint: &'a str,
 ) -> ModalResult<Expression> {
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     if !input.starts_with('(') {
         *input = checkpoint;
         return Err(winnow::error::ErrMode::Backtrack(
@@ -97,7 +99,7 @@ fn parse_enclosed_result_argument<'a>(
         ));
     }
     *input = &input[1..];
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let inner_expr = match crate::parser::expression::parse_expression.parse_next(input) {
         Ok(expr) => expr,
@@ -106,7 +108,7 @@ fn parse_enclosed_result_argument<'a>(
             return Err(err);
         }
     };
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with(')') {
         *input = checkpoint;
@@ -133,7 +135,7 @@ fn parse_enclosed_result_argument<'a>(
 /// Returns a [`winnow::error::ErrMode`] if syntax is malformed or not a struct init.
 pub fn parse_struct_init(input: &mut &str) -> ModalResult<Expression> {
     let checkpoint = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     let tok_start = *input;
 
     let struct_name = match parse_identifier_str.parse_next(input) {
@@ -144,7 +146,7 @@ pub fn parse_struct_init(input: &mut &str) -> ModalResult<Expression> {
         }
     };
 
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     if !input.starts_with('{') {
         *input = checkpoint;
         return Err(winnow::error::ErrMode::Backtrack(
@@ -152,7 +154,7 @@ pub fn parse_struct_init(input: &mut &str) -> ModalResult<Expression> {
         ));
     }
     *input = &input[1..];
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let fields = parse_struct_init_fields(input, checkpoint)?;
     let tok_end = *input;
@@ -179,7 +181,7 @@ fn parse_struct_init_fields<'a>(
             }
         };
 
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         if !input.starts_with(':') {
             *input = checkpoint;
             return Err(winnow::error::ErrMode::Backtrack(
@@ -187,7 +189,7 @@ fn parse_struct_init_fields<'a>(
             ));
         }
         *input = &input[1..];
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
 
         let val_expr = match crate::parser::expression::parse_expression.parse_next(input) {
             Ok(expr) => expr,
@@ -199,16 +201,16 @@ fn parse_struct_init_fields<'a>(
 
         fields.push((field_name, val_expr));
 
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         if input.starts_with(',') {
             *input = &input[1..];
-            let _ = skip_ws_and_comments(input)?;
+            skip_ws_and_comments(input)?;
         } else {
             break;
         }
     }
 
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
     if !input.starts_with('}') {
         *input = checkpoint;
         return Err(winnow::error::ErrMode::Backtrack(

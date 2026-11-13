@@ -27,13 +27,13 @@ use crate::parser::utils::{skip_ws_and_comments, symbol};
 
 pub fn parse_block(input: &mut &str) -> ModalResult<Vec<Statement>> {
     let _ = symbol("{").parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let mut statements = Vec::new();
     while !input.starts_with('}') && !input.is_empty() {
         let stmt = parse_statement.parse_next(input)?;
         statements.push(stmt);
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
     }
 
     let _ = symbol("}").parse_next(input)?;

@@ -20,8 +20,8 @@ use crate::parser::utils::{get_span_between, skip_ws_and_comments};
 /// # Errors
 ///
 /// Returns a [`winnow::error::ErrMode`] if the initial identifier is invalid.
-pub fn parse_assignment_target<'a>(input: &mut &'a str) -> ModalResult<String> {
-    let _ = skip_ws_and_comments(input)?;
+pub fn parse_assignment_target(input: &mut &str) -> ModalResult<String> {
+    skip_ws_and_comments(input)?;
     let start = *input;
     let _ = parse_single_identifier_str(input)?;
 
@@ -60,10 +60,10 @@ pub fn parse_assignment_target<'a>(input: &mut &'a str) -> ModalResult<String> {
 /// contain a valid `=` (non-`==`) operator or is missing a semicolon.
 pub fn parse_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let target = parse_assignment_target(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with('=') || input.starts_with("==") {
         return Err(winnow::error::ErrMode::Backtrack(
@@ -71,10 +71,10 @@ pub fn parse_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
         ));
     }
     *input = &input[1..];
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let value = parse_expression(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with(';') {
         return Err(winnow::error::ErrMode::Backtrack(
@@ -101,18 +101,18 @@ pub fn parse_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
 /// is found or the semicolon is missing.
 pub fn parse_compound_assignment_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let target = parse_assignment_target(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let (op, op_len) = parse_compound_operator(input)?;
 
     *input = &input[op_len..];
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let value = parse_expression(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with(';') {
         return Err(winnow::error::ErrMode::Backtrack(
@@ -161,10 +161,10 @@ fn parse_compound_operator(input: &str) -> ModalResult<(BinaryOp, usize)> {
 /// Returns a backtrack [`winnow::error::ErrMode`] if `++` or semicolon is missing.
 pub fn parse_increment_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let target = parse_assignment_target(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with("++") {
         return Err(winnow::error::ErrMode::Backtrack(
@@ -172,7 +172,7 @@ pub fn parse_increment_statement(input: &mut &str) -> ModalResult<Statement> {
         ));
     }
     *input = &input[2..];
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with(';') {
         return Err(winnow::error::ErrMode::Backtrack(
@@ -195,10 +195,10 @@ pub fn parse_increment_statement(input: &mut &str) -> ModalResult<Statement> {
 /// Returns a backtrack [`winnow::error::ErrMode`] if `--` or semicolon is missing.
 pub fn parse_decrement_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     let target = parse_assignment_target(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with("--") {
         return Err(winnow::error::ErrMode::Backtrack(
@@ -206,7 +206,7 @@ pub fn parse_decrement_statement(input: &mut &str) -> ModalResult<Statement> {
         ));
     }
     *input = &input[2..];
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if !input.starts_with(';') {
         return Err(winnow::error::ErrMode::Backtrack(

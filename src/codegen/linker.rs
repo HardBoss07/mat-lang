@@ -84,9 +84,9 @@ fn find_msvc_lib_paths() -> Vec<PathBuf> {
         PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe");
     let mut search_roots = Vec::new();
 
-    if vswhere_path.exists() {
-        if let Ok(output) = Command::new(&vswhere_path)
-            .args(&[
+    if vswhere_path.exists()
+        && let Ok(output) = Command::new(&vswhere_path)
+            .args([
                 "-products",
                 "*",
                 "-requires",
@@ -95,15 +95,13 @@ fn find_msvc_lib_paths() -> Vec<PathBuf> {
                 "installationPath",
             ])
             .output()
-        {
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                for line in stdout.lines() {
-                    let trimmed = line.trim();
-                    if !trimmed.is_empty() {
-                        search_roots.push(PathBuf::from(trimmed));
-                    }
-                }
+        && output.status.success()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                search_roots.push(PathBuf::from(trimmed));
             }
         }
     }
@@ -119,28 +117,9 @@ fn find_msvc_lib_paths() -> Vec<PathBuf> {
 
     for root in search_roots {
         let msvc_base = root.join("VC").join("Tools").join("MSVC");
-        if msvc_base.exists() {
-            if let Ok(entries) = fs::read_dir(&msvc_base) {
-                let mut versions: Vec<_> = entries
-                    .filter_map(|e| e.ok())
-                    .map(|e| e.path())
-                    .filter(|p| p.is_dir())
-                    .collect();
-                versions.sort();
-                if let Some(latest) = versions.last() {
-                    let lib_x64 = latest.join("lib").join("x64");
-                    if lib_x64.exists() {
-                        paths.push(lib_x64);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    let sdk_base = PathBuf::from(r"C:\Program Files (x86)\Windows Kits\10\Lib");
-    if sdk_base.exists() {
-        if let Ok(entries) = fs::read_dir(&sdk_base) {
+        if msvc_base.exists()
+            && let Ok(entries) = fs::read_dir(&msvc_base)
+        {
             let mut versions: Vec<_> = entries
                 .filter_map(|e| e.ok())
                 .map(|e| e.path())
@@ -148,14 +127,33 @@ fn find_msvc_lib_paths() -> Vec<PathBuf> {
                 .collect();
             versions.sort();
             if let Some(latest) = versions.last() {
-                let ucrt_x64 = latest.join("ucrt").join("x64");
-                let um_x64 = latest.join("um").join("x64");
-                if ucrt_x64.exists() {
-                    paths.push(ucrt_x64);
+                let lib_x64 = latest.join("lib").join("x64");
+                if lib_x64.exists() {
+                    paths.push(lib_x64);
+                    break;
                 }
-                if um_x64.exists() {
-                    paths.push(um_x64);
-                }
+            }
+        }
+    }
+
+    let sdk_base = PathBuf::from(r"C:\Program Files (x86)\Windows Kits\10\Lib");
+    if sdk_base.exists()
+        && let Ok(entries) = fs::read_dir(&sdk_base)
+    {
+        let mut versions: Vec<_> = entries
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .collect();
+        versions.sort();
+        if let Some(latest) = versions.last() {
+            let ucrt_x64 = latest.join("ucrt").join("x64");
+            let um_x64 = latest.join("um").join("x64");
+            if ucrt_x64.exists() {
+                paths.push(ucrt_x64);
+            }
+            if um_x64.exists() {
+                paths.push(um_x64);
             }
         }
     }

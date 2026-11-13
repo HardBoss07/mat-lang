@@ -26,13 +26,14 @@ pub fn parse_optional_pub(input: &mut &str) -> ModalResult<bool> {
         return Ok(false);
     }
     let after_pub = &input[3..];
-    let is_valid_pub_boundary = after_pub.chars().next().map_or(true, |character| {
-        character.is_whitespace() || character == '/' || character == '{'
-    });
+    let is_valid_pub_boundary = after_pub
+        .chars()
+        .next()
+        .is_none_or(|character| character.is_whitespace() || character == '/' || character == '{');
 
     if is_valid_pub_boundary {
         let _ = literal("pub").parse_next(input)?;
-        let _ = skip_ws_and_comments(input)?;
+        skip_ws_and_comments(input)?;
         Ok(true)
     } else {
         Ok(false)

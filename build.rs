@@ -108,18 +108,18 @@ fn collect_std_files(base_dir: &Path, current_dir: &Path, acc: &mut Vec<(String,
             let path = entry.path();
             if path.is_dir() {
                 collect_std_files(base_dir, &path, acc);
-            } else if path.extension().and_then(|s| s.to_str()) == Some("mat") {
-                if let Ok(rel) = path.strip_prefix(base_dir) {
-                    let mut components: Vec<_> = rel
-                        .components()
-                        .map(|c| c.as_os_str().to_string_lossy().to_string())
-                        .collect();
-                    if let Some(last) = components.last_mut() {
-                        *last = last.trim_end_matches(".mat").to_string();
-                    }
-                    let key = components.join("::");
-                    acc.push((key, path.canonicalize().unwrap_or(path)));
+            } else if path.extension().and_then(|s| s.to_str()) == Some("mat")
+                && let Ok(rel) = path.strip_prefix(base_dir)
+            {
+                let mut components: Vec<_> = rel
+                    .components()
+                    .map(|c| c.as_os_str().to_string_lossy().to_string())
+                    .collect();
+                if let Some(last) = components.last_mut() {
+                    *last = last.trim_end_matches(".mat").to_string();
                 }
+                let key = components.join("::");
+                acc.push((key, path.canonicalize().unwrap_or(path)));
             }
         }
     }

@@ -8,7 +8,7 @@ use crate::parser::utils::{get_span_between, keyword, skip_ws_and_comments, symb
 pub fn parse_return_statement(input: &mut &str) -> ModalResult<Statement> {
     let start_input = *input;
     let _ = keyword("return").parse_next(input)?;
-    let _ = skip_ws_and_comments(input)?;
+    skip_ws_and_comments(input)?;
 
     if input.starts_with(';') {
         let _ = symbol(";").parse_next(input)?;
